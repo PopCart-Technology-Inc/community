@@ -31,4 +31,4 @@ By contributing, you license your code under [AGPL-3.0](LICENSE) and your docume
 
 ## Decisions
 
-Bigger choices are written down in [docs/decisions](docs/decisions/) as numbered records: Proposed → Accepted or Rejected. To propose one, open a pull request with a new record.
+Bigger choices are written down in [docs/decisions](docs/decisions/) as numbered records: Proposed → Accepted or Rejected. Decisions 0001-0004 were accepted on 2026-10-15. To propose one, open a pull request with a new record.

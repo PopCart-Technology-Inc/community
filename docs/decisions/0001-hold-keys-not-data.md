@@ -1,6 +1,6 @@
 # 0001 · Hold keys, not data
 
-- **Status:** Proposed (2026-10-14). Pending acceptance by PopCart Technologies, Inc. and review by a Philippine privacy lawyer before launch.
+- **Status:** Accepted (2026-10-15) by PopCart Technologies, Inc. **Legal review: pending.** A Philippine privacy lawyer reviews this design before any personal data is collected.
 - **Licence:** CC BY 4.0
 
 ## Context

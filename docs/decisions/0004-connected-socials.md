@@ -1,6 +1,6 @@
 # 0004 · Connected socials: one home, everything connected
 
-- **Status:** Proposed (2026-10-14)
+- **Status:** Accepted (2026-10-15). Legal review pending before launch.
 - **Licence:** CC BY 4.0
 
 ## Context

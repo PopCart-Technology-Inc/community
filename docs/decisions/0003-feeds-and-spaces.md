@@ -1,6 +1,6 @@
 # 0003 · Feeds and spaces: no hidden algorithm, plenty of structure
 
-- **Status:** Proposed (2026-10-14)
+- **Status:** Accepted (2026-10-15). Legal review pending before launch.
 - **Licence:** CC BY 4.0
 
 ## Context

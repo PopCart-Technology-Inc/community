@@ -1,6 +1,6 @@
 # 0002 · Sign-up and phone verification
 
-- **Status:** Proposed (2026-10-14)
+- **Status:** Accepted (2026-10-15). Legal review pending before launch.
 - **Licence:** CC BY 4.0
 
 ## Context
