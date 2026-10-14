@@ -1,5 +1,7 @@
 # PopCart Community
 
+> **This repository is public. Security and leaks come first.** Before contributing, read [AGENTS.md](AGENTS.md) and run `git config core.hooksPath .githooks` once in your clone.
+
 The open network for people who work. Riders, fisherfolk, cooks, tutors, coders, tailors, everyone.
 
 Show your work, find your people, and get hired on proof, without an algorithm deciding who sees you and without anyone selling your data.
@@ -28,7 +30,8 @@ We build them one at a time, in that order. **Profiles come first.**
 2. **Sign instead of share.** PopCart issues signed credentials (W3C Verifiable Credentials) that you keep and show if you choose. No records get copied over.
 3. **Identity stays apart.** Your real name, phone and ID never come into Community.
 4. **Private means end-to-end encrypted.** The server stores what it cannot read.
-5. **Count, don't track.** Analytics are aggregate counts only, and groups that are too small are hidden.
+5. **Count, don't track.** Running the service needs only aggregate counts, and groups that are too small are hidden.
+6. **Improvement data, by choice.** Off until you switch it on, one switch per purpose, explained in plain words, shown on a public page, and deleted when you switch it off. Never sold, never for ads.
 
 Export or delete your account in one tap.
 

@@ -1,0 +1,20 @@
+# Public repo: keep local and secret files out by default (leakcheck blocks them too).
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.db
+*.log
+.claude/settings.local.json
+leakcheck-private.txt

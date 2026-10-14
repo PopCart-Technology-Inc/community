@@ -2,6 +2,16 @@
 
 Thanks for helping build PopCart Community. The project is at its very start, so the most useful contributions right now are issues and discussion about **Profiles**, the first part.
 
+## First: this repo is public
+
+Security and leaks come before everything else. Read [AGENTS.md](AGENTS.md), then switch on the leak checks once in your clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+They check every commit and push for secrets, personal data and internal details. Never skip them with `--no-verify`. CI runs the same checks plus gitleaks over the whole history.
+
 ## Ground rules
 
 - **Be kind.** See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
