@@ -16,19 +16,19 @@ Show your work, find your people, and get hired on proof, without an algorithm d
 | Part | What it does | Replaces |
 |---|---|---|
 | **Profiles** | Proof of your work: signed badges you carry and choose to show | the CV, the "trust me" |
-| **Feed** | Post once, reach anyone on Mastodon, Threads or any ActivityPub app. Newest first, no algorithm | Instagram, X |
-| **Groups** | Your barangay, your trade, your crew: events with a place, a time and who is going | Facebook groups |
+| **Feed** | Following is newest first; Near me, My trade and Picks are ranked by a public formula. Post once to Instagram, Facebook, TikTok and Threads | Instagram, X |
+| **Spaces** | Your barangay, trade or crew: channels for chat, posts, events, media and gigs, with roles and moderators | Facebook groups, Discord |
 | **Work** | Post a gig, pick on proof, pay person to person, rate on clear criteria | Upwork |
 
 We build them one at a time, in that order. **Profiles come first.**
 
 ## How it treats your data
 
-**We hold keys, not data.** See [docs/decisions/0001-hold-keys-not-data.md](docs/decisions/0001-hold-keys-not-data.md).
+**We hold keys, not data, and what the law makes us keep is sealed.** See [docs/decisions](docs/decisions/): [0001](docs/decisions/0001-hold-keys-not-data.md) data, [0002](docs/decisions/0002-sign-up-and-verification.md) sign-up, [0003](docs/decisions/0003-feeds-and-spaces.md) feeds and spaces, [0004](docs/decisions/0004-connected-socials.md) connected socials.
 
 1. **Collect less.** Only what a feature needs. No ad profiles, no tracking, no selling.
 2. **Sign instead of share.** PopCart issues signed credentials (W3C Verifiable Credentials) that you keep and show if you choose. No records get copied over.
-3. **Identity stays apart.** Your real name, phone and ID never come into Community.
+3. **Identity sealed.** Your phone and ID checks sit in a sealed vault, opened only for a court order, and you are told.
 4. **Private means end-to-end encrypted.** The server stores what it cannot read.
 5. **Count, don't track.** Running the service needs only aggregate counts, and groups that are too small are hidden.
 6. **Improvement data, by choice.** Off until you switch it on, one switch per purpose, explained in plain words, shown on a public page, and deleted when you switch it off. Never sold, never for ads.
