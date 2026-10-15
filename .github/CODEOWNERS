@@ -1,0 +1,14 @@
+# Every pull request needs an approving review from a maintainer before it can be merged.
+# The checks and repo rules get the same owners, and nobody can merge a change to them unreviewed.
+*                         @PopCart-Technology-Inc/community-maintainers
+
+/.github/                 @PopCart-Technology-Inc/community-maintainers
+/.githooks/               @PopCart-Technology-Inc/community-maintainers
+/.claude/                 @PopCart-Technology-Inc/community-maintainers
+/tools/                   @PopCart-Technology-Inc/community-maintainers
+/AGENTS.md                @PopCart-Technology-Inc/community-maintainers
+/SECURITY.md              @PopCart-Technology-Inc/community-maintainers
+/LICENSE                  @PopCart-Technology-Inc/community-maintainers
+/LICENSE-DOCS             @PopCart-Technology-Inc/community-maintainers
+/TRADEMARKS.md            @PopCart-Technology-Inc/community-maintainers
+/docs/decisions/          @PopCart-Technology-Inc/community-maintainers

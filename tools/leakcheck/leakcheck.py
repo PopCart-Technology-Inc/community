@@ -50,6 +50,10 @@ SOFT = [  # personal data and internal details: allowable with `leakcheck: allow
     ('local machine path', re.compile(r'(?i)(\b[a-z]:[\\/](users|program files|popcart)|/home/[a-z]|/Users/[a-z]|\\\\wsl)')),
 ]
 
+# A contributor's own address in their sign-off trailer is part of the DCO and already public as the
+# commit author. Private names are still checked on these lines.
+TRAILER = re.compile(r'(?i)^\s*(signed-off-by|co-authored-by):')
+
 EMAIL_OK = re.compile(r'(?i)^(support\.popcart@gmail\.com|noreply@anthropic\.com|[0-9]+\+[^@]+@users\.noreply\.github\.com|[^@]+@example\.(com|org|net))$')
 
 BAD_NAMES = re.compile(r'''(?ix)(^|/)(
@@ -93,7 +97,7 @@ class Checker:
     def add(self, where, rule, hit):
         self.findings.append('%s  %s  [%s]' % (where, rule, mask(hit)))
 
-    def text(self, where, path, text):
+    def text(self, where, path, text, message=False):
         for n, line in enumerate(text.splitlines(), 1):
             loc = '%s:%d' % (where, n)
             if path not in SKIP_HARD:
@@ -106,12 +110,13 @@ class Checker:
             low = line.lower()
             for t in self.private:
                 if t in low:
-                    self.add(loc, 'private name', t)
+                    self.findings.append('%s  private name  [hidden: CI logs are public]' % loc)
             if path in SKIP_SOFT:
                 continue
+            trailer = message and TRAILER.match(line)
             for rule, rx in SOFT:
                 for m in rx.finditer(line):
-                    if rule == 'email address' and EMAIL_OK.match(m.group(0)):
+                    if rule == 'email address' and (EMAIL_OK.match(m.group(0)) or trailer):
                         continue
                     self.add(loc, rule, m.group(0))
 
@@ -136,7 +141,7 @@ class Checker:
 
     def commit(self, sha):
         short = sha[:9]
-        self.text('%s (message)' % short, '', git('log', '-1', '--format=%B', sha))
+        self.text('%s (message)' % short, '', git('log', '-1', '--format=%B', sha), message=True)
         for path in git('diff-tree', '--no-commit-id', '-r', '--root', '--diff-filter=ACMRT', '--name-only', '-z', sha).split('\0'):
             if path:
                 self.blob('%s %s' % (short, path), path, git('show', '%s:%s' % (sha, path), binary=True))

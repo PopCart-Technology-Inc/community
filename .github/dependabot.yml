@@ -1,0 +1,10 @@
+# Keeps the pinned GitHub Actions up to date. Every update is a normal pull request: same checks,
+# same maintainer review.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci

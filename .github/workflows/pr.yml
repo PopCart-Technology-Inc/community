@@ -1,0 +1,23 @@
+# Pull request checks, required before a maintainer can merge. Runs with a read-only token and no
+# secrets, so it is safe for pull requests from forks. Never switch this to pull_request_target.
+name: pr
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  dco:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check tests
+        run: python3 -m unittest discover -s tools/ci
+      - name: Every commit is signed off (DCO)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci/dco.py "$BASE_SHA" "$HEAD_SHA"

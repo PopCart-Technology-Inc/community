@@ -45,4 +45,6 @@ Export or delete your account in one tap.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md). Every commit is signed off under the [Developer Certificate of Origin](https://developercertificate.org/). Security reports go to [SECURITY.md](SECURITY.md), never to public issues.
 
+Every pull request is checked and reviewed by a maintainer before it is merged. Versions follow [Semantic Versioning](https://semver.org/): see [CHANGELOG.md](CHANGELOG.md) and the [Releases](https://github.com/PopCart-Technology-Inc/community/releases) page.
+
 Copyright © 2026 PopCart Technologies, Inc. and the PopCart Community contributors.

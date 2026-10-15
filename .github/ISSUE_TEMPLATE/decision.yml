@@ -1,0 +1,21 @@
+name: Propose a decision
+description: A bigger choice to discuss before it becomes a numbered record in docs/decisions.
+labels: [decision]
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: The problem
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and your pick
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: How it fits the accepted decisions
+      description: Which of decisions 0001-0004 it touches, and how.
