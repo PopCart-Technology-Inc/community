@@ -86,6 +86,23 @@ class LeakcheckTest(unittest.TestCase):
             f.write('# comment\nhidden-box\n')
         self.assertEqual(run(self.repo, '--staged', env={'LEAKCHECK_PRIVATE_FILE': pf}).returncode, 1)
 
+    def test_private_name_is_never_printed(self):
+        self.stage('a.md', 'deployed on the hidden-box server\n')
+        r = run(self.repo, '--staged', env={'LEAKCHECK_PRIVATE': 'box'})
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn('box', r.stderr.lower().replace('hidden', ''), 'CI logs are public')
+
+    def test_sign_off_email_allowed_only_in_trailer(self):
+        self.stage('a.md', 'hello\n')
+        self.git('commit', '-q', '-m', 'Add a\n\nSigned-off-by: Ana Cruz <ana.cruz@yahoo.com>')
+        r = run(self.repo, '--history')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.stage('b.md', 'hello\n')
+        self.git('commit', '-q', '-m', 'Mail ana.cruz@yahoo.com\n\nSigned-off-by: Ana Cruz <ana.cruz@yahoo.com>')
+        self.assertEqual(run(self.repo, '--history').returncode, 1, 'outside the trailer it still blocks')
+        r = run(self.repo, '--range', 'HEAD~1', env={'LEAKCHECK_PRIVATE': 'ana.cruz'})
+        self.assertEqual(r.returncode, 1, 'private names are still checked in trailers')
+
     def test_forbidden_files_and_sizes(self):
         for name in ['.env', 'config/.env.production', 'deploy/server.pem', 'id_ed25519', 'gcp-service-account.json', 'dump.sqlite', 'app.apk']:
             with self.subTest(name=name):

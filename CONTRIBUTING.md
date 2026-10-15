@@ -27,7 +27,19 @@ Every commit needs a `Signed-off-by` line certifying the [Developer Certificate 
 git commit -s -m "Describe the change"
 ```
 
+Your sign-off email is public, like your commit email. To keep your own address private, use your GitHub noreply address (GitHub → Settings → Emails) for both.
+
 By contributing, you license your code under [AGPL-3.0](LICENSE) and your documentation under [CC BY 4.0](LICENSE-DOCS). The PopCart trademarks are not licensed; see [TRADEMARKS.md](TRADEMARKS.md).
+
+## How your pull request gets in
+
+1. Fork the repo, make a branch, commit with `-s`, and open a pull request. Fill in the checklist.
+2. **Checks run:** `leakcheck` and `dco` must be green. On your first pull requests a maintainer starts them for you.
+3. **A maintainer reviews it.** Nothing is merged without an approving review. If you push again after an approval, it needs a new one.
+4. **Squash merge.** Your pull request becomes one commit on `main`, and its CHANGELOG line waits under "Unreleased".
+5. **Release.** It ships in the next version (`v0.2.0` and so on), with notes on the [Releases](https://github.com/PopCart-Technology-Inc/community/releases) page.
+
+Versions follow [Semantic Versioning](https://semver.org/); the full process is in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Decisions
 

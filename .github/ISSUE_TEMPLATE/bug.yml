@@ -1,0 +1,25 @@
+name: Something is broken
+description: A bug in the code, the docs or the checks.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This repo is public.** Do not paste secrets, phone numbers, emails, IDs or other personal data. For a security problem, use the private report link instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to see it
+      placeholder: "1. ...\n2. ..."
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The release tag (for example v0.1.0) or commit you saw it on.

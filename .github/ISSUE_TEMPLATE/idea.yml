@@ -1,0 +1,21 @@
+name: Idea or feature
+description: Something PopCart Community should do.
+labels: [idea]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This repo is public.** Do not paste personal data. If the idea needs new personal data, say exactly what and why: the data rule (decision 0001) comes first.
+  - type: textarea
+    id: who
+    attributes:
+      label: Who it helps and how
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Personal data it needs
+      description: Write "none" if it needs none.
+    validations:
+      required: true
