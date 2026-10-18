@@ -7,6 +7,7 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 ### Added
 - The platform design, written to build from: principles, the familiar pattern behind each part, every screen, and what is not designed yet ([docs/design](docs/design/README.md)).
 - Decision 0005, accepted: **Places**, one feed that zooms from barangay to city, region, country and world, with a published rule per level, a mix rule so no city takes over the country feed, author-chosen reach, and location that never leaves the phone.
+- Every change is versioned: pull requests must add a line here, and a release must use the next version its lines call for. Checked by the pre-push hook, the pull request checks and the release workflow.
 
 ### Changed
 - Decision 0003: the "Near me" feed is now Places (decision 0005).

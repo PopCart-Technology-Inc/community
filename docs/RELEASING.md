@@ -10,7 +10,7 @@ fork or branch → pull request → checks → maintainer review → squash merg
 
 1. **Checks run** on every pull request. Both must be green:
    - `leakcheck`: our scanner and gitleaks over the whole history;
-   - `dco`: every commit is signed off by its author.
+   - `dco`: every commit is signed off by its author, and the change is versioned: it adds a line under `## [Unreleased]` in CHANGELOG.md, or it is a release with the right next version (`tools/ci/changelog.py check`, also run by the pre-push hook).
    For a contributor's first pull requests, a maintainer approves the workflow run first (GitHub asks for this for every outside contributor).
 2. **A maintainer reviews it** (CODEOWNERS: `@PopCart-Technology-Inc/community-maintainers`). Nobody can merge a pull request without that approval. A new push after the approval needs a fresh approval, and every review conversation must be resolved.
 3. **Squash merge.** Only squash merges are allowed, so `main` has one commit per pull request with the pull request title, and the sign-offs are kept in the message.
@@ -41,6 +41,16 @@ Versions follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 | Fix only | PATCH | PATCH |
 
 While the version starts with `0.`, nothing is stable yet and every release is marked a pre-release.
+
+This is applied to **every change, strictly**: no pull request merges without a CHANGELOG.md line, and `changelog.py check` works the next version out from the lines and refuses any other:
+
+| Lines in the release | Next version, before 1.0.0 | From 1.0.0 |
+|---|---|---|
+| any `### Removed`, or a line that says BREAKING | MINOR | MAJOR |
+| any `### Added`, `### Changed` or `### Deprecated` | MINOR | MINOR |
+| only `### Fixed` or `### Security` | PATCH | PATCH |
+
+A release adds exactly one dated section, right after an emptied `## [Unreleased]`, higher than the last release; released sections are never edited. Moving from 0.x to 1.0.0 is the maintainers' call and always allowed. The `release` workflow also refuses a tag that is not higher than every earlier tag. A pull request that only bumps a dependency (Dependabot) still gets a line, under `### Security` or `### Fixed`, which a maintainer adds before merging.
 
 ## 4. Cutting a release
 
