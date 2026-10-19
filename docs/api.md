@@ -34,9 +34,11 @@ Status: ✅ built · 🔨 being built.
 | GET | `/places/search?q=` | `{ areas: [{ code, name, level, parent_name }], as_of }` (max 20; names, never coordinates). `q` needs 2-60 characters; names starting with `q` come first. |
 | GET | `/places/:code` | `{ area: { code, name, level }, chain: [{ code, name, level }], as_of }`: `chain` starts with the area itself and walks up to World. |
 | GET | `/places/:code/children` | `{ areas, as_of }` (by name) |
+| GET | `/places/sources` | `{ sources: [{ country_code, publisher, dataset, edition, url, areas, imported_at }], as_of }`: who published each country's area list. The app shows it as the credit wherever place names are listed. `edition` is `null` when the importer was not told it. |
 
-Importer: `npm run places:import -- <psgc.csv>` loads the Philippine Standard Geographic Code (columns: 10-digit code, name, geographic level) and fills `city_code`, `region_code`, `country_code` for every area. Never ship coordinates.
+Importer: `npm run places:import -- <psgc.csv> [--edition "3Q 2026"]` loads the Philippine Standard Geographic Code (columns: 10-digit code, name, geographic level) and fills `city_code`, `region_code`, `country_code` for every area. Never ship coordinates.
 - A header row is optional; with one, the columns are found by name (a code/PSGC column, `Name`, a level column), so the published file works as is. A 9-digit code (leading zero lost in a spreadsheet) is padded.
+- Each run also records the source in `area_sources` (publisher, dataset, the `--edition` you give, the number of areas, the time). Give the edition printed on the file you downloaded; leave it out rather than guess.
 - Levels: `Reg` → region, `Prov` → province, `City`/`Mun`/`SubMun` → city, `Bgy` → barangay. Other levels (e.g. districts) are skipped and counted.
 - Parents from the code's prefixes: region = first 2 digits + `00000000`, province = first 5 + `00000`, city/municipality = first 7 + `000`; a parent missing from the file is skipped, so NCR cities hang from the region. A `SubMun` sits under its city, and its barangays roll up to that city for the City feed.
 - It upserts a `PH` row (Philippines, parent `WORLD`) and every area, in one transaction: re-running is safe. No PSGC data is committed to this repository.

@@ -16,7 +16,7 @@ await migrate(db);
 if (process.env.PLACES_CSV) {
   const { readFileSync } = await import('node:fs');
   const { parsePsgc, buildAreas, importAreas } = await import('./modules/places/import.ts');
-  const n = await importAreas(db, buildAreas(parsePsgc(readFileSync(process.env.PLACES_CSV, 'utf8')).rows));
+  const n = await importAreas(db, buildAreas(parsePsgc(readFileSync(process.env.PLACES_CSV, 'utf8')).rows), { edition: process.env.PLACES_EDITION });
   console.log(`dev: imported ${n} areas`);
 }
 const { server } = createApp(db, config);

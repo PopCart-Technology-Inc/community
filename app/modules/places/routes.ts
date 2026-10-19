@@ -10,6 +10,13 @@ const LEVEL_ORDER = `CASE a.level WHEN 'country' THEN 0 WHEN 'region' THEN 1 WHE
 const likeEscape = (s: string): string => s.replace(/[\\%_]/g, (c) => '\\' + c);
 
 export function register(r: Router): void {
+  // Who published each country's area list: the credit shown with place names. Before `/places/:code`.
+  r.get('/places/sources', async (ctx) => {
+    const sources = await ctx.db.query(
+      'SELECT country_code, publisher, dataset, edition, url, areas, imported_at FROM area_sources ORDER BY country_code');
+    return json({ sources, as_of: new Date().toISOString() });
+  });
+
   r.get('/places/search', async (ctx) => {
     const q = str(ctx.query.get('q'), 'q', { min: 2, max: 60 }).toLowerCase();
     const pat = likeEscape(q);

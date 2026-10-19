@@ -254,7 +254,17 @@ async function testCity(): Promise<{ reg: string; city: string; b1: string; b2: 
 test('places: import is safe to re-run; search, area chain and children', async () => {
   const areas = buildAreas(parsePsgc(CSV).rows);
   assert.equal(await importAreas(app.db, areas), 11);
-  assert.equal(await importAreas(app.db, areas), 11, 're-run upserts');
+  const before = await app.call('GET', '/places/sources');
+  assert.equal(before.status, 200);
+  assert.deepEqual(before.body.sources.map((s: { country_code: string; publisher: string; edition: string | null; areas: number }) => [s.country_code, s.publisher, s.edition, s.areas]),
+    [['PH', 'Philippine Statistics Authority', null, 11]], 'the source is recorded; no edition given means none, never a guess');
+  assert.equal(await importAreas(app.db, areas, { edition: 'Test 1' }), 11, 're-run upserts');
+  const src = (await app.call('GET', '/places/sources')).body.sources;
+  assert.equal(src.length, 1, 'one source per country');
+  assert.equal(src[0].edition, 'Test 1');
+  assert.match(src[0].url, /^https:\/\//);
+  assert.ok(Date.parse(src[0].imported_at) >= Date.parse(before.body.sources[0].imported_at));
+  await assert.rejects(importAreas(app.db, areas, { edition: '<b>x</b>' }), /edition/);
   const ph = await app.db.one<{ name: string; parent_code: string }>(`SELECT name, parent_code FROM areas WHERE code = 'PH'`);
   assert.deepEqual(ph, { name: 'Philippines', parent_code: 'WORLD' });
 
