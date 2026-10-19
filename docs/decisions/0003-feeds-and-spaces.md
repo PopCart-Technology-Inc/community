@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-10-15). Legal review pending before launch.
 - **Licence:** CC BY 4.0
+- **Changed by:** decision [0005](0005-places-geographic-feeds.md) (2026-10-19): the "Near me" feed is now **Places**, which zooms from barangay to world.
 
 ## Context
 
