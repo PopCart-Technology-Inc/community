@@ -65,6 +65,7 @@ export const ROUTES = [
   ['profile', '/u/:handle'],
   ['me', '/me'],
   ['settings', '/me/settings'],
+  ['invite', '/me/invite'],
   ['data', '/me/data'],
   ['proof', '/me/proof'],
   ['records', '/me/records'],

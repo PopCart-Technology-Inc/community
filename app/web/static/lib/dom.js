@@ -42,6 +42,7 @@ export function append(el, kids) {
 /** Stroke icons (generic shapes, drawn for this app). */
 const P = {
   home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10', search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM16 16l5 5', bell: 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4',
+  mail: 'M3 5h18v14H3zM3 6l9 7 9-7',
   hash: 'M4 9h16M4 15h16M10 3L8 21M16 3l-2 18', work: 'M3 8h18v12H3zM8 8V5h8v3M3 13h18', inbox: 'M4 4h16v16H4zM4 14h5l1 2h4l1-2h5',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0', pen: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4', plus: 'M12 5v14M5 12h14',
   reply: 'M21 12a8 8 0 0 1-12 7l-5 1 1-4.5A8 8 0 1 1 21 12z', heart: 'M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z',

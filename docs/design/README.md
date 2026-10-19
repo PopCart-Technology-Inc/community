@@ -36,6 +36,8 @@ Every name, number and post in the design is an example. The real product shows 
 
 **Safety:** report · your data (what we hold, choices, export, delete) · who opened my records · transparency report ("No numbers yet" until there are real ones) · moderator queue (Keep, Warn, Remove) · a court order with two approvals.
 
+**Email:** invite · join code · announcement layout. See [email.md](email.md).
+
 ## Places in one picture
 
 ```

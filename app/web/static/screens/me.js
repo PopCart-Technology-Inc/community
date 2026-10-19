@@ -135,9 +135,42 @@ export function settings() {
     h('div', { class: 'group' }, row('lock', 'Your data', 'What we hold, download, delete', '/me/data'), row('eye', 'Who opened my records', '', '/me/records'),
       row('shield', 'What moderators did', 'Removals and warnings, with appeals', '/me/actions'), row('star', 'Proof', 'Signed credentials you show', '/me/proof'), row('link', 'Your other accounts', '', '/me/socials')),
     h('h2', { class: 'sect' }, 'Community'),
-    h('div', { class: 'group' }, row('scale', 'Transparency report', '', '/transparency'), me.role === 'staff' ? row('flag', 'Moderator queue', 'Staff', '/mod') : null),
+    h('div', { class: 'group' }, row('scale', 'Transparency report', '', '/transparency'), me.role === 'staff' ? row('flag', 'Moderator queue', 'Staff', '/mod') : null,
+      me.role === 'staff' ? row('mail', 'Invite by email', 'Staff', '/me/invite') : null),
     h('div', { class: 'pad mb' }, btn('Log out', { block: true, kind: 'w', icon: 'logout', on: async () => { try { await post('/accounts/logout'); } catch { /* signed out anyway */ } state.me = null; window.dispatchEvent(new Event('cm:auth')); nav('/', { replace: true }); } })));
   return { node, title: 'Settings', tab: 'me' };
+}
+
+/* ---------- invite (staff) ---------- */
+
+// Invites go to an email address (decision 0008). The address is used to send the invite and is not
+// stored: this screen keeps no list of who was invited.
+export function invite() {
+  const me = state.me;
+  if (!me || me.role !== 'staff') return { node: h('div', null, appBar({ title: 'Invite by email', back: '/me/settings' }), errorBox({ status: me ? 403 : 401 })), title: 'Invite by email', tab: 'me' };
+  const email = h('input', { type: 'email', autocomplete: 'off', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', maxlength: '254', required: true });
+  const noteIn = h('input', { maxlength: '80', placeholder: 'Only staff see this' });
+  const err = h('p', { class: 'err', role: 'alert' });
+  const done = h('div', { aria: { live: 'polite' } });
+  const go = btn('Send invite', { block: true, type: 'submit', icon: 'send' });
+  const form = h('form', { class: 'pad', novalidate: true },
+    h('p', { class: 'sub' }, 'They get an email with the join page. Joining needs this address and a code we send to it, so the invite can\'t be passed on.'),
+    field('Email address', email), field('Note (optional)', noteIn),
+    err, h('div', { class: 'mt' }, go), done,
+    h('p', { class: 'hint' }, icon('lock', 'sm'), 'The address is used to send the invite. Community does not store it. Inviting the same address again renews it for 7 days.'));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); err.textContent = ''; done.replaceChildren();
+    const v = email.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { err.textContent = 'Type a full email address.'; email.focus(); return; }
+    go.disabled = true;
+    try {
+      const r = await post('/accounts/invites', { email: v, note: noteIn.value.trim() || undefined });
+      done.replaceChildren(h('div', { class: 'note-ok mt' }, icon('check', 'sm'), h('span', null, 'Invite sent to ', h('b', null, v), '. It works until ' + dateShort(r.expires_at) + '.')));
+      email.value = ''; noteIn.value = '';
+    } catch (x) { err.textContent = x.message; }
+    finally { go.disabled = false; }
+  });
+  return { node: h('div', { class: 'cream-page' }, appBar({ title: 'Invite by email', back: '/me/settings' }), form), title: 'Invite by email', tab: 'me' };
 }
 
 /* ---------- proof ---------- */

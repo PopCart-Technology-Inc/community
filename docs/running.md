@@ -21,14 +21,18 @@ Set the environment (never commit real values):
 | `BRAND_DIR` | optional brand pack (`sprite.svg`, `fonts/`). Not part of this repository: see TRADEMARKS.md |
 | `TRUST_PROXY` | `1` behind a reverse proxy or tunnel |
 | `CREDENTIAL_ISSUERS` | JSON: trusted credential issuers, issuer id → public JWK (docs/credentials.md) |
+| `EMAIL_HASH_KEY` | required: at least 32 random characters (`openssl rand -hex 32`). The key for the hash that matches an invited address; the address itself is never stored. Changing it retires open invites |
+| `RESEND_API_KEY` | the [Resend](https://resend.com) key that sends invites and join codes. Unset: on `http://localhost` emails are printed instead; on a public origin sending fails with 503 |
+| `MAIL_FROM` | the From line, e.g. `Community <hello@example.org>`, on a domain verified in Resend (required with `RESEND_API_KEY`) |
 
 ```
 npm start                                  # migrates, then listens
-npm run invite -- --staff --note "first"   # prints a one-time invite link
+npm run invite -- --email you@example.org --staff   # emails a one-time invite to that address
 npm run places:import -- psgc.csv --edition "3Q 2026"   # loads the Philippine Standard Geographic Code
+npm run mail:preview -- out/mail          # writes every email the app sends, to check the design
 ```
 
-Joining is invite-only until the privacy lawyer's review (decision 0006). The first staff account comes from `npm run invite -- --staff` on the server; staff then invite others from the app.
+Joining is invite-only until the privacy lawyer's review (decision 0006), and invites go to an email address (decision 0008). The first staff account comes from `npm run invite -- --email <address> --staff` on the server; staff then invite others from the app (Settings, Invite by email). The invited person opens the join page, types that address and the 6-digit code sent to it, then makes a passkey. `npm run dev:memory` invites `DEV_EMAIL` (default `you@example.com`) and prints the code in its window.
 
 ## Places data
 

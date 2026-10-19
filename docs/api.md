@@ -13,13 +13,14 @@ Status: ✅ built · 🔨 being built.
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
 | GET | `/terms` | | `{ version }` |
-| POST | `/accounts/invite/check` | `{ code }` | `{ ok, expires_at }` |
-| POST | `/accounts/register/options` | `{ code, handle, first_name, trade, home_area?, agree: true, adult: true, terms_version, improve_usage, improve_surveys }` | `{ challengeId, options }` (WebAuthn creation options) |
+| POST | `/accounts/join/start` | `{ email }` | 202 `{ sent: true, resend_after_seconds, code_minutes }`, the same reply whether or not the address has an invite; a 6-digit code is emailed only if it has one (one per 30 s, 5 per hour per address) |
+| POST | `/accounts/join/verify` | `{ email, code }` | `{ ticket, ticket_minutes }`; 400 `code_invalid` (tries left in the message) or `code_expired` (10 minutes, one use, 5 tries) |
+| POST | `/accounts/register/options` | `{ ticket, handle, first_name, trade, home_area?, agree: true, adult: true, terms_version, improve_usage, improve_surveys }` | `{ challengeId, options }` (WebAuthn creation options) |
 | POST | `/accounts/register/verify` | `{ challengeId, response }` | 201 `{ user }` + session cookie |
 | POST | `/accounts/login/options` | | `{ challengeId, options }` |
 | POST | `/accounts/login/verify` | `{ challengeId, response }` | `{ user }` + session cookie |
 | POST | `/accounts/logout` | | 204 |
-| POST | `/accounts/invites` | `{ note? }` (staff) | 201 `{ code, url, expires_in_days }` |
+| POST | `/accounts/invites` | `{ email, note? }` (staff) | 201 `{ sent: true, expires_at, expires_in_days }`: emails the invite (decision 0008). An open invite for the same address is renewed. 503 `mail_down` if the email cannot be sent (then no invite is made) |
 | GET | `/me` | | `{ user }` or `{ user: null }` |
 | PATCH | `/me` | any of `first_name, bio, trade, home_area, improve_usage, improve_surveys, avatar_media_id, cover_media_id, dm_public_key` | `{ user }` |
 | GET | `/people?trade=` | | `{ people }` suggestions: same trade and home area, never contacts |

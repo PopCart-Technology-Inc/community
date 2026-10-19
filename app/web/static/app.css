@@ -248,6 +248,10 @@ textarea.bare-area:focus-visible { outline: 3px solid var(--blue); border-radius
 .tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 999px; background: var(--white); border: 1.5px solid var(--ink500); transition: left 120ms; }
 .tg[aria-checked="true"] { background: var(--ink); } .tg[aria-checked="true"]::after { left: 23px; border-color: var(--ink); }
 .passkey-art { width: 96px; height: 96px; margin: 24px auto 8px; border-radius: 999px; background: var(--cream); display: grid; place-items: center; }
+.field input.codein { font: 600 28px/1 var(--mono); letter-spacing: .4em; text-align: center; }
+.linkrow { text-align: center; margin: 8px 0 0; }
+.note-ok { display: flex; gap: 8px; align-items: flex-start; padding: 12px 14px; border: var(--edge); border-radius: 14px; background: var(--kiwi); font-size: 14px; }
+.linkbtn { min-height: 44px; padding: 0 12px; font-weight: 700; font-size: 14px; color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
 .suggest { border: var(--hair); border-radius: 14px; margin-top: 6px; overflow: hidden; }
 .suggest button { display: block; width: 100%; min-height: 44px; padding: 8px 14px; border-bottom: var(--hair); text-align: left; }
 .suggest button:last-child { border-bottom: 0; }

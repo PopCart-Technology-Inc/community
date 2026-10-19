@@ -7,6 +7,8 @@ import { createApp } from './server.ts';
 
 const config = loadConfig();
 if (!config.databaseUrl) throw new Error('DATABASE_URL is not set');
+if (!config.emailKey || config.emailKey.length < 32) throw new Error('EMAIL_HASH_KEY is not set (at least 32 random characters)');
+if (config.resendKey && !config.mailFrom) throw new Error('MAIL_FROM is not set (needed with RESEND_API_KEY)');
 mkdirSync(config.mediaDir, { recursive: true });
 const db = await connectPg(config.databaseUrl);
 await migrate(db, (s) => console.log(JSON.stringify({ level: 'info', msg: s })));

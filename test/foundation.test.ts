@@ -1,11 +1,14 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { manilaWeek } from '../app/modules/shared.ts';
-import { createInvite, TERMS_VERSION } from '../app/modules/accounts/routes.ts';
+import { inviteByEmail, TERMS_VERSION } from '../app/modules/accounts/routes.ts';
+import { devOutbox } from '../app/mail/send.ts';
+import { limits, RateLimiter } from '../app/http/security.ts';
 import { startApp, type TestApp } from './helpers.ts';
 
 let app: TestApp;
-before(async () => { app = await startApp(); });
+// Every test call comes from 127.0.0.1, so the per-address sign-in limit would trip: widen it here.
+before(async () => { app = await startApp(); limits.auth = new RateLimiter(1000, 60_000); });
 after(async () => { await app.close(); });
 
 test('health, security headers, JSON errors', async () => {
@@ -36,20 +39,77 @@ test('CSRF: a write from another origin is refused', async () => {
   assert.equal(none.status, 403, 'no Origin header: refused');
 });
 
-test('invites: only staff create them; a used or wrong code is refused', async () => {
+/** The last test email sent to an address (the dev outbox: no email service in tests). */
+const lastMail = (to: string) => [...devOutbox].reverse().find((m) => m.to === to);
+const codeIn = (to: string) => /\b(\d{6})\b/.exec(lastMail(to)?.subject || '')?.[1] || '';
+
+/** Invite an address, ask for a code, check it: the join ticket. */
+async function ticketFor(email: string): Promise<string> {
+  await inviteByEmail(app.db, app.config, { email, days: 1 });
+  assert.equal((await app.call('POST', '/accounts/join/start', { email })).status, 202);
+  const v = await app.call('POST', '/accounts/join/verify', { email, code: codeIn(email) });
+  assert.equal(v.status, 200);
+  return v.body.ticket;
+}
+
+test('invites go to an email address: only staff send them, and no code or link comes back', async () => {
   const member = await app.person();
-  assert.equal((await member.call('POST', '/accounts/invites', {})).status, 403);
+  assert.equal((await member.call('POST', '/accounts/invites', { email: 'a@example.com' })).status, 403);
   const staff = await app.person({ role: 'staff' });
-  const made = await staff.call('POST', '/accounts/invites', { note: 'tester' });
+  assert.equal((await staff.call('POST', '/accounts/invites', { email: 'not an email' })).status, 400);
+  const made = await staff.call('POST', '/accounts/invites', { email: ' Invited.Person@Example.com ', note: 'tester' });
   assert.equal(made.status, 201);
-  assert.match(made.body.url, /\/join\?code=[A-Z0-9]{12}$/);
-  assert.equal((await app.call('POST', '/accounts/invite/check', { code: made.body.code })).status, 200);
-  assert.equal((await app.call('POST', '/accounts/invite/check', { code: 'WRONGCODE123' })).status, 404);
+  assert.deepEqual(Object.keys(made.body).sort(), ['expires_at', 'expires_in_days', 'sent']);
+  const mail = lastMail('invited.person@example.com')!;
+  assert.match(mail.subject, /invited/);
+  assert.match(mail.text, /: http:\/\/localhost:8080\/join$/m);
+  assert.doesNotMatch(mail.html + mail.text, /join\?/, 'the link carries no code');
+  // the address itself is not stored anywhere
+  const rows = await app.db.query<Record<string, unknown>>('SELECT * FROM invites');
+  assert.doesNotMatch(JSON.stringify(rows), /invited\.person/i);
+  // inviting again renews the same invite rather than adding one
+  const n = (await app.db.query('SELECT 1 FROM invites WHERE email_hash IS NOT NULL')).length;
+  await staff.call('POST', '/accounts/invites', { email: 'invited.person@example.com' });
+  assert.equal((await app.db.query('SELECT 1 FROM invites WHERE email_hash IS NOT NULL')).length, n);
+});
+
+test('join code: sent only to an invited address, same reply either way; wrong tries run out; one use', async () => {
+  const before = devOutbox.length;
+  const stranger = await app.call('POST', '/accounts/join/start', { email: 'nobody@example.com' });
+  assert.equal(stranger.status, 202);
+  assert.equal(devOutbox.length, before, 'no email to an address without an invite');
+  await inviteByEmail(app.db, app.config, { email: 'coder@example.com', days: 1 });
+  const invited = await app.call('POST', '/accounts/join/start', { email: 'coder@example.com' });
+  assert.deepEqual(invited.body, stranger.body);
+  const code = codeIn('coder@example.com');
+  assert.match(code, /^\d{6}$/);
+  assert.match(lastMail('coder@example.com')!.html, new RegExp(`>${code}<`));
+  // asking again at once sends nothing new (30 s between codes)
+  const sent = devOutbox.length;
+  await app.call('POST', '/accounts/join/start', { email: 'coder@example.com' });
+  assert.equal(devOutbox.length, sent);
+  const wrong = code === '000000' ? '111111' : '000000';
+  const w = await app.call('POST', '/accounts/join/verify', { email: 'coder@example.com', code: wrong });
+  assert.equal(w.body.error.code, 'code_invalid');
+  assert.match(w.body.error.message, /4 tries left/);
+  assert.equal((await app.call('POST', '/accounts/join/verify', { email: 'nobody@example.com', code })).body.error.code, 'code_expired');
+  const ok = await app.call('POST', '/accounts/join/verify', { email: 'Coder@Example.com', code });
+  assert.equal(ok.status, 200);
+  assert.match(ok.body.ticket, /^[A-Za-z0-9_-]{32}$/);
+  assert.equal((await app.call('POST', '/accounts/join/verify', { email: 'coder@example.com', code })).body.error.code, 'code_expired', 'a code works once');
+  // five wrong tries end the code, even for the right one after
+  await inviteByEmail(app.db, app.config, { email: 'tries@example.com', days: 1 });
+  await app.call('POST', '/accounts/join/start', { email: 'tries@example.com' });
+  const real = codeIn('tries@example.com');
+  const bad = real === '000000' ? '111111' : '000000';
+  for (let k = 0; k < 5; k++) await app.call('POST', '/accounts/join/verify', { email: 'tries@example.com', code: bad });
+  assert.equal((await app.call('POST', '/accounts/join/verify', { email: 'tries@example.com', code: real })).body.error.code, 'code_expired');
 });
 
 test('joining needs the unticked box ticked, 18+, the current terms, a free username', async () => {
-  const code = await createInvite(app.db, { days: 1 });
-  const good = { code, handle: 'new.person', first_name: 'Ana', trade: 'creator', agree: true, adult: true, terms_version: TERMS_VERSION };
+  const ticket = await ticketFor('ana@example.com');
+  assert.equal((await app.call('POST', '/accounts/register/options', { ticket: 'made-up-ticket-0000000000' })).body.error.code, 'invite_invalid');
+  const good = { ticket, handle: 'new.person', first_name: 'Ana', trade: 'creator', agree: true, adult: true, terms_version: TERMS_VERSION };
   assert.equal((await app.call('POST', '/accounts/register/options', { ...good, agree: false })).body.error.code, 'agree');
   assert.equal((await app.call('POST', '/accounts/register/options', { ...good, adult: false })).body.error.code, 'adult');
   assert.equal((await app.call('POST', '/accounts/register/options', { ...good, terms_version: '2020-01-01' })).status, 409);

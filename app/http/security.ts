@@ -66,6 +66,8 @@ export const limits = {
   write: new RateLimiter(60, 60_000),
   auth: new RateLimiter(20, 10 * 60_000),
   upload: new RateLimiter(30, 60 * 60_000),
+  /** Join codes asked for per email address. */
+  mail: new RateLimiter(5, 60 * 60_000),
 };
 
 export function limit(l: RateLimiter, key: string): void {
