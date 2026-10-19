@@ -4,6 +4,10 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-19
+
+The platform's first working version, invite-only until the privacy lawyer's review.
+
 ### Added
 - The platform design, written to build from: principles, the familiar pattern behind each part, every screen, and what is not designed yet ([docs/design](docs/design/README.md)).
 - Decision 0005, accepted: **Places**, one feed that zooms from barangay to city, region, country and world, with a published rule per level, a mix rule so no city takes over the country feed, author-chosen reach, and location that never leaves the phone.
@@ -40,5 +44,6 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.2.0
 [0.1.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.1.0
