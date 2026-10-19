@@ -118,29 +118,32 @@ A **post** in responses: `{ id, author: person, body, created_at, reply_to, spac
 
 Deviations from the first draft: `POST /spaces/:slug/read` added; `DELETE /spaces/:slug/members { handle }` removes a member; conversations gained `started_by`, `a_read_at`, `b_read_at` (migration `0003_spaces.sql`) for Requests and unread; `dm_public_key` also comes with message authors and member lists so browsers can derive keys.
 
-## Work 🔨 (`work/`)
+## Work ✅ (`work/`)
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
-| GET | `/gigs` | `?tab=for_you|newest|saved|mine&level=&code=&trade=&min_pay=&before` | `{ gigs, rule, as_of }`. Newest: time only. For you: published formula (distance, trade, poster trust), explained by `rule`. |
-| POST | `/gigs` | `{ title, body, pay_amount, pay_unit, pay_note?, when_text, paid_how, skills[], area_code?, space_id? }` | 201 `{ gig }`. Needs the ID check (credential `IdentityCheck`). |
-| GET | `/gigs/:id` | | `{ gig, poster: person + trust, my_application? }` |
-| PATCH | `/gigs/:id` | poster: `{ status }` | `{ gig }` |
-| POST | `/gigs/:id/applications` | `{ note, credential_ids[] }` | 201 `{ application }` (one per person; never your own gig) |
-| GET | `/gigs/:id/applications` | poster only | `{ applications: [{ id, person, note, credentials[], status, created_at }] }` |
-| POST | `/applications/:id/pick` | poster | 204 (gig becomes `filled`) |
+| GET | `/gigs` | `?tab=for_you|newest|saved|mine&level=&code=&trade=&min_pay=&before` | `{ gigs, tab, rule, as_of }` (For you also `weights`). Newest (default, no sign-in needed): open gigs, time only. For you: open gigs from the last 30 days, ranked by the published formula below; each gig carries its `signals` and `score`; `before` is ignored (top `limit`). Saved: gigs you saved, last saved first (any status). Mine: gigs you posted (any status). Filters: `level` + `code` (area; default your home area) like Places, `trade` (the gig lists it as a skill), `min_pay` (whole pesos, any unit). |
+| POST | `/gigs` | `{ title, body, pay_amount, pay_unit, pay_note?, when_text, paid_how, skills[], area_code?, space_id? }` | 201 `{ gig }`. Needs the ID check (credential `IdentityCheck`), else 403 `id_check`. `pay_unit` one of fixed, hour, day, night, run; `skills` at most 8; `area_code` default: your home area; `space_id` needs membership. |
+| GET | `/gigs/:id` | | `{ gig, poster: person + trust, my_application }` (`trust` is the `/people/:handle/work` record; `my_application` null when none) |
+| PATCH | `/gigs/:id` | poster: `{ status }` (open, filled, closed) | `{ gig }` |
+| POST / DELETE | `/gigs/:id/save` | | 204 |
+| POST | `/gigs/:id/applications` | `{ note, credential_ids[] }` | 201 `{ application }`. One per person (409 `already_applied`); never your own gig (403 `own_gig`); open gigs only (409 `not_open`); at most 10 credentials, each your own, shown and verified (400 `credential`). Notifies the poster. |
+| GET | `/gigs/:id/applications` | poster only (403 `not_poster`) | `{ applications: [{ id, person, note, credentials[], status, done_by_poster, done_by_applicant, created_at }], as_of }`. Credentials appear only while the applicant keeps them shown. |
+| POST | `/applications/:id/pick` | poster | 204 (gig becomes `filled`; the picked person is notified). 409 when the gig is no longer open. |
 | POST | `/applications/:id/done` | poster or picked applicant | 204 |
-| POST | `/gigs/:id/ratings` | `{ on_time, quality, easy, again }` 1-5, after both marked done | 201 |
-| GET | `/people/:handle/work` | | `{ ratings: { count, on_time, quality, easy, again }, gigs_posted, gigs_done, paid_on_time_share, as_of }` |
+| POST | `/gigs/:id/ratings` | `{ on_time, quality, easy, again }` 1-5, after both marked done | 201 `{ rating }`. Poster rates the picked worker, worker rates the poster; once per gig per rater (409 `already_rated`); before both marked done 409 `not_done`; anyone else 403 `not_part`. |
+| GET | `/people/:handle/work` | | `{ ratings: { count, on_time, quality, easy, again }, gigs_posted, gigs_done, paid_on_time_share, as_of }`. Averages of ratings received (null when none). `gigs_done`: picked and marked done by both sides, as the worker. `paid_on_time_share`: of workers' ratings of this person as poster, the share with `on_time` 4 or 5 (null when none). |
 
-A **gig**: `{ id, poster: person, title, body, pay_amount, pay_currency, pay_unit, pay_note, when_text, paid_how, skills, place, distance_hint, status, applicants, created_at, saved }`. Community never holds money: `paid_how` is always shown.
+A **gig**: `{ id, poster: person, title, body, pay_amount, pay_currency, pay_unit, pay_note, when_text, paid_how, skills, place, distance_hint, status, applicants, created_at, saved, space_id }`. Community never holds money: `paid_how` is always shown, and there are no other payment fields. Gigs in a private Space are seen by its members only.
 
-**Credentials (decision 0001, point 2):**
+**For you ranking** (`app/modules/work/weights.ts`, returned as `rule` and `weights`): `score = 3*near + 2*trade + 1.5*trust + 1*fresh`. `near` = 1 same barangay, 0.5 same city, 0.25 same region (your home area, never your location); `trade` = 1 when the gig lists your trade as a skill; `trust` = the poster's average rating mapped 1-5 → 0-1, times n/(n+3) for n ratings received; `fresh = 1 / (1 + hours/24)`. Your own gigs are left out. Ties: newest first. No paid boosts.
+
+**Credentials ✅ (decision 0001, point 2).** The exact format an issuer must produce, and every error code: [credentials.md](credentials.md).
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | `/me/credentials` | | `{ credentials }` |
-| POST | `/me/credentials` | `{ vc }` (a W3C Verifiable Credential JSON) | 201 `{ credential }` after checking: issuer in the trusted list (`CREDENTIAL_ISSUERS` env: issuer id → public JWK), signature valid (Ed25519 or ES256 JWS over the credential without `proof`), subject is this person's handle, not expired. Stores `summary` and `as_of` from the claims. |
+| GET | `/me/credentials` | | `{ credentials: [{ id, issuer, type, summary, as_of, verified, verified_at, shown, created_at }], as_of }` |
+| POST | `/me/credentials` | `{ vc }` (a W3C Verifiable Credential JSON) | 201 `{ credential }` after checking: issuer in the trusted list (`CREDENTIAL_ISSUERS` env: issuer id → public JWK), signature valid (Ed25519 or ES256 detached JWS over the canonical JSON of the credential without `proof`), subject is `community:@<handle>`, `issuanceDate` not in the future, `expirationDate` (required) not passed. Stores `summary` and `as_of` from the claims. Anything else: 400 with a code. A new credential with the same issuer and type replaces the old one (same id). |
 | PATCH | `/me/credentials/:id` | `{ shown }` | `{ credential }` |
 | DELETE | `/me/credentials/:id` | | 204 |
 
