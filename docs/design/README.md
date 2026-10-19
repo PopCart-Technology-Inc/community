@@ -9,7 +9,7 @@ Every name, number and post in the design is an example. The real product shows 
 1. **Content is the star.** Inside the app the brand takes a small part of the screen: the wordmark, the main button, the active tab, the verified badge. Posts are separated by hairlines, not boxed. The loud brand style is kept for the welcome screen.
 2. **Familiar first.** People should know how to use it in the first minute, so each part follows a pattern they already know (table below).
 3. **Our differences stay visible but quiet:** "Why you're seeing this", Salamat instead of likes, signed proof of work, and a lock line on private Spaces and messages.
-4. **Phone and web.** The phone app has five tabs and a compose button. The web app has three columns.
+4. **Phone, tablet and web.** The phone app has five tabs and a compose button. A tablet gets an icon rail and one column. The web app has three columns, with labels from 1280 px ([layout](../web.md#layout)).
 5. **Accessible.** 15 px body text, 44 px tap targets, text contrast at AA or better, focus rings, and every control reachable without gestures.
 
 | Part | Pattern people know | Our difference |
