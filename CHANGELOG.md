@@ -4,6 +4,18 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
+A promise we could not keep is withdrawn.
+
+### Changed
+- "Before you join" no longer says "we never show you ads" or "no tracking", because advertising is on PopCart's roadmap. It now says: "We never sell your data. Any ad is clearly labelled." (English and Filipino). The welcome screen and the footer say the same.
+- Decisions 0001 and 0002 record the change; "never sold" stays.
+
+### Added
+- Decision 0007, **proposed** (not in force): how ads would work. Labelled, in separate slots that never change the ranking, chosen by context only, never from messages, private Spaces, the vault or improvement data, no third-party tracking, totals only for advertisers. The app shows no ads until a decision is accepted.
+- A test that fails if a withdrawn promise comes back to any screen.
+
 ## [0.2.0] - 2026-10-19
 
 The platform's first working version, invite-only until the privacy lawyer's review.
@@ -44,6 +56,7 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.3.0
 [0.2.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.2.0
 [0.1.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.1.0

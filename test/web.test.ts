@@ -221,3 +221,16 @@ test('app/web holds no brand art, fonts, inline styles or HTML injection', () =>
     }
   }
 });
+
+test('promises on screen are ones we keep: never sold, ads labelled; no "no ads" or "no tracking" (decision 0007)', () => {
+  const root = join(import.meta.dirname, '..', 'app', 'web');
+  const files: string[] = [];
+  const walk = (d: string) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.(js|html)$/.test(f)) files.push(p); } };
+  walk(root);
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8');
+    assert.doesNotMatch(src, /no ads|show you ads|walang ads|no tracking|walang tracking/i, 'withdrawn promise in ' + relative(root, f));
+  }
+  const join_ = readFileSync(join(root, 'static', 'screens', 'join.js'), 'utf8');
+  assert.match(join_, /We never sell your data\. Any ad is clearly labelled\./);
+});

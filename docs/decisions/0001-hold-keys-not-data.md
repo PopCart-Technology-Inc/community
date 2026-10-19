@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-10-15) by PopCart Technologies, Inc. **Legal review: pending.** A Philippine privacy lawyer reviews this design before any personal data is collected.
 - **Licence:** CC BY 4.0
+- **Changed** (2026-10-19): the words "no ad profiles, no tracking" were withdrawn from layer 1, because advertising is on PopCart's roadmap and we will not make a promise we may break. How ads may work is decided in [0007](0007-advertising.md). "Never sold" stays.
 
 ## Context
 
@@ -13,7 +14,7 @@ Philippine law applies whatever we decide: the Data Privacy Act (RA 10173), whic
 
 **Hold keys, not data.** Five layers:
 
-1. **Collect less.** Community stores only what a feature needs. No ad profiles, no tracking, no selling, ever.
+1. **Collect less.** Community stores only what a feature needs. Your data is never sold, ever. Advertising follows decision [0007](0007-advertising.md).
 2. **Sign instead of share.** PopCart's closed apps never send their records into Community. When a person asks, PopCart issues a signed credential (W3C Verifiable Credential), for example "1,240 deliveries, 97% on time, as of 14 Oct 2026". The person keeps it and decides whether to show it, and anyone can check the signature. Credentials carry an "as of" date and are re-issued from live data.
 3. **A sealed identity vault, apart from the profile.** The law expects a platform to be able to answer a court (RA 10175 Sec. 13 and 14, RA 11930), so we keep the minimum, sealed:
 

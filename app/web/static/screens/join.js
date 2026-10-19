@@ -20,7 +20,7 @@ export function welcome() {
     illustration('rider', 'ill'),
     h('div', { class: 'hero' },
       h('h1', { class: 'x big', tabindex: '-1' }, 'The network for people who work.'),
-      h('p', { class: 'lede' }, 'Show your work. Find your crew. Get hired. Open source, never sold.'),
+      h('p', { class: 'lede' }, 'Show your work. Find your crew. Get hired. Open source, and your data is never sold.'),
       btn('Look around first', { block: true, href: '/places' }),
       btn('Log in with passkey', { block: true, kind: 'w', href: '/login' }),
       h('p', { class: 'center hint' }, 'Joining is by invite while we finish the privacy review. Got an invite link? Open it to join.')));
@@ -65,14 +65,14 @@ const POINTS = {
   en: [
     ['lock', 'Your sign-in records are sealed, kept apart from your profile.'],
     ['scale', 'They are opened only for a court order. Two people approve, every opening is logged, and you are told.'],
-    ['eyeoff', 'We never sell your data or show you ads. No tracking.'],
+    ['eyeoff', 'We never sell your data. Any ad is clearly labelled.'],
     ['users', 'The community rules apply to everyone, staff included.'],
     ['user', 'You must be 18 or older.'],
   ],
   fil: [
     ['lock', 'Selyado ang records ng pag-sign in mo, hiwalay sa profile mo.'],
     ['scale', 'Bubuksan lang ang mga ito kapag may utos ng korte. Dalawang tao ang mag-aapruba, nakatala ang bawat pagbukas, at sasabihan ka.'],
-    ['eyeoff', 'Hindi namin ibinebenta ang data mo at walang ads. Walang tracking.'],
+    ['eyeoff', 'Hindi namin ibinebenta ang data mo. May malinaw na label ang anumang ad.'],
     ['users', 'Pareho ang patakaran ng komunidad para sa lahat, kasama ang staff.'],
     ['user', 'Dapat 18 taong gulang ka pataas.'],
   ],

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-10-15). Legal review pending before launch.
 - **Licence:** CC BY 4.0
+- **Changed** (2026-10-19): the third point no longer says "or show you ads", because advertising is on PopCart's roadmap ([0007](0007-advertising.md)). It now promises only what we will keep.
 
 ## Context
 
@@ -14,7 +15,7 @@ Every account needs a verified phone ([0001](0001-hold-keys-not-data.md), layer 
 2. **Before you join:** five plain points, in English and Filipino:
    - your phone and login records are kept, sealed;
    - they are opened only for a court order, and you are told;
-   - we never sell your data or show you ads;
+   - we never sell your data, and any ad is clearly labelled;
    - the community rules apply to everyone;
    - you must be 18 or older.
    Each point links to the full Terms, Privacy notice and Community rules.

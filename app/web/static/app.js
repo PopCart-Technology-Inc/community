@@ -119,7 +119,7 @@ function buildRail(force) {
   if (!force && Date.now() - railAt < 120000) return;
   railAt = Date.now();
   const me = state.me;
-  const foot = h('div', { class: 'wfoot' }, h('a', { href: '/transparency' }, 'Transparency'), h('a', { href: '/places' }, 'Places'), h('br'), 'No ads. No tracking. Never sold. Open source.');
+  const foot = h('div', { class: 'wfoot' }, h('a', { href: '/transparency' }, 'Transparency'), h('a', { href: '/places' }, 'Places'), h('br'), 'Your data is never sold. Any ad is labelled. Open source.');
   if (!me) { wside.replaceChildren(h('div', { class: 'wcard' }, h('h2', null, 'Join by invite'), h('p', null, 'Community is invite-only while the privacy review is done.'), btn('Log in', { sm: true, href: '/login' })), foot); return; }
   const happening = h('section', { class: 'wcard', aria: { label: 'Happening in your city' } }, h('h2', null, 'Happening near you'), h('p', { class: 'foot' }, 'Loading…'));
   const spaces = h('section', { class: 'wcard', aria: { label: 'Spaces near you' } }, h('h2', null, 'Spaces near you'));
