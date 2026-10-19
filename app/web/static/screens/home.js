@@ -68,6 +68,22 @@ async function chainOf(code) {
   return chains.get(code);
 }
 
+/** Credit for place names, from whoever published the area list (GET /places/sources). Empty if none or on error. */
+let sourcesReq = null;
+function placesCredit() {
+  const box = h('p', { class: 'hint' });
+  sourcesReq = sourcesReq || get('/places/sources').catch((e) => { sourcesReq = null; throw e; });
+  sourcesReq.then((r) => {
+    // "Philippine Standard Geographic Code (PSGC), 3Q 2026, from the Philippine Statistics Authority. Updated 19 Oct 2026."
+    const s = (r.sources || []).map((x) => [
+      x.dataset + (x.edition ? ', ' + x.edition : '') + ', from the ',
+      /^https:\/\//.test(x.url) ? h('a', { class: 'linkish', href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.publisher) : x.publisher,
+      '. Updated ' + new Date(x.imported_at).toLocaleDateString(undefined, { dateStyle: 'medium' }) + '. ']);
+    if (s.length) box.replaceChildren(icon('info', 'sm'), h('span', null, 'Place names: ', ...s.flat()));
+  }).catch(() => {});
+  return box;
+}
+
 const RECENT = 'places.recent';
 function remember(a) {
   const list = (local.get(RECENT, []) || []).filter((x) => x && x.code !== a.code);
@@ -103,7 +119,7 @@ function placeSheet({ inside, level } = {}) {
       out.push(h('h3', { class: 'sect' }, 'Recent'), ...recent.map((a) => h('button', { type: 'button', class: 'li', on: { click: () => pick(a) } },
         h('span', { class: 'ico-c' }, icon('clock', 'sm')), h('div', { class: 'grow' }, h('div', { class: 't1' }, a.name), h('div', { class: 't2' }, a.parent_name || '')))));
     }
-    out.push(h('p', { class: 'hint' }, icon('lock', 'sm'), 'Recent places are kept on this device only. Your exact location never leaves your phone.'));
+    out.push(h('p', { class: 'hint' }, icon('lock', 'sm'), 'Recent places are kept on this device only. Your exact location never leaves your phone.'), placesCredit());
     return out;
   });
 }
@@ -180,7 +196,7 @@ export function places({ params, query }) {
     emptyNode: empty('No posts here yet', 'Nobody has posted in this place at this level. Try zooming out.'),
   });
 
-  return { node: h('div', null, homeBar(), h('div', { class: 'stickyhd' }, feedTabs('places'), head), h1('Places'), list), title: 'Places', tab: 'home' };
+  return { node: h('div', null, homeBar(), h('div', { class: 'stickyhd' }, feedTabs('places'), head), h1('Places'), list, placesCredit()), title: 'Places', tab: 'home' };
 }
 
 /* ---------- My trade, Picks ---------- */

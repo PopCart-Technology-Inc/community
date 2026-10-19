@@ -4,6 +4,15 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-19
+
+Place names now credit who published them.
+
+### Added
+- Places credits its source. The Places screen and the place picker show who published the place names, with the edition and when the list was last updated, for example the Philippine Statistics Authority's Philippine Standard Geographic Code. The credit comes from the data, not fixed text, so it stays true after each re-import.
+- `GET /places/sources` returns the source of each country's area list.
+- The importer records the source on every run and takes the edition: `npm run places:import -- psgc.csv --edition "3Q 2026"`. Without `--edition` none is shown (never guessed).
+
 ## [0.3.0] - 2026-10-19
 
 A promise we could not keep is withdrawn.
@@ -56,7 +65,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.0
 [0.3.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.3.0
 [0.2.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.2.0
 [0.1.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.1.0

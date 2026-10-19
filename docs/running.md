@@ -25,14 +25,14 @@ Set the environment (never commit real values):
 ```
 npm start                                  # migrates, then listens
 npm run invite -- --staff --note "first"   # prints a one-time invite link
-npm run places:import -- psgc.csv          # loads the Philippine Standard Geographic Code
+npm run places:import -- psgc.csv --edition "3Q 2026"   # loads the Philippine Standard Geographic Code
 ```
 
 Joining is invite-only until the privacy lawyer's review (decision 0006). The first staff account comes from `npm run invite -- --staff` on the server; staff then invite others from the app.
 
 ## Places data
 
-Places (decision 0005) needs the area list. For the Philippines that is the **Philippine Standard Geographic Code** published by the Philippine Statistics Authority (psa.gov.ph, "PSGC", the quarterly Publication Datafile). Save its main sheet as CSV and import it. The data stays out of this repository; acknowledge PSA as the source wherever it is shown.
+Places (decision 0005) needs the area list. For the Philippines that is the **Philippine Standard Geographic Code** published by the Philippine Statistics Authority (psa.gov.ph, "PSGC", the quarterly Publication Datafile). Save its main sheet as CSV and import it with the edition printed on the file (e.g. `--edition "3Q 2026"`). The data stays out of this repository. The importer records PSA as the source, and the app credits it, with the edition and the import time, on the Places screen and the place picker (`GET /places/sources`). Re-import each quarter so the list stays current.
 
 ## Docker
 

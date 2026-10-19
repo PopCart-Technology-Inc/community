@@ -1,4 +1,4 @@
-// npm run places:import -- <psgc.csv>   (needs DATABASE_URL)
+// npm run places:import -- <psgc.csv> [--edition "3Q 2026"]   (needs DATABASE_URL)
 //
 // Loads the Philippine Standard Geographic Code (PSGC, a published dataset) into `areas`. The CSV needs
 // three columns: the 10-digit PSGC code, the name, and the geographic level (Reg, Prov, City, Mun,
@@ -9,6 +9,9 @@
 // 00000, city or municipality = first 7 + 000. A parent that is not in the file is skipped (so NCR
 // cities hang directly from the region). A SubMun is stored as a city under its city; its barangays
 // roll up to that city for the City feed.
+//
+// Every import also records the source (publisher, dataset, the edition you give, the time) in
+// `area_sources`, which the app shows as the credit for place names.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +23,14 @@ export interface AreaRow {
   code: string; name: string; level: 'region' | 'province' | 'city' | 'barangay'; parent_code: string;
   city_code: string | null; region_code: string | null; country_code: 'PH';
 }
+
+/** The publisher of the PSGC, credited wherever place names are shown. */
+export const PSGC_SOURCE = {
+  publisher: 'Philippine Statistics Authority',
+  dataset: 'Philippine Standard Geographic Code (PSGC)',
+  url: 'https://psa.gov.ph/classification/psgc',
+} as const;
+const EDITION = /^[0-9A-Za-z][0-9A-Za-z ._-]{0,29}$/;
 
 const LEVEL_MAP: Record<PsgcLevel, AreaRow['level']> = { Reg: 'region', Prov: 'province', City: 'city', Mun: 'city', SubMun: 'city', Bgy: 'barangay' };
 const LEVEL_ORDER: AreaRow['level'][] = ['region', 'province', 'city', 'barangay'];
@@ -112,8 +123,14 @@ export function buildAreas(rows: readonly PsgcRow[]): AreaRow[] {
   return out.sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level) || (a.level === 'city' && b.level === 'city' ? Number(a.city_code !== a.code) - Number(b.city_code !== b.code) : 0));
 }
 
-/** Upsert the PH country row and every area. Safe to run again. Returns the number of areas written. */
-export async function importAreas(db: Db, areas: readonly AreaRow[]): Promise<number> {
+/**
+ * Upsert the PH country row and every area, and record the source. Safe to run again. `edition` is the
+ * published edition (e.g. "3Q 2026"), shown next to the credit; leave it out when unknown, never guess.
+ * Returns the number of areas written.
+ */
+export async function importAreas(db: Db, areas: readonly AreaRow[], opts: { edition?: string } = {}): Promise<number> {
+  const edition = opts.edition?.trim() || null;
+  if (edition !== null && !EDITION.test(edition)) throw new Error('places:import: the edition must be 1-30 letters, digits, spaces, dots or dashes');
   return db.tx(async (t) => {
     await t.query(
       `INSERT INTO areas (code, name, level, parent_code, country_code) VALUES ('PH', 'Philippines', 'country', 'WORLD', 'PH')
@@ -132,14 +149,22 @@ export async function importAreas(db: Db, areas: readonly AreaRow[]): Promise<nu
          ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, level = EXCLUDED.level, parent_code = EXCLUDED.parent_code,
            city_code = EXCLUDED.city_code, region_code = EXCLUDED.region_code, country_code = EXCLUDED.country_code`, vals);
     }
+    await t.query(
+      `INSERT INTO area_sources (country_code, publisher, dataset, edition, url, areas, imported_at) VALUES ('PH', $1, $2, $3, $4, $5, now())
+       ON CONFLICT (country_code) DO UPDATE SET publisher = EXCLUDED.publisher, dataset = EXCLUDED.dataset, edition = EXCLUDED.edition,
+         url = EXCLUDED.url, areas = EXCLUDED.areas, imported_at = EXCLUDED.imported_at`,
+      [PSGC_SOURCE.publisher, PSGC_SOURCE.dataset, edition, PSGC_SOURCE.url, areas.length]);
     return areas.length;
   });
 }
 
 // ---- command line ----
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const file = process.argv[2];
-  if (!file) { console.error('usage: npm run places:import -- <psgc.csv>'); process.exit(2); }
+  const args = process.argv.slice(2);
+  const ei = args.indexOf('--edition');
+  const edition = ei >= 0 ? args.splice(ei, 2)[1] : undefined;
+  const file = args[0];
+  if (!file || (ei >= 0 && !edition)) { console.error('usage: npm run places:import -- <psgc.csv> [--edition "3Q 2026"]'); process.exit(2); }
   const { loadConfig } = await import('../../config.ts');
   const { connectPg } = await import('../../db/index.ts');
   const { migrate } = await import('../../db/migrate.ts');
@@ -149,7 +174,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const areas = buildAreas(rows);
   const db = await connectPg(config.databaseUrl);
   await migrate(db);
-  const n = await importAreas(db, areas);
+  const n = await importAreas(db, areas, { edition });
   console.log(`places:import: ${n} areas written, ${skipped} rows skipped`);
   await db.close();
 }
