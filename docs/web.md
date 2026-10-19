@@ -43,7 +43,7 @@ app/web/
 | `/` | Following (signed out: welcome) |
 | `/places`, `/places/:level/:code` | Places with the five-stop zoom |
 | `/trade`, `/picks` | My trade, Monday Picks |
-| `/join?code=` · `/login` | Join with an invite and a passkey · passkey login |
+| `/join` · `/login` | Join: the invited email address, the code sent to it, then the five steps and a passkey · passkey login |
 | `/p/:id` · `/compose` | A post and replies · new post (`?space=<id>&name=` to post in a Space) |
 | `/explore` · `/activity` | Search and explore · notifications |
 | `/spaces` · `/s/:slug` · `/s/:slug/c/:channel` | Your Spaces · a Space · a channel |
@@ -51,6 +51,7 @@ app/web/
 | `/work` · `/gigs/new` · `/gigs/:id` · `/gigs/:id/apply` · `/gigs/:id/applicants` · `/gigs/:id/rate` | Work |
 | `/u/:handle` · `/me` | A profile · your own profile |
 | `/me/settings`, `/me/data`, `/me/proof`, `/me/records`, `/me/actions`, `/me/socials` | Settings and your data |
+| `/me/invite` | Invite by email (staff) |
 | `/report?kind=&id=` · `/transparency` · `/mod` | Report · transparency report · moderator queue |
 
 ## Rules the code keeps

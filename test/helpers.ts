@@ -34,7 +34,7 @@ export async function startApp(): Promise<TestApp> {
   const db = await memoryDb();
   await migrate(db);
   const port = 0;
-  const config = { ...loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', MEDIA_DIR: mkdtempSync(join(tmpdir(), 'cm-media-')) }), port };
+  const config = { ...loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', MEDIA_DIR: mkdtempSync(join(tmpdir(), 'cm-media-')), EMAIL_HASH_KEY: randomBytes(32).toString('hex') }), port };
   const { server } = createApp(db, config);
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

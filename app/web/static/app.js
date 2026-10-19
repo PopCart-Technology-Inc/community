@@ -13,18 +13,18 @@ import { activity, compose, explore, following, picks, places, postDetail, trade
 import { channel, spacePage, spacesList } from './screens/spaces.js';
 import { dm, inbox } from './screens/messages.js';
 import { applicants, apply, gigCard, gigPage, newGig, rate, work } from './screens/work.js';
-import { meRedirect, profile, proof, settings, socials } from './screens/me.js';
+import { invite, meRedirect, profile, proof, settings, socials } from './screens/me.js';
 import { actions, data, mod, records, report, transparency } from './screens/safety.js';
 
 const SCREENS = {
   home: following, places, placesAt: places, trade, picks, join, login, post: postDetail, compose, explore, activity,
   spaces: spacesList, space: spacePage, channel, inbox, dm, work, gigNew: newGig, gig: gigPage, apply, applicants, rate,
-  profile, me: meRedirect, settings, data, proof, records, actions, socials, report, transparency, mod,
+  profile, me: meRedirect, settings, invite, data, proof, records, actions, socials, report, transparency, mod,
 };
 const GROUP = {
   home: 'home', places: 'places', placesAt: 'places', trade: 'home', picks: 'home', post: 'home', compose: 'home', explore: 'explore', activity: 'activity',
   spaces: 'spaces', space: 'spaces', channel: 'spaces', inbox: 'inbox', dm: 'inbox', work: 'work', gigNew: 'work', gig: 'work', apply: 'work', applicants: 'work', rate: 'work',
-  me: 'me', settings: 'me', data: 'me', proof: 'me', records: 'me', actions: 'me', socials: 'me',
+  me: 'me', settings: 'me', invite: 'me', data: 'me', proof: 'me', records: 'me', actions: 'me', socials: 'me',
 };
 const TAB_OF = { places: 'home', explore: 'home', activity: 'home' };
 const routes = compile(ROUTES);
@@ -129,7 +129,7 @@ function buildRail(force) {
   // Search first, as on X: it searches Spaces (Explore).
   const q = h('input', { type: 'search', placeholder: 'Search Spaces', aria: { label: 'Search Spaces' } });
   const search = h('form', { class: 'search wsearch', role: 'search', on: { submit: (e) => { e.preventDefault(); const v = q.value.trim(); go(v ? '/explore?q=' + encodeURIComponent(v) : '/explore'); } } }, icon('search', 'sm'), q);
-  if (!me) { wside.replaceChildren(search, h('div', { class: 'wcard' }, h('h2', null, 'Join by invite'), h('p', null, 'Community is invite-only while the privacy review is done. Got an invite link? Open it to join.'), btn('Log in', { sm: true, href: '/login' })), foot); return; }
+  if (!me) { wside.replaceChildren(search, h('div', { class: 'wcard' }, h('h2', null, 'Join by invite'), h('p', null, 'Community is invite-only while the privacy review is done. Invites go to an email address: join with the one yours went to.'), h('div', { class: 'row wrap' }, btn('Join', { sm: true, kind: 'y', icon: 'mail', href: '/join' }), btn('Log in', { sm: true, kind: 'w', href: '/login' }))), foot); return; }
   const happening = h('section', { class: 'wcard', aria: { label: 'Happening in your city' } }, h('h2', null, 'Happening near you'), h('p', { class: 'foot' }, 'Loading…'));
   const spaces = h('section', { class: 'wcard', aria: { label: 'Spaces near you' } }, h('h2', null, 'Spaces near you'));
   const gigs = h('section', { class: 'wcard', aria: { label: 'Gigs for you' } }, h('h2', null, 'Gigs for you'));

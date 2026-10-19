@@ -6,7 +6,7 @@ import { creationOptionsFromJSON, credentialToJSON, requestOptionsFromJSON } fro
 import { HANDLE_RE, TRADES, tradeLabel } from '../lib/format.js';
 import { brandName, illustration } from '../lib/brand.js';
 import { nav, state } from '../core.js';
-import { appBar, btn, choiceChips, empty, errorBox, fail, field, followBtn, later, loading, personRow, toggle } from '../ui.js';
+import { appBar, btn, choiceChips, empty, errorBox, fail, field, followBtn, later, personRow, toast, toggle } from '../ui.js';
 
 const authed = (user) => { state.me = user; window.dispatchEvent(new Event('cm:auth')); };
 const canPasskey = () => typeof window.PublicKeyCredential === 'function' && !!navigator.credentials;
@@ -33,7 +33,7 @@ export function welcome() {
       h('div', { class: 'cta' },
         btn('Look around first', { block: true, href: '/places' }),
         btn('Log in with passkey', { block: true, kind: 'w', href: '/login' })),
-      h('p', { class: 'hint' }, 'Joining is by invite while we finish the privacy review. Got an invite link? Open it to join.')),
+      h('p', { class: 'hint' }, 'Joining is by invite while we finish the privacy review. Invited? ', h('a', { href: '/join' }, 'Join with your email'), '.')),
     h('ul', { class: 'parts', aria: { label: 'What is in Community' } }, PARTS.map(([ic, name, href, text]) =>
       h('li', null, h('a', { href }, h('span', { class: 'pi' }, icon(ic, 'lg b')), h('b', null, name), h('span', null, text))))));
   return { node, bare: true, cls: 'bare-welcome', title: 'Welcome' };
@@ -68,7 +68,7 @@ export function login({ query }) {
     h('h1', { tabindex: '-1' }, 'Log in'),
     h('p', { class: 'sub' }, 'Use the passkey on this phone or computer: your fingerprint, face or screen lock. No password.'),
     go, msg,
-    h('p', { class: 'hint' }, icon('info', 'sm'), 'New here? Joining is by invite for now: open your invite link.'))));
+    h('p', { class: 'hint' }, icon('info', 'sm'), h('span', null, 'New here? Joining is by invite for now. ', h('a', { href: '/join' }, 'Join with your invited email'), '.')))));
   return { node, bare: true, cls: 'authpage', title: 'Log in' };
 }
 
@@ -97,36 +97,94 @@ const T = {
   fil: { h: 'Bago ka sumali', sub: 'Limang bagay, sa simpleng salita.', agree: (v) => `Nabasa ko at sang-ayon ako sa Terms, Privacy notice at Community rules (bersyon ${v}).`, adult: 'Ako ay 18 taong gulang pataas.', go: 'Sumang-ayon at magpatuloy', full: 'Ilalabas ang buong Terms, Privacy notice at Community rules bago magbukas ang sign-up para sa lahat.' },
 };
 
+// Invites go to an email address (decision 0008): first the address, then the code sent to it, then
+// the five steps. The join ticket from the code lives only in memory, for 30 minutes.
 export function join({ query }) {
-  const code = (query.get('code') || '').trim();
   const root = h('div', { class: 'authcard' });
   const page = { node: h('div', null, authBrand(), root), bare: true, cls: 'authpage', title: 'Join' };
   if (state.me) {
     root.append(empty('You\'re already in', 'You are signed in as @' + state.me.handle + '.', btn('Go home', { href: '/' })));
     return page;
   }
-  if (!code) {
-    root.append(appBar({ back: '/', title: '' }), empty('Joining is by invite for now',
-      'While the privacy review is done, people join with an invite link from the Community team. Open the link you were sent.',
-      btn('Look around first', { href: '/places' })));
-    return page;
-  }
-  const d = { code, lang: 'en', agree: false, adult: false, terms: null, improve_usage: false, improve_surveys: false, first_name: '', handle: '', trade: '', home_area: null, home_name: '' };
+  const d = { email: '', ticket: '', oldLink: query.has('code'), lang: 'en', agree: false, adult: false, terms: null, improve_usage: false, improve_surveys: false, first_name: '', handle: '', trade: '', home_area: null, home_name: '' };
   const steps = [before, choices, profile, passkey, findSpaces];
   let i = 0;
+  const focus = () => { const h1 = root.querySelector('h1'); if (h1) h1.focus(); window.scrollTo(0, 0); };
   const show = (n) => {
     i = n;
-    root.replaceChildren(steps[i](d, { next: () => show(i + 1), back: () => (i > 0 ? show(i - 1) : nav('/')), goto: show }));
-    const h1 = root.querySelector('h1'); if (h1) h1.focus();
-    window.scrollTo(0, 0);
+    root.replaceChildren(steps[i](d, { next: () => show(i + 1), back: () => (i > 0 ? show(i - 1) : nav('/')), goto: show, restart: () => askEmail() }));
+    focus();
   };
-  root.append(loading('Checking your invite'));
-  Promise.all([post('/accounts/invite/check', { code }), get('/terms')]).then(([, t]) => { d.terms = t.version; show(0); }, (e) => {
-    root.replaceChildren(appBar({ back: '/', title: '' }), e.status === 404
-      ? empty('This invite can\'t be used', 'It has been used or has expired. Ask the person who invited you for a new link.')
-      : errorBox(e));
-  });
+  const askEmail = () => { d.ticket = ''; root.replaceChildren(emailStep(d, () => askCode())); focus(); };
+  const askCode = () => {
+    root.replaceChildren(codeStep(d, { back: askEmail, done: async () => {
+      try { d.terms = (await get('/terms')).version; show(0); } catch (e) { root.replaceChildren(appBar({ back: '/', title: '' }), errorBox(e)); }
+    } }));
+    focus();
+  };
+  askEmail();
   return page;
+}
+
+function emailStep(d, next) {
+  const err = h('p', { class: 'err', role: 'alert' });
+  const input = h('input', { type: 'email', id: 'join-email', autocomplete: 'email', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', maxlength: '254', value: d.email, required: true });
+  const go = btn('Send code', { block: true, type: 'submit', icon: 'send' });
+  const form = h('form', { class: 'ob', novalidate: true },
+    h('div', { class: 'passkey-art' }, icon('mail', 'lg')),
+    h('h1', { tabindex: '-1' }, 'Join by invite'),
+    h('p', { class: 'sub' }, 'Type the email address your invite went to. We\'ll send it a 6-digit code.'),
+    d.oldLink ? h('p', { class: 'hint' }, icon('info', 'sm'), 'Invite links no longer work on their own. Invites now go to an email address.') : null,
+    field('Email address', input),
+    err, go,
+    h('p', { class: 'hint' }, icon('lock', 'sm'), 'We use the address only to send the code. Community does not store it.'),
+    h('p', { class: 'hint' }, 'No invite yet? Joining is by invite while we finish the privacy review.'));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); err.textContent = '';
+    const email = input.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = 'Type a full email address, like name@example.com.'; input.focus(); return; }
+    go.disabled = true;
+    try { await post('/accounts/join/start', { email }); d.email = email; d.sentAt = Date.now(); next(); }
+    catch (x) { err.textContent = x.message; }
+    finally { go.disabled = false; }
+  });
+  return h('div', null, appBar({ back: '/', title: '' }), form);
+}
+
+function codeStep(d, go) {
+  const err = h('p', { class: 'err', role: 'alert' });
+  const input = h('input', { id: 'join-code', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9]*', maxlength: '6', class: 'codein', required: true });
+  const ok = btn('Continue', { block: true, type: 'submit' });
+  const again = btn('Send a new code', { block: true, kind: 'w' });
+  const tick = () => {
+    const left = Math.max(0, 30 - Math.floor((Date.now() - (d.sentAt || 0)) / 1000));
+    again.disabled = left > 0;
+    again.lastChild.textContent = left > 0 ? `Send a new code (${left}s)` : 'Send a new code';
+    if (left > 0 && again.isConnected !== false) setTimeout(tick, 1000);
+  };
+  again.addEventListener('click', async () => {
+    err.textContent = '';
+    try { await post('/accounts/join/start', { email: d.email }); d.sentAt = Date.now(); toast('A new code is on its way'); tick(); } catch (x) { err.textContent = x.message; }
+  });
+  const form = h('form', { class: 'ob', novalidate: true },
+    h('div', { class: 'passkey-art' }, icon('mail', 'lg')),
+    h('h1', { tabindex: '-1' }, 'Check your email'),
+    h('p', { class: 'sub' }, 'If ', h('b', null, d.email), ' has an invite, a 6-digit code is on its way. It works for 10 minutes.'),
+    field('Code', input),
+    err, ok, h('div', { class: 'mt' }, again),
+    h('p', { class: 'hint' }, icon('info', 'sm'), 'Nothing yet? Check your spam folder. The code comes only if this address was invited.'),
+    h('p', { class: 'linkrow' }, h('button', { type: 'button', class: 'linkbtn', on: { click: go.back } }, 'Use a different email')));
+  input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); err.textContent = '';
+    if (input.value.length !== 6) { err.textContent = 'Type the 6 digits from the email.'; input.focus(); return; }
+    ok.disabled = true;
+    try { const r = await post('/accounts/join/verify', { email: d.email, code: input.value }); d.ticket = r.ticket; go.done(); }
+    catch (x) { err.textContent = x.message; input.select(); }
+    finally { ok.disabled = false; }
+  });
+  tick();
+  return h('div', null, h('header', { class: 'abar' }, h('button', { class: 'ib', type: 'button', aria: { label: 'Back' }, on: { click: go.back } }, icon('back', 'b')), h('span', { class: 'grow' })), form);
 }
 
 const progress = (n) => h('div', { class: 'progress', role: 'progressbar', aria: { label: 'Joining', valuemin: '1', valuemax: '5', valuenow: String(n) } },
@@ -241,7 +299,7 @@ function passkey(d, go) {
     make.disabled = true;
     try {
       const { challengeId, options } = await post('/accounts/register/options', {
-        code: d.code, handle: d.handle, first_name: d.first_name, trade: d.trade, home_area: d.home_area || undefined,
+        ticket: d.ticket, handle: d.handle, first_name: d.first_name, trade: d.trade, home_area: d.home_area || undefined,
         agree: d.agree, adult: d.adult, terms_version: d.terms, improve_usage: d.improve_usage, improve_surveys: d.improve_surveys,
       });
       const cred = await navigator.credentials.create({ publicKey: creationOptionsFromJSON(options) });
@@ -251,6 +309,7 @@ function passkey(d, go) {
       go.next();
     } catch (e) {
       if (e && e.code === 'handle_taken') { d.error = e.message; go.goto(2); return; }
+      if (e && e.code === 'invite_invalid') { go.restart(); return; }
       if (e && e.code === 'terms_changed') { try { d.terms = (await get('/terms')).version; } catch { /* keep */ } d.agree = false; go.goto(0); return; }
       msg.textContent = e && e.name === 'NotAllowedError' ? 'The passkey was cancelled or timed out. Try again.' : ((e && e.message) || 'Could not make the passkey');
     } finally { make.disabled = false; }

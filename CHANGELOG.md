@@ -4,6 +4,19 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-20
+
+Invites now go to an email address, so they cannot be passed on as a link.
+
+### Added
+- **Invites by email** (decision [0008](docs/decisions/0008-email-invites.md)). Staff invite an address from Settings, Invite by email (or `npm run invite -- --email`). Joining needs that address and a 6-digit code sent to it (10 minutes, one use, 5 tries). The address is not stored: only a keyed hash of it, cleared when the invite is used.
+- **Email design** ([docs/design/email.md](docs/design/email.md)): one Stage mode shell and a few blocks for the invite, the join code and announcements. No tracking pixels, no web fonts, no per-person links, and a plain-text part with every email. `npm run mail:preview` writes them all for checking.
+- New settings: `EMAIL_HASH_KEY` (required), `RESEND_API_KEY`, `MAIL_FROM` ([docs/running.md](docs/running.md)).
+
+### Changed
+- **Breaking:** `POST /accounts/invites` takes `{ email }` and emails the invite instead of returning a code and link. `POST /accounts/invite/check` is gone; joining uses `POST /accounts/join/start` and `/accounts/join/verify`, and `/accounts/register/options` takes the `ticket` they return in place of `code`.
+- Invite links made before 0.6.0 no longer work. Staff send those people an email invite.
+
 ## [0.5.1] - 2026-10-19
 
 ### Fixed
@@ -94,7 +107,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.0
 [0.5.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.1
 [0.5.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.0
 [0.4.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.1

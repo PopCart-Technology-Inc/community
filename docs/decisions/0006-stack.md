@@ -17,7 +17,7 @@ PopCart Community is open source and run on a small budget. Anyone should be abl
 5. **Passkeys (WebAuthn)** for login, with the maintained `@simplewebauthn/server` library. No passwords are ever stored.
 6. **Brand art is not in this repository** (TRADEMARKS.md). The server reads an optional brand pack (wordmark and illustrations) from a directory given at deploy time. Without it, the app shows a plain text name and neutral shapes.
 7. **Dependencies:** exact versions, a committed lockfile, Dependabot updates, and a short list. Runtime: `pg`, `@simplewebauthn/server`. Development: `typescript`, `@types/node`, `@electric-sql/pglite`.
-8. **Joining is invite-only until the privacy lawyer's review is done** (decisions 0001-0002). Invited staff and testers join with an invite link and a passkey; no phone number is collected yet. Public sign-up with phone verification opens after the review.
+8. **Joining is invite-only until the privacy lawyer's review is done** (decisions 0001-0002). Invited staff and testers join with an invite and a passkey; no phone number is collected yet. (Changed 2026-10-20 by decision [0008](0008-email-invites.md): invites go to an email address, and joining needs that address and a code sent to it, in place of a link anyone could use.) Public sign-up with phone verification opens after the review.
 
 ## Rejected
 
