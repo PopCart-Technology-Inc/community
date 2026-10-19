@@ -4,6 +4,11 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-19
+
+### Fixed
+- With a brand pack installed, every page logged about 10 Content Security Policy errors, because the pack's sprite carries style attributes and the CSP blocks them, even while the sprite is parsed. Those styles are now renamed before parsing and applied as classes from a constructed stylesheet, which the CSP allows. The CSP itself is unchanged (still no `unsafe-inline`).
+
 ## [0.4.0] - 2026-10-19
 
 Place names now credit who published them.
@@ -65,7 +70,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.1
 [0.4.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.0
 [0.3.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.3.0
 [0.2.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.2.0
