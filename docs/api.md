@@ -89,28 +89,34 @@ A **post** in responses: `{ id, author: person, body, created_at, reply_to, spac
 - `/notifications`: `?before&limit`; items are `{ id, kind, ref_kind, ref_id, created_at, read, actor: person | null }`.
 - `lang` is always `null` for now (no language detection yet).
 
-## Spaces and messages 🔨 (`spaces/`)
+## Spaces and messages ✅ (`spaces/`)
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | `/spaces` | `?mine=1` or `?near=<area>` or `?q=` | `{ spaces: [{ id, slug, name, kind, visibility, area, members, role?, unread?, last_message? }] }` |
-| POST | `/spaces` | `{ name, slug, kind, visibility, area_code?, about?, rules? }` | 201 `{ space }`: creator is owner; a `chat` channel is made |
-| GET | `/spaces/:slug` | | `{ space, channels, my_role, members_count, faces[] }` (private: members only) |
-| PATCH | `/spaces/:slug` | owner or moderator | `{ space }` |
-| POST / DELETE | `/spaces/:slug/members` | join / leave (private: invite only, `{ handle }` by owner/mod) | 204 |
-| GET | `/spaces/:slug/members` | | `{ members: [{ person, role }] }` |
-| PATCH | `/spaces/:slug/members/:handle` | `{ role }` owner only | 204 |
-| POST | `/spaces/:slug/channels` | `{ name }` owner/mod | 201 `{ channel }` |
-| GET | `/channels/:id/messages` | `?before&limit` | `{ messages: [{ id, author, body | null, sealed | null, created_at }] }` |
-| POST | `/channels/:id/messages` | public Space: `{ body }`; private Space: `{ sealed }` only | 201 `{ message }` |
-| GET | `/spaces/:slug/posts` | | `{ posts }` (Space posts, newest first) |
-| GET | `/conversations` | `?requests=1` | `{ conversations: [{ id, other: person + dm_public_key, accepted, last_at, unread }] }` |
-| POST | `/conversations` | `{ handle }` | `{ conversation }` (existing or new; new from a stranger = request) |
-| POST | `/conversations/:id/accept` | | 204 |
-| GET | `/conversations/:id/messages` | | `{ messages: [{ id, sender_id, sealed, created_at }] }` |
-| POST | `/conversations/:id/messages` | `{ sealed: { v: 1, iv, ct } }` | 201. The server never accepts plaintext for DMs. |
+| GET | `/spaces` | `?mine=1` or `?near=<area>` or `?q=`, plus `?before&limit` | `{ spaces: [{ id, slug, name, kind, visibility, area, about, rules, cover_media_id, created_at, members, role, unread, last_message }], as_of }`. `role`, `unread`, `last_message` are `null` unless you are a member. `near` matches the area and everything inside it (`WORLD`: all). Private Spaces are listed only to their members. `mine=1` is ordered by latest activity. |
+| POST | `/spaces` | `{ name, slug, kind, visibility, area_code?, about?, rules? }` | 201 `{ space }`: creator is owner; a `chat` channel is made. 409 `slug_taken`. |
+| GET | `/spaces/:slug` | | `{ space, channels: [{ id, name, position, unread }], my_role, members_count, faces[], as_of }` (private: members only) |
+| PATCH | `/spaces/:slug` | any of `name, kind, about, rules, area_code, cover_media_id`; owner or moderator | `{ space }`. `slug` and `visibility` never change (400 `fixed`). |
+| POST | `/spaces/:slug/members` | no body: join (public only). `{ handle }`: owner/mod adds that person (the only way into a private Space) | 204 |
+| DELETE | `/spaces/:slug/members` | no body: leave (409 `last_owner` for the only owner). `{ handle }`: owner/mod removes someone with a lower role | 204 |
+| GET | `/spaces/:slug/members` | `?before&limit` (by `joined_at`) | `{ members: [{ person + dm_public_key, role, joined_at }], as_of }` |
+| PATCH | `/spaces/:slug/members/:handle` | `{ role }` (owner, moderator or member) owner only | 204 (409 `last_owner` if the only owner steps down) |
+| POST | `/spaces/:slug/read` | member | 204: marks everything in the Space read (`space_members.last_read_at`) |
+| POST | `/spaces/:slug/channels` | `{ name }` (`^[a-z0-9-]{2,30}$`) owner/mod | 201 `{ channel }`; 409 `channel_taken`; max 50 per Space |
+| GET | `/channels/:id/messages` | `?before&limit` (signed in) | `{ messages: [{ id, channel_id, author: person + dm_public_key, body, sealed, created_at }], as_of }`: exactly one of `body` and `sealed` is set, the other is `null`. In a private Space `sealed.keys` holds only your own entry. |
+| POST | `/channels/:id/messages` | public Space: `{ body }` (sealed: 400 `plaintext_only`); private Space: `{ sealed }` only (anything else: 400 `sealed_only`). Members only (403 `not_member`). | 201 `{ message }` |
+| GET | `/spaces/:slug/posts` | `?before&limit` | `{ posts, end, as_of }` (top-level Space posts, newest first, post shape as in Posts) |
+| GET | `/conversations` | `?requests=1`, `?before&limit` | `{ conversations: [{ id, other: person + dm_public_key, accepted, started_by_me, created_at, last_at, unread }], as_of }`. Default: accepted ones and the requests you sent. `requests=1`: requests you received. |
+| POST | `/conversations` | `{ handle }` | 201 new or 200 existing `{ conversation }`. Accepted at once when they follow you; otherwise a request. Opening a request you received accepts it. |
+| POST | `/conversations/:id/accept` | | 204 (only the person who received the request: 403 for the starter) |
+| GET | `/conversations/:id/messages` | `?before&limit` | `{ messages: [{ id, sender_id, sealed, created_at }], as_of }`. Reading the newest page (no `before`) marks the conversation read. |
+| POST | `/conversations/:id/messages` | `{ sealed: { v: 1, iv, ct } }` only | 201 `{ message }`. The server never accepts plaintext for DMs (400 `sealed_only`). Until accepted the starter may send 3 messages (409 `request_pending`); the recipient writing back accepts. |
 
-**End-to-end encryption (decision 0001, point 4):** each person's browser makes an ECDH P-256 key pair (WebCrypto), keeps the private key in IndexedDB, and publishes the public JWK via `PATCH /me { dm_public_key }`. A DM is AES-GCM encrypted under the ECDH-derived key of the two people. Private Space messages are encrypted per message for every member (`sealed: { v: 1, iv, ct, keys: { <user_id>: <wrapped key> } }`). The server validates the envelope shape and size only.
+**Privacy:** a private Space, its channels, members and posts answer 404 to anyone who is not a member, exactly like a Space that does not exist (never 403), so its existence does not leak. Unread counts count other people's messages after your `last_read_at`; sending a message also marks the Space read for you.
+
+**End-to-end encryption (decision 0001, point 4):** the exact envelopes and the browser algorithm (ECDH P-256 → HKDF-SHA-256 → AES-GCM 256; private Spaces wrap a random per-message key for every member with AES-KW) are in [e2e.md](e2e.md). The server validates the envelope shape and size only: DM `{ v: 1, iv: 12 bytes, ct: 17-8192 bytes }`; private Space adds `keys: { <member id>: wrapped key ≤ 512 bytes }`, every id a current member and the sender included.
+
+Deviations from the first draft: `POST /spaces/:slug/read` added; `DELETE /spaces/:slug/members { handle }` removes a member; conversations gained `started_by`, `a_read_at`, `b_read_at` (migration `0003_spaces.sql`) for Requests and unread; `dm_public_key` also comes with message authors and member lists so browsers can derive keys.
 
 ## Work 🔨 (`work/`)
 
