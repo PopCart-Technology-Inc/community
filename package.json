@@ -11,6 +11,7 @@
     "dev": "node --watch app/main.ts",
     "migrate": "node app/db/migrate-cli.ts",
     "invite": "node app/modules/accounts/invite-cli.ts",
+    "places:import": "node app/modules/places/import.ts",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
