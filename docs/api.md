@@ -115,24 +115,29 @@ A **gig**: `{ id, poster: person, title, body, pay_amount, pay_currency, pay_uni
 | PATCH | `/me/credentials/:id` | `{ shown }` | `{ credential }` |
 | DELETE | `/me/credentials/:id` | | 204 |
 
-## Safety and your data 🔨 (`safety/`)
+## Safety and your data ✅ (`safety/`)
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/reports` | `{ target_kind, target_id, reason, note?, revealed? }` | 201. `child_safety` goes to staff only, and hides the content at once. |
-| GET | `/mod/reports` | `?space=<slug>` (Space moderators see their Space; staff see all) | `{ reports }` |
-| POST | `/mod/reports/:id/decide` | `{ action: keep|warn|remove|escalate, note }` | 204; logs a `mod_actions` row and notifies the person |
-| GET | `/me/mod-actions` | | `{ actions }` what was done to my content and why |
-| POST | `/me/mod-actions/:id/appeal` | `{ note }` | 204 (once; decided by a different moderator) |
-| GET | `/me/data` | | `{ holds: [...] }` what we hold, in plain words, with live counts |
-| GET | `/me/export` | | a JSON download of everything about this person |
-| DELETE | `/me` | `{ confirm: "DELETE" }` | 204; content removed, account marked deleted, sessions ended (minus records under legal hold) |
-| GET | `/me/record-log` | | `{ openings: [], as_of }` (vault openings for this person; empty means never opened) |
+| POST | `/reports` | `{ target_kind: post|message|dm|user|gig|space, target_id, reason, note?, revealed? }` | 201 `{ report: { id, target_kind, target_id, reason, status, created_at, goes_to: staff|space_moderators } }`. The target must exist and be visible to the reporter (404), never yourself or your own content (400), once per person per target (409). `revealed` (DMs only): up to 20 `{ text }` the reporter decrypted on their phone. `child_safety` goes to staff only, and hides a post or Space message at once. |
+| GET | `/mod/reports` | `?space=<slug>&status=open|decided&before&limit` | `{ reports: [{ id, target_kind, target_id, space, reason, note, status, created_at, decided_at, decision_note, hidden_on_report, target: { …preview, author }, reporter, revealed }], as_of }`. Staff see all (open = open + escalated). A Space's owner and moderators see open reports from their Spaces, never `child_safety`, never about their own content; `reporter` and `revealed` are staff only (null otherwise). Reports about a Space itself, a person or a DM go to staff. |
+| POST | `/mod/reports/:id/decide` | `{ action: keep|warn|remove|escalate, note }` (note required for warn and remove) | 204; logs a `mod_actions` row and notifies the author (`mod_action`). `remove` soft-deletes a post or message, closes a gig, deletes a DM envelope (staff), or suspends a person and ends their sessions (staff, logged as `suspend`). Removing a whole Space is not built: escalate it. `keep` on a `child_safety` report shows the hidden content again. A final decision also closes the other open reports of the same target. Escalating a `child_safety` report does not notify the author (no tip-off). |
+| GET | `/me/mod-actions` | | `{ actions: [{ id, action, target_kind, target_id, reason, created_at, appealed_at, appeal_note, appeal_decision, appeal_decision_note, appeal_decided_at, can_appeal }], as_of }` what was done to my content and why |
+| POST | `/me/mod-actions/:id/appeal` | `{ note }` | 204 (once, 409 after; only warn, remove or suspend) |
+| GET | `/mod/appeals` | staff | `{ appeals: [{ id, action, target_kind, target_id, report_id, reason, created_at, appealed_at, appeal_note, subject, can_decide }], as_of }` |
+| POST | `/mod/appeals/:id/decide` | staff, never the actor: `{ decision: upheld|overturned, note }` | 204. Overturned: the content or account is restored and a `restore` action is logged. The person is notified. |
+| GET | `/me/data` | | `{ holds: [{ key, what, count }], sealed: { what: "Kept in the sealed vault: none yet", count: 0, note }, as_of }` what we hold, in plain words, with live counts |
+| GET | `/me/export` | | a JSON download (`Content-Disposition: attachment`) of this person's own rows; DMs as the sealed envelopes; other people appear only by public handle |
+| DELETE | `/me` | `{ confirm: "DELETE" }` | 204 + cleared cookie. In one transaction: posts and Space messages soft-deleted, open gigs closed, applications withdrawn, follows, saves, Space memberships, credentials, notifications, sessions, passkeys and media (rows and files) deleted, status `deleted`, profile scrubbed to the tombstone handle `deleted.<8 hex>` and first name `Deleted`. No legal-hold mechanism exists yet. |
+| GET | `/me/record-log` | | `{ openings: [], as_of, note }` (the vault is not built, so it has never been opened) |
 | GET | `/transparency` | | `{ as_of, launched: false, counts: { legal_requests, produced, refused, posts_removed, reports } }` live counts; before launch the web shows "No numbers yet" |
 
-## Media ✅/🔨 (`media/`)
+Deviations: the tombstone handle uses a dot (`deleted.1a2b3c4d`, an example) because the handle rule does not allow `-`. Data rights (`/me/data`, `/me/export`, `DELETE /me`, `/me/mod-actions` and appeals) also work for a suspended account. Migration `0005_safety.sql` adds one-report-per-target, `reports.hid_content` and the appeal columns.
+
+## Media ✅ (`media/`)
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/media` | raw image bytes, `Content-Type: image/jpeg|png|webp`, max 4 MB | 201 `{ media: { id, mime, bytes, width, height } }`. Checked by magic bytes, not the header. The browser removes location data (re-encodes through a canvas) before upload. |
+| POST | `/media` | raw image bytes, max 4 MB (413), 30 uploads an hour per person | 201 `{ media: { id, mime, bytes, width, height } }`. Typed by magic bytes (JPEG, PNG, WebP only), never by the name or `Content-Type`; width and height read from the image header; anything else is 400. The browser removes location data (re-encodes through a canvas) before upload. |
+| DELETE | `/media/:id` | owner only | 204; the file is removed, and cleared from the owner's avatar, cover and posts |
 | GET | `/media/:id` (outside `/api`) | | the file, `immutable` cache, sandboxed CSP |
