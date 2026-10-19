@@ -21,3 +21,10 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python3 tools/ci/dco.py "$BASE_SHA" "$HEAD_SHA"
+      # Semantic Versioning on every change: a CHANGELOG.md line under Unreleased, or a release with
+      # the right next version. Kept in this job so it is part of the required `dco` check.
+      - name: Every change is versioned (CHANGELOG.md, semver)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci/changelog.py check "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" "$HEAD_SHA"

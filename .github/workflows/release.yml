@@ -28,6 +28,10 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: python3 tools/ci/changelog.py notes "$TAG" > "$RUNNER_TEMP/notes.md"
+      - name: The tag is higher than every earlier tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python3 tools/ci/changelog.py tag "$TAG"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}

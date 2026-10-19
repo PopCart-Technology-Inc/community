@@ -9,6 +9,6 @@
 - [ ] **Data rule.** Fits [hold keys, not data](https://github.com/PopCart-Technology-Inc/community/blob/main/docs/decisions/0001-hold-keys-not-data.md). New personal data was agreed in an issue first.
 - [ ] **No fake data.** Live values show an "as of" time; examples are labelled.
 - [ ] **Tests** added or updated, if there is code.
-- [ ] **CHANGELOG.md**: one line under `## [Unreleased]` (Added, Changed, Fixed, Removed or Security), if people will notice the change.
+- [ ] **CHANGELOG.md**: one line under `## [Unreleased]` (Added, Changed, Fixed, Removed or Security). Every change gets one: Semantic Versioning applies to all of them.
 
 <!-- A maintainer reviews every pull request. Checks must be green and every conversation resolved before it can be merged. -->

@@ -34,6 +34,7 @@ By contributing, you license your code under [AGPL-3.0](LICENSE) and your docume
 ## How your pull request gets in
 
 1. Fork the repo, make a branch, commit with `-s`, and open a pull request. Fill in the checklist.
+   Every pull request adds one line under `## [Unreleased]` in CHANGELOG.md; the checks refuse it otherwise.
 2. **Checks run:** `leakcheck` and `dco` must be green. On your first pull requests a maintainer starts them for you.
 3. **A maintainer reviews it.** Nothing is merged without an approving review. If you push again after an approval, it needs a new one.
 4. **Squash merge.** Your pull request becomes one commit on `main`, and its CHANGELOG line waits under "Unreleased".

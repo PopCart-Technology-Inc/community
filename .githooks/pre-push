@@ -1,6 +1,16 @@
 #!/bin/sh
 # PUBLIC REPO: check every commit (content, file names, messages) that is about to leave this machine.
 # Git passes the refs being pushed on stdin; leakcheck reads them. Never bypass with --no-verify.
+# Then Semantic Versioning: every pushed branch adds a CHANGELOG.md line, or is a correct release
+# (tools/ci/changelog.py check, the same check the pull request runs).
 PY=; for c in python3 python py; do "$c" -c "import sys; sys.exit(sys.version_info < (3, 8))" >/dev/null 2>&1 && PY=$c && break; done
 [ -n "$PY" ] || { echo "leakcheck: python 3.8+ not found (blocking)" >&2; exit 1; }
-exec "$PY" "$(git rev-parse --show-toplevel)/tools/leakcheck/leakcheck.py" --pre-push
+top="$(git rev-parse --show-toplevel)"
+refs="$(cat)"
+printf '%s\n' "$refs" | "$PY" "$top/tools/leakcheck/leakcheck.py" --pre-push || exit 1
+main="$(git rev-parse -q --verify origin/main || git rev-parse -q --verify main)" || { echo "changelog: no main to compare with (git fetch origin)" >&2; exit 1; }
+printf '%s\n' "$refs" | while read -r local sha remote _; do
+  case "$local" in refs/heads/*) ;; *) continue ;; esac
+  case "$sha" in *[!0]*) ;; *) continue ;; esac
+  "$PY" "$top/tools/ci/changelog.py" check "$(git merge-base "$main" "$sha")" "$sha" || exit 1
+done

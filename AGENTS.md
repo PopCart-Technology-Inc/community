@@ -25,7 +25,9 @@ Everything committed here is published to the whole internet and stays in the hi
 ## 1. How to change things
 - Work on a branch, push the branch, open a pull request. `main` only moves through reviewed, green pull requests: checks `leakcheck` and `dco`, an approving review from a code owner, then a squash merge.
 - Never merge your own pull request around the review unless the human maintainer tells you to for that pull request.
-- Add a line under `## [Unreleased]` in CHANGELOG.md for any change people will notice. Releases are `v*` tags cut by maintainers (docs/RELEASING.md); never create a tag unless the human maintainer asks for that release, and never move or delete one.
+- **Golden rule: Semantic Versioning is applied to every change, strictly, with no exceptions.** Every pull request adds a line under `## [Unreleased]` in CHANGELOG.md (### Added, Changed, Fixed, Removed or Security), and every release is the last version bumped by what those lines say (docs/RELEASING.md, "Versions").
+- `tools/ci/changelog.py check` enforces it in the pre-push hook and in the required `dco` check; a pull request without a line, or a release with the wrong version, cannot merge. Never weaken or skip it.
+- Released sections are never edited; a mistake is fixed by a new PATCH release. Releases are `v*` tags cut by maintainers (docs/RELEASING.md); never create a tag unless the human maintainer asks for that release, and never move or delete one.
 - Sign off every commit (`git commit -s`, see CONTRIBUTING.md).
 - Follow the data rule in `docs/decisions/0001-hold-keys-not-data.md`.
 - No fake data in the product: show live values with the time they were read; label examples in designs and docs.
