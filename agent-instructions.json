@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "include": [
+    "CLAUDE.md",
+    "AGENTS.md",
+    "**/CLAUDE.md",
+    "**/AGENTS.md",
+    ".claude/settings.json",
+    ".claude/agents/**",
+    ".claude/commands/**",
+    ".claude/skills/**",
+    ".claude/hooks/**"
+  ],
+  "exclude": [],
+  "instructions": {
+    ".claude/settings.json": {
+      "version": "1.0.0",
+      "sha256": "f216c78de0dfe11baefaf4a0df027a4d67aaaa88aafab333873fe705f36d580a"
+    },
+    "AGENTS.md": {
+      "version": "1.0.0",
+      "sha256": "b3ef2d7050894898ad175846c173ee4ec233c288a0590896ed000cf1990bf25d"
+    },
+    "CLAUDE.md": {
+      "version": "1.0.0",
+      "sha256": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49"
+    }
+  }
+}
