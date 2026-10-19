@@ -28,7 +28,7 @@ We build them one at a time, in that order. **Profiles come first.**
 
 **How it looks and works:** the screen-by-screen design is in [docs/design](docs/design/README.md).
 
-1. **Collect less.** Only what a feature needs. No ad profiles, no tracking, no selling.
+1. **Collect less.** Only what a feature needs. Your data is never sold. Ads, if they come, follow [decision 0007](docs/decisions/0007-advertising.md).
 2. **Sign instead of share.** PopCart issues signed credentials (W3C Verifiable Credentials) that you keep and show if you choose. No records get copied over.
 3. **Identity sealed.** Your phone and ID checks sit in a sealed vault, opened only for a court order, and you are told.
 4. **Private means end-to-end encrypted.** The server stores what it cannot read.
