@@ -193,6 +193,18 @@ test('static files are served, the service worker caches only files that exist, 
   assert.match(js.headers.get('content-type') || '', /javascript/);
   const css = await fetch(app.base + '/static/app.css');
   assert.match(css.headers.get('content-type') || '', /text\/css/);
+  // the app's code is revalidated on every load, so a deploy is never hours late
+  for (const p of ['/static/app.js', '/static/app.css', '/sw.js', '/manifest.webmanifest']) {
+    const r = await fetch(app.base + p);
+    await r.arrayBuffer();
+    assert.equal(r.headers.get('cache-control'), 'no-cache', p);
+    const tag = r.headers.get('etag') || '';
+    assert.match(tag, /^"[\w-]{22}"$/, p + ' has an ETag');
+    const again = await fetch(app.base + p, { headers: { 'If-None-Match': tag } });
+    assert.equal(again.status, 304, p + ' unchanged: 304');
+    assert.equal((await again.arrayBuffer()).byteLength, 0);
+    assert.equal((await fetch(app.base + p, { headers: { 'If-None-Match': '"other"' } })).status, 200);
+  }
   const man = await fetch(app.base + '/manifest.webmanifest');
   const mj = await man.json();
   assert.equal(mj.name, 'PopCart Community');

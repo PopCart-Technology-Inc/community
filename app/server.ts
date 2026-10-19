@@ -1,6 +1,7 @@
 // The HTTP server: /api/* through the router, the web app (app/web) with a fresh CSP nonce per page,
 // the optional brand pack at /brand/*, and uploaded media at /media/:id.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, normalize, extname } from 'node:path';
 import type { Config } from './config.ts';
@@ -55,12 +56,31 @@ function shell(config: Config): (res: ServerResponse) => void {
   };
 }
 
-function staticFile(res: ServerResponse, dir: string, rel: string, maxAge: number): boolean {
+/** How the app's own files may be cached: `no-cache` means "ask every time": an unchanged file costs a 304. */
+const REVALIDATE = 'no-cache';
+const etags = new Map<string, { mtime: number; size: number; tag: string }>();
+
+/**
+ * Serve a file with an ETag (content hash), answering 304 when the browser already has it. `cache` is
+ * the Cache-Control value: REVALIDATE for the app's code, so a deploy is seen on the next load, never
+ * hours later (a long max-age let browsers and the CDN run old and new files side by side).
+ */
+function staticFile(req: IncomingMessage, res: ServerResponse, dir: string, rel: string, cache: string): boolean {
   const p = normalize(join(dir, rel));
-  if (!p.startsWith(normalize(dir)) || !existsSync(p) || !statSync(p).isFile()) return false;
+  if (!p.startsWith(normalize(dir)) || !existsSync(p)) return false;
+  const st = statSync(p);
+  if (!st.isFile()) return false;
+  let e = etags.get(p);
+  if (!e || e.mtime !== st.mtimeMs || e.size !== st.size) {
+    e = { mtime: st.mtimeMs, size: st.size, tag: '"' + createHash('sha256').update(readFileSync(p)).digest('base64url').slice(0, 22) + '"' };
+    etags.set(p, e);
+  }
   res.setHeader('Content-Type', TYPES[extname(p)] || 'application/octet-stream');
-  res.setHeader('Cache-Control', `public, max-age=${maxAge}`);
-  res.end(readFileSync(p));
+  res.setHeader('Cache-Control', cache);
+  res.setHeader('ETag', e.tag);
+  const inm = String(req.headers['if-none-match'] || '');
+  if (inm && inm.split(',').some((t) => t.trim().replace(/^W\//, '') === e.tag)) { res.statusCode = 304; res.end(); return true; }
+  res.end(req.method === 'HEAD' ? undefined : readFileSync(p));
   return true;
 }
 
@@ -97,12 +117,13 @@ export function createApp(db: Db, config: Config): App {
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method', 'Method not allowed');
       if (path.startsWith('/brand/')) {
-        if (config.brandDir && staticFile(res, config.brandDir, path.slice(7), 86400)) return;
+        // brand art and fonts change rarely; a day, then revalidated with the ETag
+        if (config.brandDir && staticFile(req, res, config.brandDir, path.slice(7), 'public, max-age=86400')) return;
         throw new HttpError(404, 'not_found', 'No brand pack');
       }
-      if (path.startsWith('/static/') && staticFile(res, join(WEB, 'static'), path.slice(8), 3600)) return;
-      if (path === '/sw.js' && staticFile(res, WEB, 'sw.js', 0)) return;
-      if (path === '/manifest.webmanifest' && staticFile(res, WEB, 'manifest.webmanifest', 3600)) return;
+      if (path.startsWith('/static/') && staticFile(req, res, join(WEB, 'static'), path.slice(8), REVALIDATE)) return;
+      if (path === '/sw.js' && staticFile(req, res, WEB, 'sw.js', REVALIDATE)) return;
+      if (path === '/manifest.webmanifest' && staticFile(req, res, WEB, 'manifest.webmanifest', REVALIDATE)) return;
       if (path.startsWith('/media/')) {
         const id = path.slice(7);
         const row = /^[0-9a-f-]{36}$/.test(id) ? await db.one<{ mime: string }>('SELECT mime FROM media WHERE id = $1', [id]) : null;
