@@ -4,6 +4,11 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-19
+
+### Fixed
+- A new version now shows on the next page load. The app's files were cached for hours, so after an update a browser could keep the old version, or mix old and new files. They are now checked on every load (an unchanged file costs an empty "not modified" reply), and the service worker goes to the network first, using its copy only when offline.
+
 ## [0.5.0] - 2026-10-19
 
 Designed for each screen size: phone, tablet and desktop.
@@ -89,7 +94,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.1
 [0.5.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.0
 [0.4.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.1
 [0.4.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.0

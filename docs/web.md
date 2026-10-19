@@ -60,7 +60,8 @@ app/web/
 - **Live data only.** Lists show the time they were read ("as of 9:41"). Empty states say so ("No posts here yet"). The transparency page shows "No numbers yet" while `launched` is false. Nothing is invented.
 - **Location stays on the phone.** Recent places are kept in localStorage only. Photos are re-encoded through a canvas (drops EXIF location), at most 1600 px, JPEG 0.85, before `POST /media`.
 - **Messages are end-to-end encrypted** in the browser: [e2e-client.md](e2e-client.md).
-- **The service worker never caches API responses**, media or the HTML page (each page has its own nonce).
+- **The service worker never caches API responses**, media or the HTML page (each page has its own nonce). It goes to the network first and uses its cache only when offline.
+- **Updates show on the next load.** The app's files (`/static/*`, `/sw.js`, the manifest) are sent with `Cache-Control: no-cache` and an ETag, so the browser checks on every load and an unchanged file costs an empty 304. Brand-pack files keep a one-day cache.
 - **Accessibility.** 44 px tap targets, visible focus rings, labelled controls, the zoom and choice chips are ARIA radio groups with arrow keys, sheets are modal `<dialog>`s, toasts use `aria-live`, focus moves to the screen heading on navigation, and reduced motion is respected.
 
 ## Layout
