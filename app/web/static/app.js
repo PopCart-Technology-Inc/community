@@ -29,7 +29,9 @@ const GROUP = {
 const TAB_OF = { places: 'home', explore: 'home', activity: 'home' };
 const routes = compile(ROUTES);
 
-let main, wnav, wside, tabbar, cleanup = null, depth = 0, current = null;
+let main, wnav, wside, tabbar, cleanup = null, depth = 0, current = null, renders = 0;
+// The ✎ button belongs to the feeds and profiles, not to forms, settings or chats.
+const FAB_ON = new Set(['home', 'places', 'placesAt', 'trade', 'picks', 'explore', 'profile']);
 const badges = { inbox: 0, activity: 0 };
 
 /* ---------- navigation ---------- */
@@ -59,6 +61,7 @@ function render(moved) {
   document.querySelectorAll('dialog[open]').forEach((d) => d.close());
   const m = match(routes, location.pathname);
   const ctx = { params: m ? m.params : {}, query: new URLSearchParams(location.search), path: location.pathname };
+  const id = ++renders;
   let out;
   try {
     out = m ? SCREENS[m.name](ctx) : { node: h('div', null, h('header', { class: 'abar' }, h('h1', { class: 't', tabindex: '-1' }, 'Not found')), empty('This page doesn\'t exist', '', btn('Go home', { href: '/' }))), title: 'Not found' };
@@ -66,10 +69,12 @@ function render(moved) {
     console.error(e);
     out = { node: errorBox(e), title: 'Error' };
   }
+  // A screen that redirects (e.g. /me -> /u/<handle>) has already rendered the new page: keep it.
+  if (id !== renders) return;
   if (out instanceof Node) out = { node: out };
   current = { name: m ? m.name : null, group: (m && GROUP[m.name]) || null, tab: out.tab };
   cleanup = out.cleanup || null;
-  document.body.className = [out.bare && 'bare', out.cls].filter(Boolean).join(' ');
+  document.body.className = [out.bare && 'bare', out.cls, !(m && FAB_ON.has(m.name)) && 'nofab'].filter(Boolean).join(' ');
   main.replaceChildren(out.node);
   document.title = (out.title ? out.title + ' · ' : '') + 'PopCart Community';
   markCurrent();
@@ -99,10 +104,11 @@ function buildNav() {
   // replaceChildren takes nodes, not arrays: spread the menu and drop the empty slots.
   wnav.replaceChildren(...[
     h('a', { class: 'brandlink', href: '/', aria: { label: 'Community home' } }, brandName('m')),
-    ...items.filter(([k]) => me || ['home', 'places', 'explore', 'spaces'].includes(k)).map(([k, label, href, ic]) => h('a', { class: 'nv', href, data: { g: k } }, icon(ic, 'lg'), label,
+    // Labels sit in .nl so the tablet rail can show icons only (the label stays for screen readers).
+    ...items.filter(([k]) => me || ['home', 'places', 'explore', 'spaces'].includes(k)).map(([k, label, href, ic]) => h('a', { class: 'nv', href, data: { g: k }, title: label }, icon(ic, 'lg'), h('span', { class: 'nl' }, label),
       (k === 'inbox' && badges.inbox) || (k === 'activity' && badges.activity) ? h('span', { class: 'badge' }, String(k === 'inbox' ? badges.inbox : badges.activity)) : null)),
-    me ? btn('Post', { href: '/compose', cls: 'postbtn' }) : btn('Log in', { href: '/login' }),
-    me ? h('a', { class: 'who', href: '/u/' + encodeURIComponent(me.handle) }, avatar(me), h('div', null, h('div', { class: 'nm' }, me.first_name), h('div', { class: 'mute' }, '@' + me.handle))) : null,
+    me ? btn(h('span', { class: 'nl' }, 'Post'), { href: '/compose', cls: 'postbtn', icon: 'pen', aria: { label: 'New post' } }) : btn(h('span', { class: 'nl' }, 'Log in'), { href: '/login', cls: 'postbtn', icon: 'finger', aria: { label: 'Log in' } }),
+    me ? h('a', { class: 'who', href: '/u/' + encodeURIComponent(me.handle), title: '@' + me.handle }, avatar(me), h('div', { class: 'nl' }, h('div', { class: 'nm' }, me.first_name), h('div', { class: 'mute' }, '@' + me.handle))) : null,
   ].filter(Boolean));
   const tabs = [['home', 'Home', '/', 'home'], ['spaces', 'Spaces', '/spaces', 'hash'], ['work', 'Work', '/work', 'work'], ['inbox', 'Inbox', '/inbox', 'inbox'], ['me', 'Me', me ? '/me' : '/login', 'user']];
   tabbar.replaceChildren(...tabs.map(([k, label, href, ic]) => h('a', { href, data: { g: k }, aria: { label: label + (k === 'inbox' && badges.inbox ? ', ' + badges.inbox + ' unread' : '') } },
@@ -120,11 +126,14 @@ function buildRail(force) {
   railAt = Date.now();
   const me = state.me;
   const foot = h('div', { class: 'wfoot' }, h('a', { href: '/transparency' }, 'Transparency'), h('a', { href: '/places' }, 'Places'), h('br'), 'Your data is never sold. Any ad is labelled. Open source.');
-  if (!me) { wside.replaceChildren(h('div', { class: 'wcard' }, h('h2', null, 'Join by invite'), h('p', null, 'Community is invite-only while the privacy review is done.'), btn('Log in', { sm: true, href: '/login' })), foot); return; }
+  // Search first, as on X: it searches Spaces (Explore).
+  const q = h('input', { type: 'search', placeholder: 'Search Spaces', aria: { label: 'Search Spaces' } });
+  const search = h('form', { class: 'search wsearch', role: 'search', on: { submit: (e) => { e.preventDefault(); const v = q.value.trim(); go(v ? '/explore?q=' + encodeURIComponent(v) : '/explore'); } } }, icon('search', 'sm'), q);
+  if (!me) { wside.replaceChildren(search, h('div', { class: 'wcard' }, h('h2', null, 'Join by invite'), h('p', null, 'Community is invite-only while the privacy review is done. Got an invite link? Open it to join.'), btn('Log in', { sm: true, href: '/login' })), foot); return; }
   const happening = h('section', { class: 'wcard', aria: { label: 'Happening in your city' } }, h('h2', null, 'Happening near you'), h('p', { class: 'foot' }, 'Loading…'));
   const spaces = h('section', { class: 'wcard', aria: { label: 'Spaces near you' } }, h('h2', null, 'Spaces near you'));
   const gigs = h('section', { class: 'wcard', aria: { label: 'Gigs for you' } }, h('h2', null, 'Gigs for you'));
-  wside.replaceChildren(happening, spaces, gigs, foot);
+  wside.replaceChildren(search, happening, spaces, gigs, foot);
   (me.home_area ? get('/feeds/places', { level: 'city', limit: 5 }) : Promise.reject(new Error('no home area'))).then((r) => {
     const ps = (r.posts || []).slice(0, 3);
     happening.replaceChildren(h('h2', null, 'Happening in ' + ((r.area && r.area.name) || 'your city')),

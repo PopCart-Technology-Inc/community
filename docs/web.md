@@ -65,7 +65,20 @@ app/web/
 
 ## Layout
 
-Under 1000 px: the phone layout, five tabs (Home, Spaces, Work, Inbox, Me) and a floating compose button. From 1000 px: three columns, left navigation, the main column, and a right rail with what is happening in your city, Spaces near you and gigs for you, each with its read time.
+The same screens at four widths, following X and Threads:
+
+| Width | Layout |
+|---|---|
+| under 700 px (phone) | Five tabs at the bottom (Home, Spaces, Work, Inbox, Me). The ✎ compose button shows on feeds and profiles only. |
+| 700-999 px (tablet) | An icon rail on the left (labels stay for screen readers and show as tooltips) and one column. Sheets open as centred dialogs. |
+| 1000-1279 px | The icon rail, the column and the right rail. |
+| 1280 px and up | The labelled navigation, the column and the right rail. |
+
+The right rail starts with Search (Spaces), then what is happening in your city, Spaces near you and gigs for you, each with its read time.
+
+Pages without the app chrome:
+- **Welcome** (signed out, `/`): on a phone the name, the picture, then the words and buttons at the bottom, in thumb reach. From 700 px the page is yellow edge to edge and three cards open Places, Spaces and Work. From 960 px the words sit left and the picture right.
+- **Log in and join**: the phone screens as they are; from 700 px a white card on cream with the name above it.
 
 ## Running and testing
 

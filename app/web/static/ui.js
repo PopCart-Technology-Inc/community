@@ -324,7 +324,7 @@ export function pagedList({ fetchPage, render, emptyNode, endNode, cursor = (it)
 /** Run an async loader and swap its result into a placeholder; shows loading and errors. */
 export function later(fn, label) {
   const box = h('div', null, loading(label));
-  const run = () => { box.replaceChildren(loading(label)); Promise.resolve().then(fn).then((n) => box.replaceChildren(...[n].flat().filter(Boolean)), (e) => box.replaceChildren(errorBox(e, run))); };
+  const run = () => { box.replaceChildren(loading(label)); Promise.resolve().then(fn).then((n) => box.replaceChildren(...[n].flat(Infinity).filter(Boolean)), (e) => box.replaceChildren(errorBox(e, run))); };
   run();
   return box;
 }

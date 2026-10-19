@@ -4,6 +4,25 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
+Designed for each screen size: phone, tablet and desktop.
+
+### Added
+- **Tablet layout (700-999 px):** an icon rail on the left in place of the bottom tabs, and one column, as on X and Threads. From 1000 px the right rail joins; from 1280 px the navigation shows its labels.
+- **Welcome on wide screens:** the whole page is yellow, the words sit beside the picture, and three cards open Places, Spaces and Work.
+- **Log in and join on wide screens:** a white card on cream with the name above it, in place of a narrow strip.
+- Search at the top of the right rail (it searches Spaces).
+
+### Fixed
+- The Me tab and `/me` showed a blank page: the redirect to your profile was overwritten by the page it left.
+- Transparency printed "[object HTMLDivElement]" in place of its counts (nested lists in lazily loaded screens were not flattened). The moderator queue had the same fault.
+- On desktop, the phone header (avatar, name, search) also showed above the feed, next to the navigation.
+- Places on a phone: the "See all of …" button ran off the screen and the page scrolled sideways; the place's own name is no longer cut to make room for its region.
+- Empty states put their button in the middle of the sentence.
+- The ✎ button no longer floats over settings, forms and chats, and the end of a feed clears it.
+- Headings focused for screen readers no longer show a focus ring (controls still do).
+
 ## [0.4.1] - 2026-10-19
 
 ### Fixed
@@ -70,7 +89,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.0
 [0.4.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.1
 [0.4.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.4.0
 [0.3.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.3.0

@@ -14,18 +14,33 @@ const NO_PASSKEY = 'This browser cannot use passkeys. Try an up-to-date Chrome, 
 
 /* ---------- welcome (signed out) ---------- */
 
+// The three parts of Community, shown beside the welcome on wider screens. Each opens the real screen.
+const PARTS = [
+  ['globe', 'Places', '/places', 'One feed that zooms from your barangay to the whole world. Every level\'s ranking rule is public.'],
+  ['hash', 'Spaces', '/spaces', 'Your crew, your barangay, your trade: channels for chat, posts, events and gigs.'],
+  ['work', 'Work', '/work', 'Find gigs and get hired on a track record people can check.'],
+];
+
 export function welcome() {
+  // Phone: name, picture, then the words and buttons in thumb reach. Wide: words left, picture right,
+  // the three parts below (layout in app.css, .welcome).
   const node = h('div', { class: 'welcome' },
-    brandName('l'),
-    illustration('rider', 'ill'),
+    h('div', { class: 'wtop' }, brandName('l')),
+    h('div', { class: 'wart' }, illustration('rider', 'ill')),
     h('div', { class: 'hero' },
       h('h1', { class: 'x big', tabindex: '-1' }, 'The network for people who work.'),
       h('p', { class: 'lede' }, 'Show your work. Find your crew. Get hired. Open source, and your data is never sold.'),
-      btn('Look around first', { block: true, href: '/places' }),
-      btn('Log in with passkey', { block: true, kind: 'w', href: '/login' }),
-      h('p', { class: 'center hint' }, 'Joining is by invite while we finish the privacy review. Got an invite link? Open it to join.')));
-  return { node, bare: true, title: 'Welcome' };
+      h('div', { class: 'cta' },
+        btn('Look around first', { block: true, href: '/places' }),
+        btn('Log in with passkey', { block: true, kind: 'w', href: '/login' })),
+      h('p', { class: 'hint' }, 'Joining is by invite while we finish the privacy review. Got an invite link? Open it to join.')),
+    h('ul', { class: 'parts', aria: { label: 'What is in Community' } }, PARTS.map(([ic, name, href, text]) =>
+      h('li', null, h('a', { href }, h('span', { class: 'pi' }, icon(ic, 'lg b')), h('b', null, name), h('span', null, text))))));
+  return { node, bare: true, cls: 'bare-welcome', title: 'Welcome' };
 }
+
+/** The name above the sign-in card on wider screens (hidden on phones, where the app bar is enough). */
+const authBrand = () => h('a', { class: 'authbrand', href: '/', aria: { label: 'Community home' } }, brandName('m'));
 
 /* ---------- login ---------- */
 
@@ -48,13 +63,13 @@ export function login({ query }) {
       msg.textContent = e && e.name === 'NotAllowedError' ? 'Log in was cancelled or timed out. Try again.' : ((e && e.message) || 'Could not log in');
     } finally { go.disabled = false; }
   });
-  const node = h('div', null, appBar({ back: '/', title: '' }), h('div', { class: 'ob' },
+  const node = h('div', null, authBrand(), h('div', { class: 'authcard' }, appBar({ back: '/', title: '' }), h('div', { class: 'ob' },
     h('div', { class: 'passkey-art' }, icon('finger', 'lg')),
     h('h1', { tabindex: '-1' }, 'Log in'),
     h('p', { class: 'sub' }, 'Use the passkey on this phone or computer: your fingerprint, face or screen lock. No password.'),
     go, msg,
-    h('p', { class: 'hint' }, icon('info', 'sm'), 'New here? Joining is by invite for now: open your invite link.')));
-  return { node, bare: true, title: 'Log in' };
+    h('p', { class: 'hint' }, icon('info', 'sm'), 'New here? Joining is by invite for now: open your invite link.'))));
+  return { node, bare: true, cls: 'authpage', title: 'Log in' };
 }
 
 const safeNext = (n) => (n && n.startsWith('/') && !n.startsWith('//') ? n : '/');
@@ -84,16 +99,17 @@ const T = {
 
 export function join({ query }) {
   const code = (query.get('code') || '').trim();
-  const root = h('div');
+  const root = h('div', { class: 'authcard' });
+  const page = { node: h('div', null, authBrand(), root), bare: true, cls: 'authpage', title: 'Join' };
   if (state.me) {
     root.append(empty('You\'re already in', 'You are signed in as @' + state.me.handle + '.', btn('Go home', { href: '/' })));
-    return { node: root, bare: true, title: 'Join' };
+    return page;
   }
   if (!code) {
     root.append(appBar({ back: '/', title: '' }), empty('Joining is by invite for now',
       'While the privacy review is done, people join with an invite link from the Community team. Open the link you were sent.',
       btn('Look around first', { href: '/places' })));
-    return { node: root, bare: true, title: 'Join' };
+    return page;
   }
   const d = { code, lang: 'en', agree: false, adult: false, terms: null, improve_usage: false, improve_surveys: false, first_name: '', handle: '', trade: '', home_area: null, home_name: '' };
   const steps = [before, choices, profile, passkey, findSpaces];
@@ -110,7 +126,7 @@ export function join({ query }) {
       ? empty('This invite can\'t be used', 'It has been used or has expired. Ask the person who invited you for a new link.')
       : errorBox(e));
   });
-  return { node: root, bare: true, title: 'Join' };
+  return page;
 }
 
 const progress = (n) => h('div', { class: 'progress', role: 'progressbar', aria: { label: 'Joining', valuemin: '1', valuemax: '5', valuenow: String(n) } },
