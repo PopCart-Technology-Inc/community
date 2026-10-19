@@ -1,0 +1,26 @@
+# Type check and tests on every push and pull request. Read-only token, no secrets: safe for forks.
+name: test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Install (exact versions from the lockfile, no install scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Tests
+        run: npm test
