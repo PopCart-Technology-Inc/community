@@ -119,8 +119,10 @@ function levelSheet(level, meta) {
 }
 
 export function places({ params, query }) {
-  const level = isLevel(params.level) ? params.level : (isLevel(query.get('level')) ? query.get('level') : DEFAULT_LEVEL);
   const code = params.code || null;
+  let level = isLevel(params.level) ? params.level : (isLevel(query.get('level')) ? query.get('level') : DEFAULT_LEVEL);
+  // Signed out, or no home area yet: nothing to zoom from, so start at World (never an error page).
+  if (!code && !(state.me && state.me.home_area) && level !== 'world') level = 'world';
   const meta = { area: null, rule: '', weights: null };
   const placeName = h('b', null, code ? '…' : (state.me && state.me.home_area ? 'Your area' : 'Everywhere'));
   const upName = h('span', { class: 'mute' });

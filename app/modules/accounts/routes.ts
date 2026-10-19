@@ -44,7 +44,7 @@ export function register(r: Router): void {
     const handle = str(b.handle, 'handle', { min: 3, max: 30, pattern: HANDLE }).toLowerCase();
     if (await ctx.db.one('SELECT 1 FROM users WHERE handle = $1', [handle])) fail(409, 'handle_taken', 'That username is taken');
     const pending = {
-      code_hash: inv.code_hash.toString('hex'), role: inv.role, handle,
+      code_hash: Buffer.from(inv.code_hash).toString('hex'), role: inv.role, handle,
       first_name: str(b.first_name, 'first_name', { min: 1, max: 40 }),
       trade: oneOf(b.trade, 'trade', TRADES, 'other'),
       home_area: b.home_area ? str(b.home_area, 'home_area', { max: 40 }) : null,

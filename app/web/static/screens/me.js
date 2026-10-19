@@ -6,7 +6,7 @@ import { asOf, count, TRADES, tradeLabel } from '../lib/format.js';
 import { uploadPhoto } from '../lib/media.js';
 import { illustration } from '../lib/brand.js';
 import { nav, state } from '../core.js';
-import { appBar, avatar, btn, buttonTabs, empty, errorBox, fail, field, followBtn, iconLink, later, tick, toast, toggle } from '../ui.js';
+import { appBar, avatar, btn, buttonTabs, empty, errorBox, fail, field, followBtn, iconLink, later, pagedList, postView, tick, toast, toggle } from '../ui.js';
 import { placeSearch } from './join.js';
 
 const enc = encodeURIComponent;
@@ -35,6 +35,14 @@ export function profile({ params }) {
     const creds = (p.credentials || []).filter((c) => c.shown !== false);
     const body = h('div');
     const TABS = {
+      posts: () => pagedList({
+        fetchPage: async (before) => {
+          const r = await get('/people/' + enc(p.handle) + '/posts', { before });
+          return { items: r.posts, end: r.end === true || !(r.posts || []).length, as_of: r.as_of };
+        },
+        render: (x) => postView(x, { showPlace: true }),
+        emptyNode: empty('No posts yet', mine ? 'Your posts show here.' : 'Nothing posted yet.'),
+      }),
       work: () => later(async () => {
         const w = await get('/people/' + enc(p.handle) + '/work');
         const rt = w.ratings || {};
@@ -51,7 +59,7 @@ export function profile({ params }) {
         h('p', { class: 'mute' }, tradeLabel(p.trade) + (p.home_area_name ? ' · ' + p.home_area_name : ''))),
     };
     const show = (k) => body.replaceChildren(TABS[k]());
-    show('work');
+    show('posts');
     const msg = !mine && state.me ? btn('Message', { sm: true, kind: 'w', on: async () => { try { const c = await post('/conversations', { handle: p.handle }); nav('/inbox/' + enc(c.conversation.id)); } catch (e) { fail(e); } } }) : null;
     return [
       h('div', { class: 'pcover' }, p.cover_media_id ? h('img', { src: '/media/' + p.cover_media_id, alt: '' }) : illustration(p.trade === 'grill' ? 'grill' : p.trade === 'fresh' ? 'fish' : 'rider', 'ill'),
@@ -67,7 +75,7 @@ export function profile({ params }) {
           h('span', null, h('b', null, count(p.salamats)), ' salamats'), p.as_of ? h('span', null, asOf(p.as_of)) : null),
         creds[0] ? h('a', { class: 'proof mb', href: '#', on: { click: (e) => { e.preventDefault(); show('proof'); } } },
           h('div', { class: 'top' }, icon('shield', 'sm'), 'Signed proof'), h('div', { class: 's' }, creds[0].summary || ''), h('div', { class: 'by' }, creds[0].as_of ? 'as of ' + dateShort(creds[0].as_of) : '')) : null),
-      buttonTabs([['work', 'Work'], ['proof', 'Proof'], ['about', 'About']], 'work', show, 'Profile sections'),
+      buttonTabs([['posts', 'Posts'], ['work', 'Work'], ['proof', 'Proof'], ['about', 'About']], 'posts', show, 'Profile sections'),
       body,
       mine ? h('div', null, h('h2', { class: 'sect' }, 'Elsewhere'), h('a', { class: 'li', href: '/me/socials' }, icon('link'), h('div', { class: 'grow' }, h('div', { class: 't1' }, 'Your other accounts')), icon('chev', 'sm'))) : null,
     ];

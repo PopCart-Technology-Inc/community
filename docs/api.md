@@ -56,6 +56,7 @@ Importer: `npm run places:import -- <psgc.csv>` loads the Philippine Standard Ge
 | GET | `/feeds/picks` | | `{ posts, week, as_of }`: last week's most-thanked posts by distinct givers |
 | GET | `/posts/:id/why` | `?level=&code=` | `{ signals: { near, trade, salamats_distinct, fresh_hours }, weights, rule }` the real inputs of this post's score |
 | GET | `/me/saved` | | `{ posts }` |
+| GET | `/people/:handle/posts` | `?before&limit` | `{ posts, end, as_of }`: a person's top-level posts for their profile, newest first; private-Space posts only for members |
 | GET | `/notifications` | | `{ items, unread, as_of }` |
 | POST | `/notifications/read` | | 204 |
 

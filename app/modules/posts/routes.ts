@@ -246,6 +246,17 @@ export function register(r: Router): void {
     return json({ posts: rows.slice(0, n).map((x) => toPost(x, 'region', v)), end: rows.length <= n, as_of: new Date().toISOString() });
   });
 
+  // A person's own top-level posts, newest first, for their profile. Space posts follow Space privacy.
+  r.get('/people/:handle/posts', async (ctx) => {
+    const me = await viewerOf(ctx);
+    const { limit: n, before } = page(ctx.query);
+    const rows = await ctx.db.query<PostRow>(
+      `${POST_SELECT} WHERE p.reply_to IS NULL AND ${VISIBLE}
+         AND au.handle = $2 AND ($3::timestamptz IS NULL OR p.created_at < $3)
+       ORDER BY p.created_at DESC LIMIT $4`, [me.id, ctx.params.handle, before, n + 1]);
+    return json({ posts: rows.slice(0, n).map((x) => toPost(x, 'region', reference(me, me.home))), end: rows.length <= n, as_of: new Date().toISOString() });
+  });
+
   r.get('/feeds/places', async (ctx) => {
     const level = oneOf(ctx.query.get('level'), 'level', LEVELS, 'city');
     const me = await viewerOf(ctx);

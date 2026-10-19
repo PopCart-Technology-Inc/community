@@ -4,6 +4,8 @@ Decision [0001](decisions/0001-hold-keys-not-data.md), point 4: **private means 
 
 Everything here uses the browser's WebCrypto (`crypto.subtle`). No other crypto library is needed.
 
+> **Reference implementation:** the web app (`app/web/static/lib/e2e.js`), described exactly in [e2e-client.md](e2e-client.md). Where this page and e2e-client.md differ, **e2e-client.md wins**: direct-message keys use the HKDF salt `"dm:" + conversation id` and info `"popcart-community/dm/v1"`, and private-Space messages carry a one-time sender key `epk` (a public ECDH P-256 JWK) used to wrap the message key for each member. The server accepts `epk` and checks it is a public key only. The envelope rules below (sizes, member ids, the sender's own key, plaintext refused) are what the server enforces.
+
 ## Encoding
 
 - **base64** below means standard base64 (RFC 4648 section 4, alphabet `A-Z a-z 0-9 + /`) **with** `=` padding. base64url, missing padding or whitespace are refused.

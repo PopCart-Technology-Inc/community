@@ -88,7 +88,17 @@ function b64Bytes(v: unknown, field: string): number {
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-export interface Sealed { v: 1; iv: string; ct: string; keys?: Record<string, string> }
+export interface EcPublicJwk { kty: 'EC'; crv: 'P-256'; x: string; y: string }
+export interface Sealed { v: 1; iv: string; ct: string; keys?: Record<string, string>; epk?: EcPublicJwk }
+
+/** A one-time sender public key (ECDH P-256 JWK). Never accept anything private-looking. */
+function checkEpk(k: unknown): EcPublicJwk {
+  const ok = isPlainObject(k) && k.kty === 'EC' && k.crv === 'P-256' && typeof k.x === 'string' && typeof k.y === 'string'
+    && /^[A-Za-z0-9_-]{43}$/.test(k.x) && /^[A-Za-z0-9_-]{43}$/.test(k.y)
+    && Object.keys(k).every((f) => ['kty', 'crv', 'x', 'y', 'ext', 'key_ops'].includes(f));
+  if (!ok) return bad('sealed.epk', 'must be a public ECDH P-256 key (JWK with kty, crv, x, y only)');
+  return { kty: 'EC', crv: 'P-256', x: k.x as string, y: k.y as string };
+}
 
 /**
  * Check an encrypted envelope strictly. DM: `{ v: 1, iv, ct }`. Private Space (`members` given):
@@ -96,7 +106,7 @@ export interface Sealed { v: 1; iv: string; ct: string; keys?: Record<string, st
  */
 export function checkSealed(v: unknown, opts: { sender: string; members?: Set<string> }): Sealed {
   if (!isPlainObject(v)) return bad('sealed', 'must be an encrypted envelope object');
-  const allowed = opts.members ? ['v', 'iv', 'ct', 'keys'] : ['v', 'iv', 'ct'];
+  const allowed = opts.members ? ['v', 'iv', 'ct', 'keys', 'epk'] : ['v', 'iv', 'ct'];
   for (const k of Object.keys(v)) if (!allowed.includes(k)) bad('sealed', `has an unexpected field (allowed: ${allowed.join(', ')})`);
   if (v.v !== 1) bad('sealed.v', 'must be 1');
   if (b64Bytes(v.iv, 'sealed.iv') !== SEAL.ivBytes) bad('sealed.iv', `must be ${SEAL.ivBytes} bytes`);
@@ -116,6 +126,7 @@ export function checkSealed(v: unknown, opts: { sender: string; members?: Set<st
     }
     if (!Object.hasOwn(keys, opts.sender)) bad('sealed.keys', 'must include a key for yourself');
     out.keys = keys;
+    if (v.epk !== undefined) out.epk = checkEpk(v.epk);
   }
   return out;
 }
@@ -125,7 +136,7 @@ function sealedFor(s: Sealed | null, viewer: string): Sealed | null {
   if (!s) return null;
   if (!s.keys) return s;
   const mine = s.keys[viewer];
-  return { v: s.v, iv: s.iv, ct: s.ct, keys: mine ? { [viewer]: mine } : {} };
+  return { v: s.v, iv: s.iv, ct: s.ct, keys: mine ? { [viewer]: mine } : {}, ...(s.epk ? { epk: s.epk } : {}) };
 }
 
 /** Plaintext is refused where messages must be sealed: any field besides `sealed` is a refusal. */

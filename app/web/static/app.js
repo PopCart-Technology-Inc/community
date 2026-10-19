@@ -6,6 +6,7 @@ import { compile, match, ROUTES } from './lib/router.js';
 import { asOf, timeAgo } from './lib/format.js';
 import { brandName, loadBrand } from './lib/brand.js';
 import { setNavigator, state } from './core.js';
+import { ensureIdentity } from './lib/keystore.js';
 import { avatar, btn, empty, errorBox, toast } from './ui.js';
 import { join, login } from './screens/join.js';
 import { activity, compose, explore, following, picks, places, postDetail, trade } from './screens/home.js';
@@ -95,12 +96,14 @@ function buildNav() {
   const me = state.me;
   const items = [['home', 'Home', '/', 'home'], ['places', 'Places', '/places', 'globe'], ['explore', 'Explore', '/explore', 'search'], ['spaces', 'Spaces', '/spaces', 'hash'],
     ['work', 'Work', '/work', 'work'], ['inbox', 'Inbox', '/inbox', 'inbox'], ['activity', 'Activity', '/activity', 'bell'], ['me', 'Profile', '/me', 'user']];
-  wnav.replaceChildren(
+  // replaceChildren takes nodes, not arrays: spread the menu and drop the empty slots.
+  wnav.replaceChildren(...[
     h('a', { class: 'brandlink', href: '/', aria: { label: 'Community home' } }, brandName('m')),
-    items.filter(([k]) => me || ['home', 'places', 'explore', 'spaces'].includes(k)).map(([k, label, href, ic]) => h('a', { class: 'nv', href, data: { g: k } }, icon(ic, 'lg'), label,
+    ...items.filter(([k]) => me || ['home', 'places', 'explore', 'spaces'].includes(k)).map(([k, label, href, ic]) => h('a', { class: 'nv', href, data: { g: k } }, icon(ic, 'lg'), label,
       (k === 'inbox' && badges.inbox) || (k === 'activity' && badges.activity) ? h('span', { class: 'badge' }, String(k === 'inbox' ? badges.inbox : badges.activity)) : null)),
     me ? btn('Post', { href: '/compose', cls: 'postbtn' }) : btn('Log in', { href: '/login' }),
-    me ? h('a', { class: 'who', href: '/u/' + encodeURIComponent(me.handle) }, avatar(me), h('div', null, h('div', { class: 'nm' }, me.first_name), h('div', { class: 'mute' }, '@' + me.handle))) : null);
+    me ? h('a', { class: 'who', href: '/u/' + encodeURIComponent(me.handle) }, avatar(me), h('div', null, h('div', { class: 'nm' }, me.first_name), h('div', { class: 'mute' }, '@' + me.handle))) : null,
+  ].filter(Boolean));
   const tabs = [['home', 'Home', '/', 'home'], ['spaces', 'Spaces', '/spaces', 'hash'], ['work', 'Work', '/work', 'work'], ['inbox', 'Inbox', '/inbox', 'inbox'], ['me', 'Me', me ? '/me' : '/login', 'user']];
   tabbar.replaceChildren(...tabs.map(([k, label, href, ic]) => h('a', { href, data: { g: k }, aria: { label: label + (k === 'inbox' && badges.inbox ? ', ' + badges.inbox + ' unread' : '') } },
     h('b', null, icon(ic)), label, k === 'inbox' && badges.inbox ? h('span', { class: 'dot', aria: { hidden: 'true' } }, String(badges.inbox)) : null)));
@@ -122,11 +125,11 @@ function buildRail(force) {
   const spaces = h('section', { class: 'wcard', aria: { label: 'Spaces near you' } }, h('h2', null, 'Spaces near you'));
   const gigs = h('section', { class: 'wcard', aria: { label: 'Gigs for you' } }, h('h2', null, 'Gigs for you'));
   wside.replaceChildren(happening, spaces, gigs, foot);
-  get('/feeds/places', { level: 'city', limit: 5 }).then((r) => {
+  (me.home_area ? get('/feeds/places', { level: 'city', limit: 5 }) : Promise.reject(new Error('no home area'))).then((r) => {
     const ps = (r.posts || []).slice(0, 3);
     happening.replaceChildren(h('h2', null, 'Happening in ' + ((r.area && r.area.name) || 'your city')),
-      ps.length ? ps.map((p) => h('a', { class: 'li', href: '/p/' + p.id }, h('div', { class: 'grow' }, h('div', { class: 't1' }, (p.body || 'Photo').split('\n')[0].slice(0, 48)),
-        h('div', { class: 't2' }, (p.salamats || 0) + ' salamats · ' + timeAgo(p.created_at))))) : h('p', { class: 'mute' }, 'No posts here yet.'),
+      ps.length ? h('div', null, ps.map((p) => h('a', { class: 'li', href: '/p/' + p.id }, h('div', { class: 'grow' }, h('div', { class: 't1' }, (p.body || 'Photo').split('\n')[0].slice(0, 48)),
+        h('div', { class: 't2' }, (p.salamats || 0) + ' salamats · ' + timeAgo(p.created_at)))))) : h('p', { class: 'mute' }, 'No posts here yet.'),
       h('p', { class: 'foot' }, 'Ranked by the published City rule · ' + asOf(r.as_of)));
   }, () => happening.replaceChildren(h('h2', null, 'Happening near you'), h('p', { class: 'mute' }, 'Set your home area in Settings to see your city.')));
   if (me.home_area) {
@@ -179,6 +182,11 @@ async function boot() {
 
   const brand = loadBrand();
   try { state.me = (await get('/me')).user || null; } catch { state.me = null; }
+  // Make and publish this browser's messaging key as soon as someone is signed in, so others can
+  // message them before they ever open a conversation (decision 0001, point 4).
+  const keys = () => { if (state.me) ensureIdentity(state.me).catch(() => { /* retried on the next visit */ }); };
+  keys();
+  window.addEventListener('cm:auth', keys);
   await brand;
   buildNav();
   render(false);

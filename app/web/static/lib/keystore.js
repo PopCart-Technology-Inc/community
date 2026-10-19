@@ -46,5 +46,6 @@ export async function ensureIdentity(me) {
     const r = await patch('/me', { dm_public_key: publicJwk(idn.publicJwk) });
     if (r && r.user) Object.assign(me, r.user);
   }
-  return { ...idn, fresh };
+  // "fresh" warns about older messages; it only applies when an older key had been published.
+  return { ...idn, fresh: fresh && !!published };
 }

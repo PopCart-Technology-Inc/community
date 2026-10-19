@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node app/main.ts",
     "dev": "node --watch app/main.ts",
+    "dev:memory": "node app/dev.ts",
     "migrate": "node app/db/migrate-cli.ts",
     "invite": "node app/modules/accounts/invite-cli.ts",
     "places:import": "node app/modules/places/import.ts",
