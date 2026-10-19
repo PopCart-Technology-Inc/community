@@ -21,10 +21,26 @@ export async function loadBrand() {
   try {
     const r = await fetch('/brand/sprite.svg', { credentials: 'same-origin' });
     if (!r.ok) return;
-    const doc = new DOMParser().parseFromString(await r.text(), 'image/svg+xml');
+    // The CSP blocks style attributes, even while DOMParser reads them, so the pack's (fill colours) are
+    // renamed before parsing; each becomes a class, with its rule in a constructed stylesheet (allowed).
+    const text = (await r.text()).replace(/(\s)style=(["'])/g, '$1data-bs=$2');
+    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
     const svg = doc.documentElement;
     if (!svg || svg.nodeName.toLowerCase() !== 'svg') return;
     svg.querySelectorAll('script, foreignObject').forEach((n) => n.remove());
+    const classes = new Map();
+    for (const el of svg.querySelectorAll('[data-bs]')) {
+      const s = el.getAttribute('data-bs');
+      el.removeAttribute('data-bs');
+      if (!/^[\w\s:;,.()%#-]*$/.test(s)) continue; // declarations only, never a way out of the rule
+      if (!classes.has(s)) classes.set(s, 'bs' + classes.size);
+      el.classList.add(classes.get(s));
+    }
+    if (classes.size && 'adoptedStyleSheets' in document) {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync([...classes].map(([s, c]) => `.sprite .${c}, .${c} { ${s} }`).join('\n'));
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    }
     const node = document.importNode(svg, true);
     node.setAttribute('aria-hidden', 'true');
     node.setAttribute('class', 'sprite');
