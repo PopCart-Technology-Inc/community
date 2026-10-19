@@ -21,12 +21,14 @@ function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
   return new Promise((ok, fail) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let over = false;
     req.on('data', (c: Buffer) => {
+      if (over) return; // keep draining so the 413 reply reaches the client
       size += c.length;
-      if (size > max) { fail(new HttpError(413, 'too_large', 'Request body is too large')); req.destroy(); return; }
+      if (size > max) { over = true; chunks.length = 0; fail(new HttpError(413, 'too_large', 'Request body is too large')); return; }
       chunks.push(c);
     });
-    req.on('end', () => ok(Buffer.concat(chunks)));
+    req.on('end', () => { if (!over) ok(Buffer.concat(chunks)); });
     req.on('error', fail);
   });
 }

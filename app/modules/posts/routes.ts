@@ -127,6 +127,11 @@ export function register(r: Router): void {
     if (spaceId && !(await ctx.db.one('SELECT 1 FROM space_members WHERE space_id = $1 AND user_id = $2', [spaceId, me.id]))) {
       fail(403, 'not_member', 'Join this Space to post in it');
     }
+    // Private means end-to-end encrypted (decision 0001, point 4). Posts are stored as plaintext, so they
+    // are refused in private Spaces until sealed posts exist; the private Space's encrypted chat is open.
+    if (spaceId && (await ctx.db.one(`SELECT 1 FROM spaces WHERE id = $1 AND visibility = 'private'`, [spaceId]))) {
+      fail(400, 'private_space_posts', 'Posts in a private Space are not end-to-end encrypted yet. Use its chat instead.');
+    }
 
     let media: string[] = [];
     if (b.media_ids !== undefined && b.media_ids !== null) {

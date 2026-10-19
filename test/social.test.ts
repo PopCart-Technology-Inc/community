@@ -337,14 +337,17 @@ test('posts: posting in a Space needs membership; private Space posts stay insid
   await app.db.query(`INSERT INTO space_members (space_id, user_id, role) VALUES ($1, $2, 'owner')`, [sp!.id, owner.id]);
   assert.equal((await outsider.call('POST', '/posts', { body: 'let me in', space_id: sp!.id })).status, 403);
   assert.equal((await outsider.call('POST', '/posts', { body: 'bad', space_id: 'nope' })).status, 400);
-  const p = await owner.call('POST', '/posts', { body: 'crew only', space_id: sp!.id });
-  assert.equal(p.status, 201);
-  assert.equal(p.body.post.space_id, sp!.id);
-  assert.equal((await outsider.call('GET', `/posts/${p.body.post.id}`)).status, 404);
-  assert.equal((await outsider.call('POST', '/posts', { body: 'reply', reply_to: p.body.post.id })).status, 404);
-  assert.equal((await owner.call('GET', `/posts/${p.body.post.id}`)).status, 200);
+  // Plaintext posts are refused in a private Space (only its end-to-end encrypted chat is open).
+  const refused = await owner.call('POST', '/posts', { body: 'crew only', space_id: sp!.id });
+  assert.equal(refused.status, 400);
+  assert.equal(refused.body.error.code, 'private_space_posts');
+  // Defence in depth: a private-Space post row (e.g. a future sealed post) is still visible to members only.
+  const row = await app.db.one<{ id: string }>(`INSERT INTO posts (author_id, body, space_id) VALUES ($1, 'crew only', $2) RETURNING id`, [owner.id, sp!.id]);
+  assert.equal((await outsider.call('GET', `/posts/${row!.id}`)).status, 404);
+  assert.equal((await outsider.call('POST', '/posts', { body: 'reply', reply_to: row!.id })).status, 404);
+  assert.equal((await owner.call('GET', `/posts/${row!.id}`)).status, 200);
   const feed = await owner.call('GET', '/feeds/following');
-  assert.ok(feed.body.posts.some((x: { id: string }) => x.id === p.body.post.id), 'members see Space posts in Following');
+  assert.ok(feed.body.posts.some((x: { id: string }) => x.id === row!.id), 'members see Space posts in Following');
 });
 
 test('salamat: one per post, never your own, ten a week, notifies, can be taken back', async () => {
