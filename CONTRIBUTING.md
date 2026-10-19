@@ -18,6 +18,7 @@ They check every commit and push for secrets, personal data and internal details
 - **Data rule first.** Any change must fit [hold keys, not data](docs/decisions/0001-hold-keys-not-data.md). If a feature needs new personal data, open an issue first and say why.
 - **No fake data in the product.** Anything that can change is shown live, with the time it was read ("as of"). Examples in designs and docs are labelled as examples.
 - **Small pull requests**, one change each, with tests when there is code.
+- **Agent instructions are versioned.** `CLAUDE.md`, `AGENTS.md` and `.claude/` are listed in `agent-instructions.json`, each with its own semantic version. After changing one, run `python tools/instructions/instructions.py bump <path> patch|minor|major` (PATCH = wording, MINOR = new behaviour, MAJOR = removed or contradicting behaviour). The pre-commit hook and the pull request checks run `instructions.py check`.
 
 ## Sign-off (DCO)
 

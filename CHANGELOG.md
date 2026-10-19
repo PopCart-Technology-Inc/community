@@ -4,6 +4,9 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- Agent instructions are versioned: `agent-instructions.json` gives `CLAUDE.md`, `AGENTS.md` and `.claude/` each a semantic version, and the pre-commit hook and pull request checks refuse an instruction change without a higher version.
+
 ## [0.5.1] - 2026-10-19
 
 ### Fixed

@@ -3,4 +3,6 @@
 # Enable once per clone: git config core.hooksPath .githooks
 PY=; for c in python3 python py; do "$c" -c "import sys; sys.exit(sys.version_info < (3, 8))" >/dev/null 2>&1 && PY=$c && break; done
 [ -n "$PY" ] || { echo "leakcheck: python 3.8+ not found (blocking)" >&2; exit 1; }
-exec "$PY" "$(git rev-parse --show-toplevel)/tools/leakcheck/leakcheck.py" --staged
+"$PY" "$(git rev-parse --show-toplevel)/tools/leakcheck/leakcheck.py" --staged || exit 1
+# Every agent instruction (CLAUDE.md, AGENTS.md, .claude/) carries a semantic version: agent-instructions.json.
+exec "$PY" "$(git rev-parse --show-toplevel)/tools/instructions/instructions.py" check
