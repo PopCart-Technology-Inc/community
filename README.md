@@ -24,7 +24,9 @@ We build them one at a time, in that order. **Profiles come first.**
 
 ## How it treats your data
 
-**We hold keys, not data, and what the law makes us keep is sealed.** See [docs/decisions](docs/decisions/): [0001](docs/decisions/0001-hold-keys-not-data.md) data, [0002](docs/decisions/0002-sign-up-and-verification.md) sign-up, [0003](docs/decisions/0003-feeds-and-spaces.md) feeds and spaces, [0004](docs/decisions/0004-connected-socials.md) connected socials.
+**We hold keys, not data, and what the law makes us keep is sealed.** See [docs/decisions](docs/decisions/): [0001](docs/decisions/0001-hold-keys-not-data.md) data, [0002](docs/decisions/0002-sign-up-and-verification.md) sign-up, [0003](docs/decisions/0003-feeds-and-spaces.md) feeds and spaces, [0004](docs/decisions/0004-connected-socials.md) connected socials, [0005](docs/decisions/0005-places-geographic-feeds.md) Places.
+
+**How it looks and works:** the screen-by-screen design is in [docs/design](docs/design/README.md).
 
 1. **Collect less.** Only what a feature needs. No ad profiles, no tracking, no selling.
 2. **Sign instead of share.** PopCart issues signed credentials (W3C Verifiable Credentials) that you keep and show if you choose. No records get copied over.
