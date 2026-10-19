@@ -27,17 +27,21 @@ Status: ✅ built · 🔨 being built.
 | POST / DELETE | `/people/:handle/follow` | | 204 |
 | GET | `/people/:handle/followers`, `/following` | | `{ people }` |
 
-## Places 🔨 (`places/`)
+## Places ✅ (`places/`)
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/places/search?q=` | `{ areas: [{ code, name, level, parent_name }] }` (max 20; names, never coordinates) |
-| GET | `/places/:code` | `{ area: { code, name, level }, chain: [{ code, name, level }] }` (the area and its ancestors up to World) |
-| GET | `/places/:code/children` | `{ areas }` |
+| GET | `/places/search?q=` | `{ areas: [{ code, name, level, parent_name }], as_of }` (max 20; names, never coordinates). `q` needs 2-60 characters; names starting with `q` come first. |
+| GET | `/places/:code` | `{ area: { code, name, level }, chain: [{ code, name, level }], as_of }`: `chain` starts with the area itself and walks up to World. |
+| GET | `/places/:code/children` | `{ areas, as_of }` (by name) |
 
 Importer: `npm run places:import -- <psgc.csv>` loads the Philippine Standard Geographic Code (columns: 10-digit code, name, geographic level) and fills `city_code`, `region_code`, `country_code` for every area. Never ship coordinates.
+- A header row is optional; with one, the columns are found by name (a code/PSGC column, `Name`, a level column), so the published file works as is. A 9-digit code (leading zero lost in a spreadsheet) is padded.
+- Levels: `Reg` → region, `Prov` → province, `City`/`Mun`/`SubMun` → city, `Bgy` → barangay. Other levels (e.g. districts) are skipped and counted.
+- Parents from the code's prefixes: region = first 2 digits + `00000000`, province = first 5 + `00000`, city/municipality = first 7 + `000`; a parent missing from the file is skipped, so NCR cities hang from the region. A `SubMun` sits under its city, and its barangays roll up to that city for the City feed.
+- It upserts a `PH` row (Philippines, parent `WORLD`) and every area, in one transaction: re-running is safe. No PSGC data is committed to this repository.
 
-## Posts, feeds and salamat 🔨 (`posts/`)
+## Posts, feeds and salamat ✅ (`posts/`)
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
@@ -65,6 +69,25 @@ A **post** in responses: `{ id, author: person, body, created_at, reply_to, spac
 - Fair traffic: at most 2 posts per author in every 20. Country: at most 1 in 4 posts from any one city. World: at most 1 in 4 from any one country.
 - No paid boosts, no engagement-bait or outrage signals, no private data.
 - `quiet`: when a level returns fewer than 5 posts from the last 24 hours, suggest the next level up.
+
+**As built (details and small deviations):**
+- Every list and count response carries `as_of`, including `GET /posts/:id`, salamat counts, `/me/saved` and `/feeds/trade`.
+- `near` is measured from the viewer's home area; when they have none (or are signed out), from the area being viewed. `distance_hint` precision: Barangay and City say "same barangay" or the barangay's name; Region and Country the city; World "City, Country"; lists outside Places (post page, Following, saved) the city.
+- Places, Trade and Picks show top-level posts only (no replies). Places and Trade leave out Space posts; Picks includes public Space posts. Posts in a private Space are only ever shown to its members (including `GET /posts/:id`, which is 404 for others).
+- Following also shows your own posts and posts in Spaces you are a member of.
+- Ranked feeds rank the newest 300 posts that match (older than `before` when given). For the next page pass `before=<the oldest created_at on the page>`.
+- Fair traffic is applied after ranking at every level, Barangay included (decision 0005). The author cap is hard: posts over it are held back. The mix rule is kept whenever the remaining posts can still be spread 1 in 4 (it looks ahead so a low-scoring city does not bunch up at the end); when they cannot (one or two cities have everything left), the post whose city or country appeared longest ago comes next, so posts are never hidden by the mix rule.
+- Weights as published: City `{ near: 3, trade: 1, salamat: 1, fresh: 2 }`, Region `{ near: 1, trade: 1, salamat: 2, fresh: 2 }`, Country `{ near: 0.5, trade: 1, salamat: 2, fresh: 2 }`, World `{ near: 0, trade: 1, salamat: 2, fresh: 2 }`; Barangay `weights: null`.
+- `/feeds/places`: `level` defaults to `city`, `code` to the viewer's home area (400 when neither gives an area at that level). `area` is the area at that level (`{ code: 'WORLD', … }` for World). `quiet` skips levels the area has no code for.
+- `/feeds/trade`: `trade` defaults to the viewer's trade. Area: the viewer's home city (reach city or wider); with no home area, only posts with reach world. Returns `{ posts, trade, rule, weights, as_of }`.
+- `/feeds/picks`: "last week" is the previous Manila ISO week (`manilaWeek`), ordered by distinct givers, author cap applied, `?limit`.
+- `/posts/:id/why`: also returns `score` (null at Barangay) and `as_of`.
+- Salamat errors: 400 `own_post`, 409 `already_thanked`, 429 `no_salamats_left`. Tags are lower-cased, 1-24 characters each. Taking a salamat back also removes its unread notification. Salamat and reply create notifications (`ref_kind: 'post'`, `ref_id`: the thanked post, or for a reply the post replied to); your own reply does not notify you.
+- A reply also inherits the parent's Space; posting a reply needs membership there too.
+- `media_ids`: up to 4 of your own uploads.
+- `/me/saved`: newest saved first; each post also has `saved_at`, and `before` pages by save time.
+- `/notifications`: `?before&limit`; items are `{ id, kind, ref_kind, ref_id, created_at, read, actor: person | null }`.
+- `lang` is always `null` for now (no language detection yet).
 
 ## Spaces and messages 🔨 (`spaces/`)
 
