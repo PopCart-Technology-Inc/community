@@ -181,7 +181,10 @@ export function registerPanel(r: Router, pub: Router): void {
     const current = await ctx.db.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1', [u.id]);
     if (!current) return fail(404, 'not_found', 'That person holds no staff role');
     if (current.role === OVERSEER) {
-      if ((await approvals.overseerCount(ctx.db)) <= 1) return fail(409, 'last_overseer', 'Community must keep at least one Overseer');
+      const others = await approvals.overseerCount(ctx.db, { except: u.id });
+      if (others < 1) return fail(409, 'last_overseer', 'Community must keep at least one Overseer who can act');
+      // The person it is about can't decide it, so someone besides the asker and them must be able to.
+      if (u.id !== me.id && others < 2) return fail(409, 'no_second', 'Nobody else can approve this. With two Overseers, removing one is done with npm run staff on the server.');
       const a = await approvals.ask(ctx.db, me, { kind: 'overseer_remove', key: 'overseer:' + u.id, title: `Remove @${u.handle} as an Overseer`, payload: { user_id: u.id } });
       return json({ approval: a }, 202);
     }

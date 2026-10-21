@@ -6,6 +6,7 @@ import type { Db } from '../../db/index.ts';
 import { fail } from '../../http/router.ts';
 import { OVERSEER } from '../../http/scopes.ts';
 import { logStaff, type Actor } from './audit.ts';
+import { overseerCount } from './members.ts';
 import { setSwitch, type SwitchKey } from './switches.ts';
 
 export const WINDOW_HOURS = 72;
@@ -20,12 +21,10 @@ export interface Approval {
 /** Waiting requests past their 72 hours become `expired`. Run before reading or deciding. */
 export const expireOld = (db: Db) => db.query(`UPDATE staff_approvals SET status = 'expired' WHERE status = 'waiting' AND expires_at <= now()`);
 
-/** Overseers who can act. Inside a transaction it locks their rows first, so two removals approved at
- * the same moment can't both see a second Overseer. */
-export const overseerCount = async (db: Db): Promise<number> => {
-  await db.query('SELECT user_id FROM staff_members WHERE role = $1 FOR UPDATE', [OVERSEER]);
-  return (await db.one<{ n: number }>(`SELECT count(*)::int AS n FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.role = $1 AND u.status = 'active'`, [OVERSEER]))!.n;
-};
+export { overseerCount } from './members.ts';
+
+/** Nobody decides a request about themselves: the person an Overseer removal is about can't stop it. */
+const about = (a: Pick<Approval, 'kind' | 'payload'>, id: string): boolean => a.kind === 'overseer_remove' && a.payload.user_id === id;
 
 export async function ask(db: Db, me: Actor, a: { kind: ApprovalKind; key: string; title: string; payload: Record<string, unknown> }): Promise<{ id: string; expires_at: string }> {
   await expireOld(db);
@@ -49,7 +48,7 @@ export async function list(db: Db, meId: string, status: 'waiting' | 'done'): Pr
        JOIN users ab ON ab.id = a.asked_by LEFT JOIN users db ON db.id = a.decided_by
      WHERE ${status === 'waiting' ? `a.status = 'waiting'` : `a.status <> 'waiting'`}
      ORDER BY ${status === 'waiting' ? 'a.expires_at' : 'coalesce(a.decided_at, a.expires_at) DESC'} LIMIT 100`);
-  return rows.map((r) => ({ ...r, can_decide: r.status === 'waiting' && r.asked_by !== meId, mine: r.asked_by === meId }));
+  return rows.map((r) => ({ ...r, can_decide: r.status === 'waiting' && r.asked_by !== meId && !about(r, meId), mine: r.asked_by === meId }));
 }
 
 /** Approve (and make the change) or decline with a reason. Never by the person who asked. */
@@ -60,6 +59,11 @@ export async function decide(db: Db, me: Actor & { id: string }, id: string, dec
     if (!a) return fail(404, 'not_found', 'No such request');
     if (a.status !== 'waiting') return fail(409, 'decided', a.status === 'expired' ? 'This request expired. Ask again.' : 'This request has already been decided');
     if (a.asked_by === me.id) return fail(403, 'same_person', 'A second Overseer must decide this');
+    if (about(a, me.id)) return fail(403, 'about_you', 'This request is about you: another Overseer decides it');
+    // A request from someone who is no longer an Overseer (removed, or their account suspended) is not decided.
+    if (!(await t.one(`SELECT 1 FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.user_id = $1 AND sm.role = $2 AND u.status = 'active'`, [a.asked_by, OVERSEER]))) {
+      return fail(409, 'asker_gone', 'The Overseer who asked can no longer act. Ask again if it is still needed.');
+    }
     if (decision === 'decline' && reason.trim().length < 3) return fail(400, 'invalid', 'reason: say why, so the asker knows');
     if (decision === 'approve') await apply(t, a, me);
     await t.query(`UPDATE staff_approvals SET status = $2, decided_by = $3, decided_at = now(), reason = $4 WHERE id = $1`,
@@ -93,8 +97,10 @@ async function apply(t: Db, a: Approval, me: Actor): Promise<void> {
   } else if (a.kind === 'overseer_remove') {
     const u = await t.one<{ id: string; handle: string }>(`SELECT u.id, u.handle FROM users u JOIN staff_members sm ON sm.user_id = u.id AND sm.role = $2 WHERE u.id = $1`, [p.user_id, OVERSEER]);
     if (!u) return fail(409, 'gone', 'That person is no longer an Overseer');
-    if ((await overseerCount(t)) <= 1) return fail(409, 'last_overseer', 'Community must keep at least one Overseer');
+    if ((await overseerCount(t, { except: u.id, lock: true })) < 1) return fail(409, 'last_overseer', 'Community must keep at least one Overseer who can act');
     await t.query('DELETE FROM staff_members WHERE user_id = $1', [u.id]);
+    await t.query(`UPDATE staff_approvals SET status = 'withdrawn', decided_at = now(), reason = 'The Overseer who asked was removed'
+                   WHERE asked_by = $1 AND status = 'waiting' AND id <> $2`, [u.id, a.id]);
     await t.query('DELETE FROM staff_sessions WHERE user_id = $1', [u.id]);
     await t.query('DELETE FROM staff_passkeys WHERE user_id = $1', [u.id]);
     await logStaff(t, me, 'staff', 'removed an Overseer (two people)', u);

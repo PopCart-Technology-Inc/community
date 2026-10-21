@@ -87,18 +87,49 @@ test('two people: decline needs a reason; withdraw is the asker\'s; 72 hours and
   assert.equal((await a.staff('POST', '/staff/members', { handle: t3.handle, role: 'Overseer' })).status, 202);
 });
 
-test('removing an Overseer takes two people and keeps at least one', async () => {
+test('removing an Overseer takes two people, never the one removed, and keeps at least one (review of #26)', async () => {
   await app.db.query(`DELETE FROM staff_members WHERE role = 'Overseer'`);
+  await app.db.query(`DELETE FROM staff_approvals`);
   const solo = await app.person({ role: 'staff' });
   const r = await solo.staff('DELETE', `/staff/members/${solo.handle}`);
   assert.equal(r.status, 409);
   assert.equal(r.body.error.code, 'last_overseer');
+  // Two Overseers: the one it is about can't decide, so the panel sends it to the server's command line.
   const other = await app.person({ role: 'staff' });
+  const two = await solo.staff('DELETE', `/staff/members/${other.handle}`);
+  assert.equal(two.status, 409);
+  assert.equal(two.body.error.code, 'no_second');
+  // Asking to step down yourself is fine: the other one decides.
+  const self = await solo.staff('DELETE', `/staff/members/${solo.handle}`);
+  assert.equal(self.status, 202);
+  assert.equal((await solo.staff('POST', `/staff/approvals/${self.body.approval.id}/withdraw`)).status, 204);
+  // Three: the third decides; the one being removed can't, and their own waiting requests end with them.
+  const third = await app.person({ role: 'staff' });
   const ask = await solo.staff('DELETE', `/staff/members/${other.handle}`);
   assert.equal(ask.status, 202);
-  assert.equal((await other.staff('POST', `/staff/approvals/${ask.body.approval.id}/approve`)).status, 204, 'even the person removed can be the second (it is a different Overseer from the asker)');
+  const newcomer = await app.person();
+  const theirs = await other.staff('POST', '/staff/members', { handle: newcomer.handle, role: 'Overseer' });
+  assert.equal(theirs.status, 202);
+  const veto = await other.staff('POST', `/staff/approvals/${ask.body.approval.id}/decline`, { reason: 'Not me, please' });
+  assert.equal(veto.status, 403);
+  assert.equal(veto.body.error.code, 'about_you');
+  assert.ok(!(await other.staff('GET', '/staff/approvals')).body.approvals.find((a: any) => a.id === ask.body.approval.id).can_decide);
+  assert.equal((await third.staff('POST', `/staff/approvals/${ask.body.approval.id}/approve`)).status, 204);
   assert.equal(await app.db.one('SELECT 1 FROM staff_members WHERE user_id = $1', [other.id]), null);
   assert.equal((await other.staff('GET', '/staff/overview')).status, 401, 'their staff session ended');
+  assert.equal((await app.db.one<{ status: string }>('SELECT status FROM staff_approvals WHERE id = $1', [theirs.body.approval.id]))!.status, 'withdrawn', 'their own request ended with them');
+});
+
+test('a request whose asker can no longer act is not decided (review of #26)', async () => {
+  const [a, b] = await overseers();
+  const target = await app.person();
+  const ask = await a.staff('POST', '/staff/members', { handle: target.handle, role: 'Overseer' });
+  assert.equal(ask.status, 202);
+  await app.db.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [a.id]);
+  const d = await b.staff('POST', `/staff/approvals/${ask.body.approval.id}/approve`);
+  assert.equal(d.status, 409);
+  assert.equal(d.body.error.code, 'asker_gone');
+  await app.db.query(`UPDATE users SET status = 'active' WHERE id = $1`, [a.id]);
 });
 
 test('staff: give, change, renew and take a role; logged with the person', async () => {
@@ -301,10 +332,13 @@ test('a suspension from a report has no end date and replaces a timed one; lifti
   assert.deepEqual(await row(), { status: 'active', suspended_until: null });
 });
 
-test('two requests for the same thing at once: one is asked, the other is told (review of #26)', async () => {
+// Two asks at the same moment are settled by the database (ON CONFLICT on the one-waiting index); the test
+// database runs one transaction at a time, so this checks the answer, not the race.
+test('asking again while a request waits is refused with 409, not an error (review of #26)', async () => {
   const [a] = await overseers(), target = await app.person();
   const both = await Promise.all([1, 2].map(() => a.staff('POST', '/staff/members', { handle: target.handle, role: 'Overseer' })));
   assert.deepEqual(both.map((r) => r.status).sort(), [202, 409]);
+  assert.equal(both.find((r) => r.status === 409)!.body.error.code, 'already_asked');
 });
 
 test('a member invite never changes an open staff invite for the same address (review of #26)', async () => {
