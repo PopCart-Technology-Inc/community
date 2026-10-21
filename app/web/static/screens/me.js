@@ -135,7 +135,7 @@ export function settings() {
     h('div', { class: 'group' }, row('lock', 'Your data', 'What we hold, download, delete', '/me/data'), row('eye', 'Who opened my records', '', '/me/records'),
       row('shield', 'What moderators did', 'Removals and warnings, with appeals', '/me/actions'), row('star', 'Proof', 'Signed credentials you show', '/me/proof'), row('link', 'Your other accounts', '', '/me/socials')),
     h('h2', { class: 'sect' }, 'Community'),
-    h('div', { class: 'group' }, row('scale', 'Transparency report', '', '/transparency'), me.role === 'staff' ? row('flag', 'Moderator queue', 'Staff', '/mod') : null,
+    h('div', { class: 'group' }, row('scale', 'Transparency report', '', '/transparency'), row('books', 'Open Books', 'The community\'s money, in public', '/books'), me.role === 'staff' ? row('flag', 'Moderator queue', 'Staff', '/mod') : null,
       me.role === 'staff' ? row('mail', 'Invite by email', 'Staff', '/me/invite') : null),
     h('div', { class: 'pad mb' }, btn('Log out', { block: true, kind: 'w', icon: 'logout', on: async () => { try { await post('/accounts/logout'); } catch { /* signed out anyway */ } state.me = null; window.dispatchEvent(new Event('cm:auth')); nav('/', { replace: true }); } })));
   return { node, title: 'Settings', tab: 'me' };

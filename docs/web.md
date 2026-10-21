@@ -13,6 +13,7 @@ app/web/
     app.js                boot, app shell, router wiring, nav, right rail, unread badges
     core.js               shared state (the signed-in person), nav(), safe localStorage
     ui.js                 shared UI: app bar, avatar, post, sheets, toasts, Places zoom, paged lists
+    controls.js           branded form controls: dropdown, date picker, file drop (hashes on the device), peso field
     app.css               all styles (Stage mode tokens from the approved design)
     lib/                  helpers; the pure ones are tested in Node (test/web.test.ts)
       router.js           path patterns and matching (pure), the ROUTES table
@@ -23,6 +24,7 @@ app/web/
       format.js           times, "as of", pay, counts (pure)
       media.js            photo re-encoding through a canvas, upload
       keystore.js         the message key in IndexedDB
+      ledger.js           Open Books: the checks run in the browser, a trustee's signing key, money formatting
       api.js              fetch wrapper; errors carry the server's message
       dom.js              h() element builder and icons
       brand.js            the optional brand pack
@@ -34,6 +36,7 @@ app/web/
       work.js             gigs, gig, apply, applicants, rate, post a gig
       me.js               profile, settings, proof, other accounts
       safety.js           report, your data, record log, moderator actions, transparency, mod queue
+      books.js            Open Books: overview, activity, an entry, approvals, payees, proof
 ```
 
 ## Screens and paths
@@ -53,6 +56,7 @@ app/web/
 | `/me/settings`, `/me/data`, `/me/proof`, `/me/records`, `/me/actions`, `/me/socials` | Settings and your data |
 | `/me/invite` | Invite by email (staff) |
 | `/report?kind=&id=` · `/transparency` · `/mod` | Report · transparency report · moderator queue |
+| `/books` · `/books/activity` · `/books/e/:seq` · `/books/approvals` · `/books/payees` · `/books/proof` | Open Books: overview · every entry · one entry · drafts and signing · who was paid · the proof and the check in this browser |
 
 ## Rules the code keeps
 
@@ -61,6 +65,8 @@ app/web/
 - **Live data only.** Lists show the time they were read ("as of 9:41"). Empty states say so ("No posts here yet"). The transparency page shows "No numbers yet" while `launched` is false. Nothing is invented.
 - **Location stays on the phone.** Recent places are kept in localStorage only. Photos are re-encoded through a canvas (drops EXIF location), at most 1600 px, JPEG 0.85, before `POST /media`.
 - **Messages are end-to-end encrypted** in the browser: [e2e-client.md](e2e-client.md).
+- **Branded controls only.** No browser dropdowns, date pickers, file boxes or number spinners in new screens: `controls.js` has a listbox dropdown, a calendar, a file drop and a peso field, each with the keyboard and ARIA of the control it replaces.
+- **Open Books checks itself in the browser.** The Proof page downloads the whole ledger and runs every check with `lib/ledger.js`, without trusting the server. A trustee's signing key is made with WebCrypto, kept non-extractable in IndexedDB, and only its public half is sent. Receipts are hashed on the device; only the hash is sent. Charts are SVG with a hover tooltip and a table view.
 - **The service worker never caches API responses**, media or the HTML page (each page has its own nonce). It goes to the network first and uses its cache only when offline.
 - **Updates show on the next load.** The app's files (`/static/*`, `/sw.js`, the manifest) are sent with `Cache-Control: no-cache` and an ETag, so the browser checks on every load and an unchanged file costs an empty 304. Brand-pack files keep a one-day cache.
 - **Accessibility.** 44 px tap targets, visible focus rings, labelled controls, the zoom and choice chips are ARIA radio groups with arrow keys, sheets are modal `<dialog>`s, toasts use `aria-live`, focus moves to the screen heading on navigation, and reduced motion is respected.
