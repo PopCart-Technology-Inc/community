@@ -5,7 +5,7 @@ import { h, icon } from '/static/lib/dom.js';
 import { asOf } from '/static/lib/format.js';
 import { brandName, popMark } from '/static/lib/brand.js';
 import { btn, fail, sheet, toast } from '/static/ui.js';
-import { enc, S, sdel, sget, spatch, spost } from './core.js';
+import { enc, S, sdel, sget, spatch, speek, spost } from './core.js';
 
 /* ---------- the wheel ---------- */
 
@@ -90,9 +90,12 @@ function confirmSheet(title, text, action, run) {
 
 const STATUS_LABEL = { pending: 'To check', waiting: 'In the draw', picked: 'Up now', reviewed: 'Reviewed', skipped: 'Skipped' };
 
-export function liveReview() {
+// Stream mode is the host's choice, not one mount's: it outlives an idle lock, a new sign-in and
+// moving between screens, so the screen never comes back with the controls on the live. Only H changes it.
+let streamMode = false;
 
-  let view = null, drawn = null, spinning = false, offline = false, timer = 0, hidden = false;
+export function liveReview() {
+  let view = null, drawn = null, spinning = false, offline = false, timer = 0;
   const w = wheel();
   const live = h('p', { class: 'rhlive', aria: { live: 'assertive' } });
   const roundLine = h('div', { class: 'rhround' });
@@ -139,11 +142,14 @@ export function liveReview() {
   const remove = (e) => confirmSheet('Remove this entry?', `${e.name} (${e.url}) is deleted for good. Use this when it breaks the rules or the person asked to withdraw.`, 'Remove', async () => {
     try { await sdel('/staff/review/entries/' + enc(e.id)); toast('Entry removed'); await refresh(); if (findIn.value.trim().length >= 2) await search(); } catch (err) { fail(err); }
   });
+  let searches = 0;
   async function search() {
     const q = findIn.value.trim();
+    const n = ++searches;
     if (q.length < 2) { found.replaceChildren(); return; }
     try {
       const r = await sget('/staff/review/entries', { q });
+      if (n !== searches) return;
       found.replaceChildren(...(r.entries.length ? r.entries.map((e) => h('li', { class: 'rhqi' },
         h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url + ' · ' + e.round)),
         h('button', { class: 'ib', type: 'button', aria: { label: 'Remove ' + e.name }, on: { click: () => remove(e) } }, icon('trash', 'sm b'))))
@@ -190,7 +196,10 @@ export function liveReview() {
       btn('New round', { sm: true, kind: 'w', on: () => (entries.length ? confirmSheet('Start a new round?', 'The wheel empties and entries stay closed until you open them. This round\'s entries are kept until they are 90 days old.', 'New round', newRound) : newRound()) }),
       ...(v ? [h('span', { class: 'mono rhasof' }, asOf(v.as_of))] : []));
     // after a draw the wheel keeps the pool it spun, with the pick marked, until that site is done
-    if (!spinning) { if (picked && drawn && drawn.picked === picked.id) w.draw(drawn.pool, picked.id); else w.draw(waiting); }
+    if (!spinning) {
+      if (picked && drawn && drawn.picked === picked.id) w.draw(drawn.pool.filter((p) => entries.some((e) => e.id === p.id)), picked.id);
+      else w.draw(waiting);
+    }
     spinBtn.disabled = spinning || !!picked || !waiting.length;
 
     next.replaceChildren(h('h2', { class: 'mono' }, 'Up next'), picked
@@ -234,7 +243,7 @@ export function liveReview() {
   async function refresh() {
     try {
       const n = ++asked;
-      const v = await sget('/staff/review/host');
+      const v = await speek('/staff/review/host');
       if (offline) { offline = false; off.hidden = true; }
       if (!spinning) fresh(n, v);
     } catch (e) {
@@ -251,22 +260,24 @@ export function liveReview() {
     clearInterval(timer);
     w.stop();
     document.removeEventListener('keydown', onKey);
-    document.body.classList.remove('streaming');
+    // the panel chrome comes back only when no live review screen is up (another mount keeps it)
+    if (!document.querySelector('.rh')) document.body.classList.remove('streaming');
     return true;
   };
   const onKey = (e) => {
     if (gone()) return;
     if (e.target.closest && e.target.closest('input, textarea, [contenteditable], dialog')) return;
     if ((e.key === 'h' || e.key === 'H') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      hidden = !hidden;
-      node.classList.toggle('noctl', hidden);
-      // stream mode: the panel's sidebar and top bar go too (staff.css)
-      document.body.classList.toggle('streaming', hidden);
+      streamMode = !streamMode;
+      setStream();
       // no toast while hidden: that is what the stream sees
-      if (!hidden) toast('Controls shown');
+      if (!streamMode) toast('Controls shown');
     }
   };
+  // stream mode: the controls go, and the panel's sidebar and top bar too (staff.css)
+  const setStream = () => { node.classList.toggle('noctl', streamMode); document.body.classList.toggle('streaming', streamMode); };
   document.addEventListener('keydown', onKey);
+  setStream();
   paint();
   refresh();
   timer = setInterval(() => { if (!gone() && document.visibilityState === 'visible') refresh(); }, 3000);

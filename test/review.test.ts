@@ -149,7 +149,12 @@ test('a round: open, one entry per device, staff check, then the draw', async ()
   for (const l of logged) assert.doesNotMatch(l.text + JSON.stringify(l.detail), /fixture|Viewer|tester/i, l.text);
 
   // a new round: empty and closed, the old round's hashes are gone, and the device may enter again
+  // a site still up when the next round starts is closed as skipped (it could never be marked after)
+  await staff.staff('PATCH', '/staff/review/entries/' + found.body.entries[0].id, { status: 'waiting' });
+  const up = await staff.staff('POST', '/staff/review/spin');
+  assert.equal(up.status, 200);
   const next = await staff.staff('POST', '/staff/review/rounds');
+  assert.equal((await app.db.one<{ status: string }>('SELECT status FROM review_entries WHERE id = $1', [up.body.picked]))!.status, 'skipped');
   assert.deepEqual(next.body.counts, { in: 0, left: 0, to_check: 0 });
   assert.notEqual(next.body.round.code, made.body.round.code);
   const left = await app.db.one<{ n: string }>('SELECT count(*) AS n FROM review_entries WHERE device_hash IS NOT NULL OR ip_hash IS NOT NULL');

@@ -450,9 +450,9 @@ a.li:hover, button.li:hover { background: var(--cream); }
 #toast div.bad { background: #8A1F00; color: var(--white); }
 @media (min-width: 700px) { #toast { bottom: 24px; } }
 
-/* ---------- live site review (/review) and its host screen (/review/host) ----------
+/* ---------- live site review (/review) and its host screen (/admin/review on the staff host) ----------
    The sign-up page is Stage mode: white, cream cards, colour in the word. The host screen is an Ink
-   stream scene (like the LIVE kit frame), so the wheel and the site name are the loudest things. */
+   stream scene, so the wheel and the site name are the loudest things. */
 .bare-review #main { max-width: 720px; padding: 0 16px 48px; }
 .rvtop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 16px 0 6px; }
 .rvpill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--cream); font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }

@@ -185,6 +185,8 @@ export function registerHost(r: Router): void {
       if (!made) return fail(409, 'busy', 'Too many rounds this minute');
       // another round may have been made meanwhile: wait for entries on any recent round before clearing
       await tx.query('SELECT id FROM review_rounds WHERE id <> $1 ORDER BY created_at DESC LIMIT 5 FOR UPDATE', [made.id]);
+      // a site still up from an earlier round is closed as skipped: only the current round's entries can be marked
+      await tx.query(`UPDATE review_entries SET status = 'skipped', done_at = now() WHERE status = 'picked' AND round_id <> $1`, [made.id]);
       // the hashes only hold one entry per device and cap an address within a round: drop them now
       await tx.query('UPDATE review_entries SET device_hash = NULL, ip_hash = NULL WHERE round_id <> $1 AND (device_hash IS NOT NULL OR ip_hash IS NOT NULL)', [made.id]);
       await log(tx, me, `Started review round ${made.code}`, { round: made.code });
