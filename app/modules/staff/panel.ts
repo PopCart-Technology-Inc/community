@@ -9,6 +9,7 @@ import { fail, isUuid, json, noContent, Router, type Ctx, type Handler } from '.
 import { limit, limits } from '../../http/security.ts';
 import { isRoleScope, OVERSEER, OVERSEER_SCOPES, SCOPE_GROUPS, scopesOf, type Scope } from '../../http/scopes.ts';
 import type { StaffUser } from '../../http/staff-session.ts';
+import { handleKey } from '../accounts/handles.ts';
 import { emailHash, emailOf, INVITE_DAYS, inviteByEmail } from '../accounts/routes.ts';
 import { registerAppeals } from '../safety/routes.ts';
 import { PERSON_COLS, str } from '../shared.ts';
@@ -159,7 +160,7 @@ export function registerPanel(r: Router, pub: Router): void {
     if (current?.role === OVERSEER) return fail(409, 'is_overseer', 'Removing an Overseer needs a second Overseer: use Remove');
     const n = days(b.days);
     const eh = typeof b.email === 'string' && b.email.trim() ? emailHash(ctx.config, emailOf(b.email)) : undefined;
-    const g = await grantRole(ctx.db, { handle: u.handle, role, days: n, by: me.id, emailHash: eh });
+    const g = await grantRole(ctx.db, { handle: u.handle, role, days: n, by: me.id, emailHash: eh, keepOverseers: true });
     await logStaff(ctx.db, me, 'role', current ? `changed the role from ${current.role} to ${role} for ${n} days` : `gave the ${role} role for ${n} days`, u);
     return json({ ends_at: g.ends_at }, 201);
   });
@@ -402,8 +403,8 @@ export function registerPanel(r: Router, pub: Router): void {
     await liftSuspensions(ctx.db);
     const like = q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
     const people = await ctx.db.query(
-      `SELECT u.handle, u.first_name, u.status FROM users u WHERE u.status <> 'deleted' AND (u.handle LIKE $1 ESCAPE '\\' OR u.handle_key = translate($2, '013457._', 'oieast'))
-       ORDER BY u.handle = $2 DESC, u.handle LIMIT 10`, [like, q]);
+      `SELECT u.handle, u.first_name, u.status FROM users u WHERE u.status <> 'deleted' AND (u.handle LIKE $1 ESCAPE '\\' OR u.handle_key = $3)
+       ORDER BY u.handle = $2 DESC, u.handle LIMIT 10`, [like, q, handleKey(q)]);
     await logStaff(ctx.db, me, 'account', `searched people for "${q}"`);
     return json({ people, as_of: now() });
   });

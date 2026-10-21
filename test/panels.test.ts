@@ -3,6 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { limits, RateLimiter } from '../app/http/security.ts';
+import { liftSuspensions } from '../app/modules/staff/panel.ts';
 import { startApp, type Person, type TestApp } from './helpers.ts';
 
 let app: TestApp;
@@ -270,4 +271,48 @@ test('health: version, database and migrations, for ops.health only', async () =
   assert.equal(h.body.db.ok, true);
   assert.match(h.body.migrations.last, /^\d{4}_/);
   assert.equal((await mod.staff('GET', '/staff/health')).status, 403);
+});
+
+test('a report can never suspend an Overseer, so one person cannot lock out the panel (review of #26)', async () => {
+  const over = await app.person({ role: 'staff' }), mod = await app.person({ staffRole: 'Moderator' }), member = await app.person();
+  const rep = await member.call('POST', '/reports', { target_kind: 'user', target_id: over.id, reason: 'harassment' });
+  assert.equal(rep.status, 201);
+  const d = await mod.staff('POST', `/staff/reports/${rep.body.report.id}/decide`, { action: 'remove', note: 'Trying to suspend an Overseer' });
+  assert.equal(d.status, 403);
+  assert.equal(d.body.error.code, 'overseer');
+  assert.equal((await app.db.one<{ status: string }>('SELECT status FROM users WHERE id = $1', [over.id]))!.status, 'active');
+  assert.equal((await over.staff('GET', '/staff/overview')).status, 200, 'the Overseer still has the panel');
+});
+
+test('a suspension from a report has no end date and replaces a timed one; lifting on appeal clears the date (review of #26)', async () => {
+  const mod = await app.person({ staffRole: 'Moderator' }), other = await app.person({ staffRole: 'Moderator' }), p = await app.person(), member = await app.person();
+  const rep = await member.call('POST', '/reports', { target_kind: 'user', target_id: p.id, reason: 'scam' });
+  assert.equal(rep.status, 201);
+  assert.equal((await mod.staff('POST', `/staff/people/${p.handle}/suspend`, { days: 2, reason: 'Scam posts, first time' })).status, 204);
+  assert.equal((await mod.staff('POST', `/staff/reports/${rep.body.report.id}/decide`, { action: 'remove', note: 'Scam posts again' })).status, 204);
+  const row = async () => (await app.db.one<{ status: string; suspended_until: string | null }>('SELECT status, suspended_until FROM users WHERE id = $1', [p.id]))!;
+  assert.deepEqual(await row(), { status: 'suspended', suspended_until: null }, 'indefinite now');
+  await liftSuspensions(app.db);
+  assert.equal((await other.staff('GET', `/staff/people/${p.handle}`)).body.person.status, 'suspended', 'the lift job leaves it alone');
+  // Overturned on appeal: active again, with no end date left behind for the lift job to act on later.
+  const act = await app.db.one<{ id: string }>(`SELECT id FROM mod_actions WHERE subject_id = $1 AND action = 'suspend' AND report_id IS NOT NULL`, [p.id]);
+  await app.db.query(`UPDATE mod_actions SET appealed_at = now(), appeal_note = 'It was not me (test fixture)' WHERE id = $1`, [act!.id]);
+  assert.equal((await other.staff('POST', `/staff/appeals/${act!.id}/decide`, { decision: 'overturned', note: 'Reviewed again' })).status, 204);
+  assert.deepEqual(await row(), { status: 'active', suspended_until: null });
+});
+
+test('two requests for the same thing at once: one is asked, the other is told (review of #26)', async () => {
+  const [a] = await overseers(), target = await app.person();
+  const both = await Promise.all([1, 2].map(() => a.staff('POST', '/staff/members', { handle: target.handle, role: 'Overseer' })));
+  assert.deepEqual(both.map((r) => r.status).sort(), [202, 409]);
+});
+
+test('a member invite never changes an open staff invite for the same address (review of #26)', async () => {
+  const over = await app.person({ role: 'staff' }), support = await app.person({ staffRole: 'Support' });
+  assert.equal((await over.staff('POST', '/staff/invites', { email: 'held.invite@example.com', role: 'Support', days: 30 })).status, 201);
+  const m = await support.staff('POST', '/staff/member-invites', { email: 'Held.Invite@example.com' });
+  assert.equal(m.status, 409);
+  assert.equal(m.body.error.code, 'staff_invite_open');
+  const rows = await app.db.query<{ role: string; staff_role: string }>(`SELECT role, staff_role FROM invites WHERE staff_role = 'Support' AND used_at IS NULL`);
+  assert.deepEqual(rows.map((r) => [r.role, r.staff_role]), [['staff', 'Support']], 'the staff invite is untouched');
 });

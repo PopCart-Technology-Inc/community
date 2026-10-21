@@ -271,7 +271,8 @@ export function register(r: Router): void {
         else if (rep.target_kind === 'gig') await tx.query(`UPDATE gigs SET status = 'closed' WHERE id = $1`, [rep.target_id]);
         else if (rep.target_kind === 'dm') await tx.query('DELETE FROM dm_messages WHERE id = $1', [rep.target_id]);
         else if (rep.target_kind === 'user') {
-          await tx.query(`UPDATE users SET status = 'suspended' WHERE id = $1 AND status = 'active'`, [rep.target_id]);
+          // Until lifted on appeal or by staff: no end date, replacing any timed suspension.
+          await tx.query(`UPDATE users SET status = 'suspended', suspended_until = NULL WHERE id = $1 AND status <> 'deleted'`, [rep.target_id]);
           await tx.query('DELETE FROM sessions WHERE user_id = $1', [rep.target_id]);
         }
       }
@@ -543,7 +544,7 @@ export function registerAppeals(r: Router): void {
         if (a.action === 'remove' && a.target_kind === 'post') await tx.query('UPDATE posts SET deleted_at = NULL WHERE id = $1', [a.target_id]);
         if (a.action === 'remove' && a.target_kind === 'message') await tx.query('UPDATE messages SET deleted_at = NULL WHERE id = $1', [a.target_id]);
         if (a.action === 'remove' && a.target_kind === 'gig') await tx.query(`UPDATE gigs SET status = 'open' WHERE id = $1 AND status = 'closed'`, [a.target_id]);
-        if (a.action === 'suspend') await tx.query(`UPDATE users SET status = 'active' WHERE id = $1 AND status = 'suspended'`, [a.target_id]);
+        if (a.action === 'suspend') await tx.query(`UPDATE users SET status = 'active', suspended_until = NULL WHERE id = $1 AND status = 'suspended'`, [a.target_id]);
         await tx.query(
           `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason) VALUES ($1, $2, 'restore', $3, $4, $5, $6)`,
           [me.id, a.subject_id, a.target_kind, a.target_id, a.report_id, note]);

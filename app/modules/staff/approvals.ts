@@ -20,8 +20,12 @@ export interface Approval {
 /** Waiting requests past their 72 hours become `expired`. Run before reading or deciding. */
 export const expireOld = (db: Db) => db.query(`UPDATE staff_approvals SET status = 'expired' WHERE status = 'waiting' AND expires_at <= now()`);
 
-export const overseerCount = async (db: Db): Promise<number> =>
-  (await db.one<{ n: number }>(`SELECT count(*)::int AS n FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.role = $1 AND u.status = 'active'`, [OVERSEER]))!.n;
+/** Overseers who can act. Inside a transaction it locks their rows first, so two removals approved at
+ * the same moment can't both see a second Overseer. */
+export const overseerCount = async (db: Db): Promise<number> => {
+  await db.query('SELECT user_id FROM staff_members WHERE role = $1 FOR UPDATE', [OVERSEER]);
+  return (await db.one<{ n: number }>(`SELECT count(*)::int AS n FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.role = $1 AND u.status = 'active'`, [OVERSEER]))!.n;
+};
 
 export async function ask(db: Db, me: Actor, a: { kind: ApprovalKind; key: string; title: string; payload: Record<string, unknown> }): Promise<{ id: string; expires_at: string }> {
   await expireOld(db);
@@ -31,7 +35,8 @@ export async function ask(db: Db, me: Actor, a: { kind: ApprovalKind; key: strin
     }
     const row = await t.one<{ id: string; expires_at: string }>(
       `INSERT INTO staff_approvals (kind, key, title, payload, asked_by, expires_at) VALUES ($1, $2, $3, $4, $5, now() + make_interval(hours => $6))
-       RETURNING id, expires_at`, [a.kind, a.key, a.title.slice(0, 200), JSON.stringify(a.payload), me.id, WINDOW_HOURS]);
+       ON CONFLICT (key) WHERE status = 'waiting' DO NOTHING RETURNING id, expires_at`, [a.kind, a.key, a.title.slice(0, 200), JSON.stringify(a.payload), me.id, WINDOW_HOURS]);
+    if (!row) return fail(409, 'already_asked', 'A request for this is already waiting for a second Overseer');
     await logStaff(t, me, 'approval', `asked: ${a.title}`, null, { approval: row!.id });
     return row!;
   });

@@ -17,6 +17,10 @@ The Overseer and Admin panels, on the staff host. Staff powers no longer work on
 - **Staff invites** give a role for a number of days when the person joins.
 - **Your record log shows what staff did with your account**: each look-up and action, with its time.
 - Suspensions lift on their own when their time is up.
+- **Nobody suspends an Overseer through a report.** Deciding Remove on a report about an Overseer is refused (`403 overseer`); an Overseer is removed by two Overseers. The staff panel's role controls don't change an Overseer's role either (`409 is_overseer`): use Remove.
+- A suspension from a report has no end date and replaces a timed one, so it is never lifted by the clock. Overturning it on appeal clears the date too.
+- Two of the same two-person request sent at once: one is asked, the other gets `409 already_asked` (was a server error). Two Overseer removals approved at the same moment can't both pass the "one Overseer left" check.
+- A member invite never changes an open staff invite for the same address (`409 staff_invite_open`).
 
 ### Changed
 - **Staff powers work only on the staff host.** A staff member's session on Community has no scopes: reviewing reports, deciding appeals, deleting others' posts and sending invites moved to `/staff/*` on the staff host, where each action is logged. Space moderators keep their Space's reports on Community.
