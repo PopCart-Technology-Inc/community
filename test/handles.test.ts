@@ -31,7 +31,12 @@ test('reserved names and their look-alikes are refused; ordinary names are not',
     'theoverseer', 'kim.moderator', 'deleted.abcdef12', 'jun_admin', 'mod.jun', 's3curity.ph']) {
     assert.ok(isReserved(r), r);
   }
-  for (const ok of ['maria.santos', 'admiral', 'adminah', 'staffing.pro', 'jun.rides', 'moderna', 'lia.cruz', 'modesto', 'supporter.of.jun']) assert.equal(await handleProblem(ok), null, ok);
+  // Review of #22: a letter after the word must not fold it away (rn -> m), and a digit splits parts too.
+  for (const r of ['overseernews', 'theoverseernews', 'moderatorn', 'administratorn', 'popcartnews', 'admin2jun', 'jun2admin', 'admin4u',
+    'support24x7', 'mod1jun']) {
+    assert.ok(isReserved(r), r);
+  }
+  for (const ok of ['maria.santos', 'admiral', 'adminah', 'staffing.pro', 'jun.rides', 'moderna', 'lia.cruz', 'modesto', 'supporter.of.jun', 'jun2rides', 'ma1a.santos', 'carnival', 'vernon']) assert.equal(await handleProblem(ok), null, ok);
   assert.equal(await handleProblem('adm1n'), 'reserved');
   assert.equal(await handleProblem('a..b'), 'shape');
 });

@@ -28,7 +28,11 @@ const STAFF = ['admin', 'administrator', 'overseer', 'staff', 'mod', 'mods', 'mo
  */
 const PART = ['admin', 'administrator', 'overseer', 'staff', 'mod', 'mods', 'moderator', 'moderators', 'support', 'helpdesk', 'security',
   'official', 'verified', 'popcart', 'popcartph', 'sysadmin', 'superuser', 'noreply', 'deleted'];
-/** The brand and the top staff words may not appear anywhere in a name ("popcartphl", "theoverseer"). */
+/**
+ * The brand and the top staff words may not appear anywhere in a name ("popcartphl", "theoverseer").
+ * Checked on the key with and without the rn/vv folds, so a letter after the word ("overseernews", whose
+ * key is "overseemews") can't hide it.
+ */
 const ANYWHERE = ['popcart', 'overseer', 'moderator', 'administrator'];
 /** The first part of every screen path in app/web/static/lib/router.js (a test checks they match). */
 const SCREENS = ['places', 'trade', 'picks', 'join', 'login', 'logout', 'p', 'compose', 'explore', 'activity', 'spaces', 's', 'inbox',
@@ -43,9 +47,11 @@ const PART_KEYS = new Set(PART.map(handleKey));
 const ANYWHERE_KEYS = ANYWHERE.map(handleKey);
 
 export function isReserved(h: string): boolean {
-  const k = handleKey(h);
-  if (RESERVED_KEYS.has(k) || ANYWHERE_KEYS.some((w) => k.includes(w))) return true;
-  return h.toLowerCase().split(/[._]/).some((part) => PART_KEYS.has(handleKey(part)) || PART_KEYS.has(handleKey(part.replace(/^[0-9]+|[0-9]+$/g, ''))));
+  const k = handleKey(h), plain = h.toLowerCase().replace(/[._]/g, '').replace(/[0-9l]/g, (c) => AS[DIGITS.indexOf(c)] as string);
+  if (RESERVED_KEYS.has(k) || ANYWHERE_KEYS.some((w) => k.includes(w) || plain.includes(w))) return true;
+  // Parts: split at dots and underscores, and again at digits ("admin2jun", "support24x7").
+  const parts = h.toLowerCase().split(/[._]/);
+  return [...parts, ...parts.flatMap((p) => p.split(/[0-9]+/))].some((part) => PART_KEYS.has(handleKey(part)));
 }
 
 export type HandleProblem = 'shape' | 'reserved' | 'taken' | null;
