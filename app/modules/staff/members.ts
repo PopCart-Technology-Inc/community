@@ -30,8 +30,11 @@ async function userId(db: Db, handle: string): Promise<string> {
  * `lock`, inside a transaction, the Overseer rows are locked first, so two changes at the same moment
  * can't both see an Overseer the other is removing.
  */
+/** Lock the Overseer rows, in id order. Everything that changes Overseers takes this first, then the target's row. */
+export const lockOverseers = (db: Db) => db.query('SELECT user_id FROM staff_members WHERE role = $1 ORDER BY user_id FOR UPDATE', [OVERSEER]);
+
 export async function overseerCount(db: Db, opts: { except?: string; lock?: boolean } = {}): Promise<number> {
-  if (opts.lock) await db.query('SELECT user_id FROM staff_members WHERE role = $1 FOR UPDATE', [OVERSEER]);
+  if (opts.lock) await lockOverseers(db);
   return (await db.one<{ n: number }>(
     `SELECT count(*)::int AS n FROM staff_members sm JOIN users u ON u.id = sm.user_id
      WHERE sm.role = $1 AND u.status = 'active' AND sm.user_id IS DISTINCT FROM $2::uuid`, [OVERSEER, opts.except ?? null]))!.n;
@@ -46,7 +49,8 @@ export async function grantRole(db: Db, opts: { handle: string; role: string; da
   const days = opts.days ?? DEFAULT_DAYS;
   if (!Number.isInteger(days) || days < 1 || days > 366) fail(400, 'invalid', 'days: must be a whole number from 1 to 366');
   return db.tx(async (t) => {
-    const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1', [id]);
+    await lockOverseers(t);
+    const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1 FOR UPDATE', [id]);
     if (current?.role === OVERSEER && opts.role !== OVERSEER && (await overseerCount(t, { except: id, lock: true })) < 1) fail(409, 'last_overseer', LAST);
     const row = await t.one<{ ends_at: string | null }>(
       `INSERT INTO staff_members (user_id, role, ends_at, granted_by) VALUES ($1, $2, CASE WHEN $2 = $5 THEN NULL ELSE now() + make_interval(days => $3) END, $4)
@@ -71,7 +75,8 @@ export async function renewRole(db: Db, opts: { handle: string; days?: number })
 export async function revokeRole(db: Db, handle: string): Promise<{ role: string }> {
   const id = await userId(db, handle);
   return db.tx(async (t) => {
-    const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1', [id]);
+    await lockOverseers(t);
+    const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1 FOR UPDATE', [id]);
     if (!current) return fail(404, 'not_found', 'That person holds no staff role');
     if (current.role === OVERSEER && (await overseerCount(t, { except: id, lock: true })) < 1) fail(409, 'last_overseer', LAST);
     await t.query('DELETE FROM staff_members WHERE user_id = $1', [id]);

@@ -24,11 +24,14 @@ const APPEALABLE = new Set(['warn', 'remove', 'suspend']);
 
 const now = (): string => new Date().toISOString();
 
-/** SQL: the target of the row aliased `x` has a child-safety report (any status). */
-const CS_TARGET = (x: string) => `EXISTS (SELECT 1 FROM reports cs WHERE cs.target_kind = ${x}.target_kind AND cs.target_id = ${x}.target_id AND cs.reason = 'child_safety')`;
-/** Has anyone reported this target for child safety? Then only reports.child_safety may see or decide anything about it. */
+/**
+ * SQL: the target of the row aliased `x` has a child-safety report that wasn't kept. Kept means staff with
+ * reports.child_safety found it was not a child-safety case; any other status keeps the target with them.
+ */
+const CS_TARGET = (x: string) => `EXISTS (SELECT 1 FROM reports cs WHERE cs.target_kind = ${x}.target_kind AND cs.target_id = ${x}.target_id AND cs.reason = 'child_safety' AND cs.status <> 'kept')`;
+/** Is this target a child-safety case (see CS_TARGET)? Then only reports.child_safety may see or decide anything about it. */
 const csTarget = async (db: Db, kind: string, id: string): Promise<boolean> =>
-  !!(await db.one(`SELECT 1 FROM reports WHERE target_kind = $1 AND target_id = $2 AND reason = 'child_safety'`, [kind, id]));
+  !!(await db.one(`SELECT 1 FROM reports WHERE target_kind = $1 AND target_id = $2 AND reason = 'child_safety' AND status <> 'kept'`, [kind, id]));
 
 /** Signed in, active or suspended. Data rights (see, export, delete, appeal) never stop at a suspension. */
 function signedIn(ctx: Ctx): SessionUser {
@@ -279,15 +282,15 @@ export function register(r: Router): void {
       // Decide this report, and on a final decision the other open reports of the same target too.
       await tx.query(
         `UPDATE reports SET status = $1, decided_by = $2, decided_at = now(), decision_note = $3
-         WHERE id = $4 OR ($5 AND target_kind = $6 AND target_id = $7 AND status = 'open' AND ($8 OR reason <> 'child_safety'))`,
-        [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id, can(me, 'reports.child_safety')]);
+         WHERE id = $4 OR ($5 AND target_kind = $6 AND target_id = $7 AND status = 'open' AND reason <> 'child_safety')`,
+        [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id]);
       const a = await tx.one<{ id: string }>(
         `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [me.id, t?.subject_id ?? null, logged, rep.target_kind, rep.target_id, rep.id, note]);
       // Tell the person what was done and why. Not when a child-safety case is passed on to the
       // authorities: tipping off a suspect could put a child at risk.
-      if (t?.subject_id && !(childSafety && action === 'escalate')) {
+      if (t?.subject_id && !(csAny && action === 'escalate')) {
         await tx.query(`INSERT INTO notifications (user_id, kind, ref_kind, ref_id) VALUES ($1, 'mod_action', 'mod_action', $2)`, [t.subject_id, a!.id]);
       }
     });
@@ -301,7 +304,7 @@ export function register(r: Router): void {
       `SELECT a.id, a.action, a.target_kind, a.target_id, a.reason, a.created_at, a.appealed_at, a.appeal_note,
          a.appeal_decision, a.appeal_decision_note, a.appeal_decided_at
        FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
-       WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND coalesce(r.reason, '') = 'child_safety')
+       WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND ${CS_TARGET('a')})
        ORDER BY a.created_at DESC LIMIT 200`, [me.id]);
     return json({ actions: actions.map((a) => ({ ...a, can_appeal: APPEALABLE.has(a.action) && !a.appealed_at })), as_of: now() });
   });
@@ -327,7 +330,7 @@ export function register(r: Router): void {
     const me = requireScope(ctx, 'reports.review');
     const rows = await ctx.db.query<Record<string, unknown> & { actor_id: string; subject_id: string | null }>(
       `SELECT a.id, a.actor_id, a.subject_id, a.action, a.target_kind, a.target_id, a.report_id, a.reason, a.created_at, a.appealed_at, a.appeal_note
-       FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
+       FROM mod_actions a
        WHERE a.appealed_at IS NOT NULL AND a.appeal_decision IS NULL AND ($1 OR NOT ${CS_TARGET('a')})
        ORDER BY a.appealed_at LIMIT 100`, [can(me, 'reports.child_safety')]);
     const appeals = [];
@@ -357,7 +360,7 @@ export function register(r: Router): void {
          WHERE id = $1 AND appeal_decision IS NULL RETURNING 1`, [a.id, decision, note, me.id]);
       if (!done) fail(409, 'decided', 'This appeal has already been decided');
       if (decision === 'overturned') {
-        if ((a.target_kind === 'post' || a.target_kind === 'message') && await tx.one(
+        if (await tx.one(
           `SELECT 1 FROM reports WHERE target_kind = $1 AND target_id = $2 AND reason = 'child_safety' AND status IN ('open', 'escalated')`, [a.target_kind, a.target_id])) {
           fail(409, 'child_safety_open', 'A child-safety report on this is still open: it stays hidden until that is decided');
         }
@@ -474,7 +477,7 @@ export function register(r: Router): void {
       reports_made: await q(`SELECT id, target_kind, target_id, reason, note, revealed, status, decided_at, created_at FROM reports WHERE reporter_id = $1 ORDER BY created_at`),
       mod_actions: await q(`SELECT a.id, a.action, a.target_kind, a.target_id, a.reason, a.created_at, a.appealed_at, a.appeal_note, a.appeal_decision,
         a.appeal_decision_note, a.appeal_decided_at FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
-        WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND coalesce(r.reason, '') = 'child_safety') ORDER BY a.created_at`),
+        WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND ${CS_TARGET('a')}) ORDER BY a.created_at`),
       sealed_vault: { held: [], note: 'The sealed identity vault is not built yet, so nothing about you is kept there.' },
     };
     const day = data.exported_at.slice(0, 10);

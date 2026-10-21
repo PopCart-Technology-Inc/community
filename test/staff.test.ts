@@ -205,3 +205,42 @@ test('two open invites for one address: a member invite still never renews the s
   assert.equal(m.status, 409);
   assert.equal(m.body.error.code, 'staff_invite_open');
 });
+
+test('passing a child-safety case on never tips off the author, through whichever report (fourth review of #24)', async () => {
+  const mod = await app.person({ staffRole: 'Moderator' }), author = await app.person(), r1 = await app.person(), r2 = await app.person();
+  const id = (await author.call('POST', '/posts', { body: 'Child-safety case (test fixture)' })).body.post.id;
+  const cs = await r1.call('POST', '/reports', { target_kind: 'post', target_id: id, reason: 'child_safety' });
+  const sib = (await app.db.one<{ id: string }>(`INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, 'post', $2, 'harassment') RETURNING id`, [r2.id, id]))!;
+  assert.equal((await mod.call('POST', `/mod/reports/${sib.id}/decide`, { action: 'escalate', note: 'Passing to the authorities' })).status, 204);
+  assert.equal((await app.db.query(`SELECT 1 FROM notifications WHERE user_id = $1 AND kind = 'mod_action'`, [author.id])).length, 0, 'no notification');
+  assert.ok(!(await author.call('GET', '/me/mod-actions')).body.actions.some((a: any) => a.action === 'escalate'), 'not in their list');
+  // A decision on the other report never decides the child-safety one.
+  const sib2 = (await app.db.one<{ id: string }>(`INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, 'post', $2, 'scam') RETURNING id`, [author.id, id]))!;
+  assert.equal((await mod.call('POST', `/mod/reports/${sib2.id}/decide`, { action: 'keep' })).status, 204);
+  assert.equal((await app.db.one<{ status: string }>('SELECT status FROM reports WHERE id = $1', [cs.body.report.id]))!.status, 'open');
+});
+
+test('a child-safety report kept by staff with the scope stops gating the target (fourth review of #24)', async () => {
+  await app.db.query(`INSERT INTO staff_roles (name, scopes) VALUES ('Appeals', '{reports.review}') ON CONFLICT DO NOTHING`);
+  const reviewer = await app.person({ staffRole: 'Appeals' }), mod = await app.person({ staffRole: 'Moderator' }), target = await app.person(), r1 = await app.person(), r2 = await app.person();
+  const cs = await r1.call('POST', '/reports', { target_kind: 'user', target_id: target.id, reason: 'child_safety' });
+  const scam = await r2.call('POST', '/reports', { target_kind: 'user', target_id: target.id, reason: 'scam' });
+  assert.ok(!(await reviewer.call('GET', '/mod/reports')).body.reports.some((x: any) => x.id === scam.body.report.id), 'gated while open');
+  assert.equal((await mod.call('POST', `/mod/reports/${cs.body.report.id}/decide`, { action: 'keep', note: 'Not a child-safety case' })).status, 204);
+  const r3 = await app.person();
+  const later = await r3.call('POST', '/reports', { target_kind: 'user', target_id: target.id, reason: 'scam' });
+  assert.ok((await reviewer.call('GET', '/mod/reports')).body.reports.some((x: any) => x.id === later.body.report.id), 'a later report is in the normal queue');
+});
+
+test('no overturn reopens a gig while a child-safety report on it is open (fourth review of #24)', async () => {
+  const mod = await app.person({ staffRole: 'Moderator' }), mod2 = await app.person({ staffRole: 'Moderator' }), poster = await app.person();
+  const gig = (await app.db.one<{ id: string }>(`INSERT INTO gigs (poster_id, title, body, pay_amount, pay_unit, when_text, paid_how, status)
+    VALUES ($1, 'A gig (test fixture)', 'Details of the gig', 500, 'fixed', 'Saturday', 'GCash', 'closed') RETURNING id`, [poster.id]))!;
+  const act = (await app.db.one<{ id: string }>(`INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, reason, appealed_at, appeal_note)
+    VALUES ($1, $2, 'remove', 'gig', $3, 'Removed (test fixture)', now(), 'Please look again') RETURNING id`, [mod.id, poster.id, gig.id]))!;
+  await app.db.query(`INSERT INTO reports (reporter_id, target_kind, target_id, reason, status) VALUES ($1, 'gig', $2, 'child_safety', 'escalated')`, [mod2.id, gig.id]);
+  const o = await mod2.call('POST', `/mod/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Reviewed again' });
+  assert.equal(o.status, 409);
+  assert.equal(o.body.error.code, 'child_safety_open');
+  assert.equal((await app.db.one<{ status: string }>('SELECT status FROM gigs WHERE id = $1', [gig.id]))!.status, 'closed');
+});

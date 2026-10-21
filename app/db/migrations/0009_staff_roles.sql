@@ -26,4 +26,6 @@ CREATE INDEX staff_members_role ON staff_members (role);
 
 -- Every staff account that still exists becomes an Overseer; a deleted one gets no role.
 INSERT INTO staff_members (user_id, role) SELECT id, 'Overseer' FROM users WHERE role = 'staff' AND status <> 'deleted';
+CREATE INDEX reports_target ON reports (target_kind, target_id, reason);
+
 ALTER TABLE users DROP COLUMN role;
