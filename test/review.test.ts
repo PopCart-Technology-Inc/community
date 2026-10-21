@@ -28,6 +28,7 @@ test('site addresses: public http(s) sites only', () => {
   assert.equal(siteUrl('fixture-site.com'), 'https://fixture-site.com/');
   assert.equal(siteUrl('fixture-site.com:8080/x'), 'https://fixture-site.com:8080/x', 'a port is not a scheme');
   assert.equal(siteUrl('https://a.fixture.ph/path?x=1'), 'https://a.fixture.ph/path?x=1');
+  // the user:pw address is built, not written: the leak check never allows credentials in a URL, even a fixture
   for (const bad of ['javascript:alert(1)', 'ftp://files.fixture.com', ['https://user:pw', 'fixture.com'].join(String.fromCharCode(64)), 'http://localhost:3000', 'http://203.0.113.7',
     'http://[::1]/', 'https://printer.local', 'intranet', 'data:text/html,hi', 'https://x.example']) {
     assert.throws(() => siteUrl(bad), bad);
@@ -35,9 +36,11 @@ test('site addresses: public http(s) sites only', () => {
   assert.equal(roundCode(new Date('2026-10-22T11:36:00Z')), 'live-202610221936', 'Manila time');
 });
 
-test('the entry button submits the form', () => {
+test('the entry page: the button submits, and it sends the consent version of the text it shows', () => {
   const js = readFileSync(join(import.meta.dirname, '..', 'app', 'web', 'static', 'screens', 'review.js'), 'utf8');
   assert.match(js, /btn\('Enter the roulette', \{[^}]*type: 'submit'/);
+  assert.equal(/export const CONSENT_VERSION = '([^']+)'/.exec(js)?.[1], CONSENT_VERSION, 'the page and the server agree on the consent text');
+  assert.match(js, /consent_version: CONSENT_VERSION/);
 });
 
 test('closed until a round is open; staff only for the host', async () => {

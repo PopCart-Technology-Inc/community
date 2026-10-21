@@ -12,6 +12,13 @@ import { btn, empty, errorBox, fail, field, loading, sheet, toast } from '../ui.
 const CONTACT = 'support.popcart@gmail.com';
 const HANDLE = '@popcartphl';
 
+/**
+ * The version of the consent text on this page (TERMS, dataTerms, CONSENTS). An entry sends this,
+ * never the server's, so it records the text the person actually read. Raise it with the server's
+ * CONSENT_VERSION (app/modules/review/routes.ts) whenever the text changes.
+ */
+export const CONSENT_VERSION = '2026-10-22';
+
 /** The consent points, keyed as the server checks them (app/modules/review/routes.ts, CONSENTS). */
 export const CONSENTS = [
   ['shown', 'I agree to have my website shown and reviewed live, including critical feedback.'],
@@ -30,7 +37,7 @@ const TERMS = [
   ['No guarantee.', 'Sending your site does not guarantee a review. Staff check every entry before it joins the wheel, a random draw decides who is picked, and the host may skip any entry. No payment is asked for or offered.'],
 ];
 
-const dataTerms = (days) => ['Your data.', `We store the link, the name and handle you give, your typed signature and the time you agreed. To hold one entry per device, this page keeps a random code in one essential cookie, and we keep a keyed hash of that code and of your internet address, both cleared when the next round starts. Nothing is sold. Entries are deleted within ${days} days. To withdraw or delete your entry at any time, email ${CONTACT} with "Review" in the subject. Withdrawing cannot undo a live that already happened or clips already published.`];
+const dataTerms = (days) => ['Your data.', `We store the link, the name and handle you give, your typed signature and the time you agreed. To hold one entry per browser, this page keeps a random code in one essential cookie, and we keep a keyed hash of that code and of your internet address, both cleared when the next round starts. Nothing is sold. Entries are deleted after ${days} days. To withdraw or delete your entry at any time, email ${CONTACT} with "Review" in the subject. Withdrawing cannot undo a live that already happened or clips already published.`];
 
 function check(label, onChange) {
   const input = h('input', { type: 'checkbox' });
@@ -49,6 +56,8 @@ export function review() {
   const d = { url: '', name: '', handle: '', signature: '', consents: {} };
   let st = null;
   let timer = 0;
+  // the consent text changed while this page was open: only a reload shows the new text
+  let stale = false;
   const node = h('div', { class: 'rv' }, loading());
   const pillSlot = h('div', { class: 'rvtop-r' });
   const submit = btn('Enter the roulette', { block: true, type: 'submit', disabled: true, icon: 'send' });
@@ -59,8 +68,9 @@ export function review() {
   const ready = () => d.url.trim() && d.name.trim() && d.signature.trim().length >= 2 && CONSENTS.every(([k]) => d.consents[k]);
   const update = () => {
     const open = !!(st && st.round && st.round.accepting);
-    submit.disabled = !open || !ready() || (st && st.entered);
-    why.textContent = st && st.entered ? 'This device already has an entry in this round. One entry per live.'
+    submit.disabled = stale || !open || !ready() || (st && st.entered);
+    why.textContent = stale ? 'The consent text has changed. Reload the page and read it again.'
+      : st && st.entered ? 'This browser already has an entry in this round. One entry per live.'
       : !open ? 'Entries open when the live starts. Follow ' + HANDLE + ' on TikTok to know when.'
         : !ready() ? 'Fill in your site and name, agree to every point and sign to enter.' : '';
     const s = d.signature.trim();
@@ -85,12 +95,13 @@ export function review() {
       msg.textContent = '';
       submit.disabled = true;
       try {
-        const r = await post('/review/entries', { url: d.url, name: d.name, handle: d.handle, signature: d.signature, consents: d.consents, consent_version: st.consent_version });
+        const r = await post('/review/entries', { url: d.url, name: d.name, handle: d.handle, signature: d.signature, consents: d.consents, consent_version: CONSENT_VERSION });
         clearInterval(timer);
         done(r.entry);
       } catch (err) {
         msg.textContent = err.message;
-        if (err.code === 'consent_changed' || err.code === 'closed' || err.code === 'already_entered') refresh();
+        if (err.code === 'consent_changed') stale = true;
+        else if (err.code === 'closed' || err.code === 'already_entered') refresh();
         update();
       }
     } } },
@@ -136,7 +147,7 @@ export function review() {
         h('p', { class: 'lede' }, 'Roulette · one entry per live. Staff check it, the wheel picks, we open your site on the PopCart Community live and review it honestly.'),
         steps),
       form(),
-      h('footer', { class: 'rvfoot' }, 'This page sets one essential cookie, so each device enters once per live. Its fonts are served by Community itself. Questions: ' + CONTACT + '.'));
+      h('footer', { class: 'rvfoot' }, 'This page sets one essential cookie, so each browser enters once per live. Its fonts are served by Community itself. Questions: ' + CONTACT + '.'));
     update();
   }
 
@@ -144,6 +155,7 @@ export function review() {
     try {
       const first = !st;
       st = await get('/review');
+      if (st.consent_version !== CONSENT_VERSION) stale = true;
       if (first) paint(); else { pillSlot.replaceChildren(statusPill(st)); update(); }
     } catch (e) {
       if (!st) node.replaceChildren(errorBox(e, refresh));

@@ -16,7 +16,10 @@ import { limit, limits } from '../../http/security.ts';
 import { readCookie, requireStaff } from '../../http/session.ts';
 import { bad, oneOf, str } from '../shared.ts';
 
-/** The consent text version an entry agreed to. Change it whenever the points below change. */
+/**
+ * The consent text version an entry agreed to. The text itself is in app/web/static/screens/review.js,
+ * which sends its own copy of this version: change both whenever the text changes (a test holds them equal).
+ */
 export const CONSENT_VERSION = '2026-10-22';
 /** Every point must be agreed, in this order (the web shows the same keys). */
 export const CONSENTS = ['shown', 'recorded', 'owner', 'clean', 'draw', 'data'] as const;
@@ -56,7 +59,12 @@ export async function sweepReviews(db: Db): Promise<number> {
 }
 // Requests sweep too, at most every 10 minutes, so a missed timer never keeps an entry for long.
 let swept = 0;
-const maybeSweep = async (db: Db) => { if (Date.now() - swept > 600_000) { swept = Date.now(); await sweepReviews(db); } };
+// A failed sweep is logged, never turned into an error for the person visiting.
+const maybeSweep = async (db: Db) => {
+  if (Date.now() - swept <= 600_000) return;
+  swept = Date.now();
+  await sweepReviews(db).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'review sweep failed', err: String(e) })));
+};
 
 /** "live-202610221936": the Manila time (UTC+8, no DST) the round was made, to the minute. */
 export function roundCode(at = new Date()): string {
@@ -125,8 +133,11 @@ export function register(r: Router): void {
     const dev = device(ctx);
     const ipHash = keyed(ctx.config, 'ip', round.id, ctx.ip);
     const entry = await ctx.db.tx(async (tx) => {
-      // one round row lock, so the per-address count cannot be raced
-      await tx.query('SELECT 1 FROM review_rounds WHERE id = $1 FOR UPDATE', [round.id]);
+      // lock the round row: the per-address count cannot be raced, and closing entries or starting a
+      // new round (which locks the same row) waits for this entry or makes it fail here
+      const locked = await tx.one<{ accepting: boolean }>('SELECT accepting FROM review_rounds WHERE id = $1 FOR UPDATE', [round.id]);
+      const newest = await tx.one<{ id: string }>('SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1');
+      if (!locked || !locked.accepting || newest?.id !== round.id) return fail(409, 'closed', 'Entries are closed until the next live.');
       const here = Number((await tx.one<{ n: string }>('SELECT count(*) AS n FROM review_entries WHERE round_id = $1 AND ip_hash = $2', [round.id, ipHash]))?.n || 0);
       if (here >= PER_ADDRESS) return fail(429, 'too_many_here', 'Too many entries from this internet connection in this round.');
       return tx.one<{ id: string; created_at: string }>(
@@ -150,6 +161,9 @@ export function register(r: Router): void {
     limit(limits.write, me.id);
     const code = roundCode();
     await ctx.db.tx(async (tx) => {
+      // lock the round being replaced, so an entry still being written finishes first (and its hashes
+      // are cleared below) or sees the new round and is refused
+      await tx.query('SELECT id FROM review_rounds WHERE id = (SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1) FOR UPDATE');
       // two rounds in the same minute: the next takes a suffix (-2, -3…)
       let made = null;
       for (let i = 1; !made && i <= 20; i++) {
