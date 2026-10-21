@@ -20,20 +20,30 @@ const part = (s: string): Record<string, unknown> | null => { try { return JSON.
 export class AccessVerifier {
   private keys = new Map<string, KeyObject>();
   private fetchedAt = 0;
+  /** The last time we asked for keys, whether it worked or not, and the request in flight. */
+  private triedAt = 0;
+  private pending: Promise<void> | null = null;
   private team: string;
   private aud: string;
   private fetcher: JwksFetcher;
   constructor(team: string, aud: string, fetcher: JwksFetcher = fetchJwks) { this.team = team; this.aud = aud; this.fetcher = fetcher; }
 
   private async load(force: boolean): Promise<void> {
-    const age = Date.now() - this.fetchedAt;
-    if (!force && age < CACHE_MS && this.keys.size) return;
-    if (force && age < REFETCH_MS) return; // an unknown key id can't make us hammer the endpoint
-    const { keys } = await this.fetcher(`${this.team}/cdn-cgi/access/certs`);
-    const next = new Map<string, KeyObject>();
-    for (const k of keys || []) if (k.kid && k.kty === 'RSA') next.set(k.kid, createPublicKey({ key: k, format: 'jwk' }));
-    this.keys = next;
-    this.fetchedAt = Date.now();
+    if (!force && Date.now() - this.fetchedAt < CACHE_MS && this.keys.size) return;
+    if (this.pending) return this.pending; // one request at a time, shared by everyone waiting
+    // At most one try a minute, after a failure too: unknown key ids or a down endpoint can't make us
+    // hammer it. Until then the keys we have (if any) are used.
+    if (Date.now() - this.triedAt < REFETCH_MS) return;
+    this.triedAt = Date.now();
+    this.pending = (async () => {
+      const { keys } = await this.fetcher(`${this.team}/cdn-cgi/access/certs`);
+      const next = new Map<string, KeyObject>();
+      for (const k of keys || []) if (k.kid && k.kty === 'RSA') next.set(k.kid, createPublicKey({ key: k, format: 'jwk' }));
+      if (!next.size) throw new Error('access certs: no RSA keys');
+      this.keys = next;
+      this.fetchedAt = Date.now();
+    })().finally(() => { this.pending = null; });
+    return this.pending;
   }
 
   /** The person the gate let through, or null for anything missing, forged, expired or for another app. */

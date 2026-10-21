@@ -12,7 +12,7 @@ Staff get their own door: a separate address behind a gate, opened with a staff 
 - **The staff host** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). Set `STAFF_ORIGIN` and the server answers that host with the staff panel, and nothing else. Every request must carry the gate's signed token (Cloudflare Access, checked by the server itself), or it gets a plain 404. See [docs/running.md](docs/running.md#the-staff-host).
 - **Staff passkeys.** Made for the staff host only, set up once with a code from Settings, Staff passkey on Community. A member passkey does not open the staff panel, and a staff passkey does not sign in on Community.
 - **Staff sessions** lock after 15 idle minutes and end after 12 hours. The panel shows the time left and has a Lock button.
-- **The staff audit log.** Sign-ins, failed sign-ins, locks and setup codes are written to a log the database refuses to change or delete. Overseers read and filter it in the panel.
+- **The staff audit log.** Sign-ins, failed sign-ins, locks and setup codes are written to a log the database refuses to change or delete through ordinary statements (triggers block UPDATE, DELETE and TRUNCATE). The database role that owns the table could still switch the triggers off: for full protection, run the app as a role that doesn't own its tables ([docs/running.md](docs/running.md#the-staff-host)). Overseers read and filter it in the panel.
 - `npm run staff -- grant <username> <role> --email <address>` records the address the gate lets through for that person (as a keyed hash).
 
 ### Changed

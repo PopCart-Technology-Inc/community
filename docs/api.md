@@ -172,7 +172,7 @@ Deviations: the tombstone handle uses a dot (`deleted.1a2b3c4d`, an example) bec
 
 ## Staff host ✅ (`staff/`, decision 0009)
 
-Served only on `STAFF_ORIGIN`, and only for requests the gate (Cloudflare Access) signed: the server checks the `Cf-Access-Jwt-Assertion` token (RS256, the team's keys, this application's audience, not expired) and answers anything else with a plain 404, page and API alike. Writes must carry the staff host's `Origin`. The public host has none of these endpoints. Staff sessions use their own cookie (`__Host-staff`: this host only, `Secure`, `HttpOnly`, `SameSite=Strict`), end after 15 idle minutes and after 12 hours, and count only while the person holds a role and the gate's address is theirs. Every entry below that changes something is written to the staff audit log, which the database keeps append-only.
+Served only on `STAFF_ORIGIN`, and only for requests the gate (Cloudflare Access) signed: the server checks the `Cf-Access-Jwt-Assertion` token (RS256, the team's keys, this application's audience, not expired) and answers anything else with a plain 404, page and API alike. Writes must carry the staff host's `Origin`. The public host has none of these endpoints. Staff sessions use their own cookie (`__Host-staff`: this host only, `Secure`, `HttpOnly`, `SameSite=Strict`), end after 15 idle minutes and after 12 hours, and count only while the person holds a role and the gate's address is theirs. Every entry below that changes something is written to the staff audit log, which the database keeps append-only against ordinary statements (see docs/running.md for the role setup that also protects it from the table's owner).
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|

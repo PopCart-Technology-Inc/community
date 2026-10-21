@@ -47,7 +47,9 @@ Staff tools are on their own host, never on the public site (decision 0009). The
 3. Give each staff member's gate address to the server: `npm run staff -- grant <username> <role> --email <address>` (only a keyed hash is kept). A staff invite records it on joining.
 4. The person makes a setup code in Community (Settings, Staff passkey), opens the staff host, passes the gate and types the code to make their staff passkey.
 
-The server refuses to start with a public `STAFF_ORIGIN` that is not https, is the public host, or has no Access settings. On `localhost` (for example `http://staff.localhost:8080`) it runs without the gate, for trying it on your own machine only.
+The server refuses to start with a public `STAFF_ORIGIN` that is not https, is the public host, or has no Access settings, with an `ACCESS_TEAM_DOMAIN` that is not an https origin, or with a `STAFF_RP_ID` that doesn't fit the staff host or also covers the public site. On `localhost` (for example `http://staff.localhost:8080`) it runs without the gate, for trying it on your own machine only.
+
+**Protecting the audit log from the database owner.** Triggers refuse UPDATE, DELETE and TRUNCATE on `staff_actions`, but the role that owns a table can switch its triggers off. For full protection, let one role own the tables and run migrations, and run the app as a second role with only the rights it needs (on `staff_actions`: `INSERT` and `SELECT`). This is not set up for you.
 
 Joining is invite-only until the privacy lawyer's review (decision 0006), and invites go to an email address (decision 0008). The first staff account comes from `npm run invite -- --email <address> --staff` on the server and joins as an Overseer; people with the `invites.send` scope then invite others from the app (Settings, Invite by email). Staff roles (decision 0009) are given and taken with `npm run staff`, which keeps at least one Overseer. The invited person opens the join page, types that address and the 6-digit code sent to it, then makes a passkey. `npm run dev:memory` invites `DEV_EMAIL` (default `you@example.com`) and prints the code in its window.
 

@@ -3,7 +3,7 @@
 // token stand in for the browser and Cloudflare; everything else is the real server. Test-only data.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, createSign, generateKeyPairSync, randomBytes, sign, type KeyObject } from 'node:crypto';
+import { createHash, createHmac, createSign, generateKeyPairSync, randomBytes, sign, type KeyObject } from 'node:crypto';
 import { request } from 'node:http';
 import { loadConfig, staffConfigProblem } from '../app/config.ts';
 import { AccessVerifier } from '../app/http/access.ts';
@@ -130,6 +130,11 @@ test('config: a public staff host needs https, its own host and the gate; this m
   assert.match(c({ STAFF_ORIGIN: 'http://staff.example', ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD })!, /https/);
   assert.match(c({ STAFF_ORIGIN: 'https://staff.example' })!, /ACCESS_TEAM_DOMAIN/);
   assert.equal(c({ STAFF_ORIGIN: 'https://staff.example', ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD }), null);
+  const gate = { STAFF_ORIGIN: 'https://staff.example', ACCESS_AUD: AUD };
+  assert.match(c({ ...gate, ACCESS_TEAM_DOMAIN: 'test-team.cloudflareaccess.com' })!, /ACCESS_TEAM_DOMAIN/, 'no scheme');
+  assert.match(c({ ...gate, ACCESS_TEAM_DOMAIN: 'http://test-team.cloudflareaccess.com' })!, /https origin/);
+  assert.match(c({ ...gate, ACCESS_TEAM_DOMAIN: TEAM, STAFF_RP_ID: 'other.example' })!, /STAFF_RP_ID/, 'a domain the staff host is not under');
+  assert.match(c({ ...gate, ACCESS_TEAM_DOMAIN: TEAM, STAFF_RP_ID: 'example' })!, /COMMUNITY_ORIGIN/, 'a domain that covers the public site too');
 });
 
 test('the gate token: only a fresh token signed by the team, for this app, with an address', async () => {
@@ -149,11 +154,26 @@ test('the gate token: only a fresh token signed by the team, for this app, with 
   assert.equal(await v(`${h}.${b64({ iss: TEAM, aud: [AUD], email: 'boss@example.com', exp: 9e9 })}.${s}`), null, 'claims changed after signing');
   const alg = `${b64({ alg: 'none', kid: KID })}.${t.split('.')[1]}.`;
   assert.equal(await v(alg), null, 'alg none');
+  assert.equal(await v(`${b64({ alg: 'none', kid: KID })}.${t.split('.')[1]}.${s}`), null, 'alg none, with a signature attached');
+  // HS256 "signed" with the public key as the secret: the classic algorithm-confusion attack.
+  const hsBody = `${b64({ alg: 'HS256', kid: KID })}.${t.split('.')[1]}`;
+  const hsSig = createHmac('sha256', rsa.publicKey.export({ format: 'pem', type: 'spki' })).update(hsBody).digest('base64url');
+  assert.equal(await v(`${hsBody}.${hsSig}`), null, 'HS256 with the public key as secret');
   // An unknown key id fetches the certs again, but at most once a minute.
   const before = certFetches;
   await v(token('a@example.com', {}, rsa.privateKey, 'unknown-1'));
   await v(token('a@example.com', {}, rsa.privateKey, 'unknown-2'));
   assert.ok(certFetches - before <= 1, 'unknown key ids cannot hammer the certs endpoint');
+});
+
+test('the gate token: a certs endpoint that is down is asked at most once a minute, by one request at a time', async () => {
+  let calls = 0;
+  const down = new AccessVerifier(TEAM, AUD, async () => { calls++; await new Promise((ok) => setTimeout(ok, 20)); throw new Error('down'); });
+  const all = await Promise.all(Array.from({ length: 10 }, () => down.verify(token('a@example.com'))));
+  assert.deepEqual(all, Array(10).fill(null), 'fails closed');
+  assert.equal(calls, 1, 'ten requests at once share one fetch');
+  for (let i = 0; i < 5; i++) assert.equal(await down.verify(token('a@example.com')), null);
+  assert.equal(calls, 1, 'no refetch within a minute of a failure');
 });
 
 test('without the gate, the staff host is a plain 404: page, files and API', async () => {

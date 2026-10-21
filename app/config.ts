@@ -72,6 +72,14 @@ export function staffConfigProblem(c: Config): string | null {
   if (LOCAL.has(s.hostname) || s.hostname.endsWith('.localhost')) return null;
   if (s.protocol !== 'https:') return 'STAFF_ORIGIN must be https';
   if (!c.accessTeam || !c.accessAud) return 'ACCESS_TEAM_DOMAIN and ACCESS_AUD are required with a public STAFF_ORIGIN';
+  let team: URL;
+  try { team = new URL(c.accessTeam); } catch { return 'ACCESS_TEAM_DOMAIN is not a URL'; }
+  if (team.protocol !== 'https:' || team.pathname !== '/' || team.search) return 'ACCESS_TEAM_DOMAIN must be an https origin, e.g. https://your-team.cloudflareaccess.com';
+  // Staff passkeys belong to the staff host: their domain must be that host (or one it sits under) and
+  // must not also cover the public site.
+  const rp = c.staffRpId || s.hostname, pub = new URL(c.origin).hostname;
+  if (s.hostname !== rp && !s.hostname.endsWith('.' + rp)) return 'STAFF_RP_ID must be the staff host name or a domain it is under';
+  if (pub === rp || pub.endsWith('.' + rp)) return 'STAFF_RP_ID must not also cover COMMUNITY_ORIGIN: leave it unset to use the staff host name';
   return null;
 }
 
