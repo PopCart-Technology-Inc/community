@@ -25,7 +25,7 @@ import { requireStaffScope } from '../staff/routes.ts';
  * The consent text version an entry agreed to. The text itself is in app/web/static/screens/review.js,
  * which sends its own copy of this version: change both whenever the text changes (a test holds them equal).
  */
-export const CONSENT_VERSION = '2026-10-22';
+export const CONSENT_VERSION = '2026-10-22.2';
 /** Every point must be agreed, in this order (the web shows the same keys). */
 export const CONSENTS = ['shown', 'recorded', 'owner', 'clean', 'draw', 'data'] as const;
 export const KEEP_DAYS = 90;
@@ -180,17 +180,16 @@ export function registerHost(r: Router): void {
       // two rounds in the same minute: the next takes a suffix (-2, -3…)
       let made = null;
       for (let i = 1; !made && i <= 20; i++) {
-        made = await tx.one<{ id: string }>('INSERT INTO review_rounds (code, created_by) VALUES ($1, $2) ON CONFLICT (code) DO NOTHING RETURNING id', [i === 1 ? code : `${code}-${i}`, me.id]);
+        made = await tx.one<{ id: string; code: string }>('INSERT INTO review_rounds (code, created_by) VALUES ($1, $2) ON CONFLICT (code) DO NOTHING RETURNING id, code', [i === 1 ? code : `${code}-${i}`, me.id]);
       }
       if (!made) return fail(409, 'busy', 'Too many rounds this minute');
       // another round may have been made meanwhile: wait for entries on any recent round before clearing
       await tx.query('SELECT id FROM review_rounds WHERE id <> $1 ORDER BY created_at DESC LIMIT 5 FOR UPDATE', [made.id]);
       // the hashes only hold one entry per device and cap an address within a round: drop them now
       await tx.query('UPDATE review_entries SET device_hash = NULL, ip_hash = NULL WHERE round_id <> $1 AND (device_hash IS NOT NULL OR ip_hash IS NOT NULL)', [made.id]);
+      await log(tx, me, `Started review round ${made.code}`, { round: made.code });
     });
-    const v = await hostView(ctx.db);
-    await log(ctx.db, me, `Started review round ${v.round?.code}`, { round: v.round?.code });
-    return json(v, 201);
+    return json(await hostView(ctx.db), 201);
   });
 
   r.patch('/staff/review/rounds/current', async (ctx) => {
@@ -200,13 +199,12 @@ export function registerHost(r: Router): void {
     if (typeof b.accepting !== 'boolean') return bad('accepting', 'must be true or false');
     await ctx.db.tx(async (tx) => {
       // the newest round, locked: a round started meanwhile is the one opened or closed
-      const round = await tx.one<{ id: string }>('SELECT id FROM review_rounds WHERE id = (SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1) FOR UPDATE')
+      const round = await tx.one<{ id: string; code: string }>('SELECT id, code FROM review_rounds WHERE id = (SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1) FOR UPDATE')
         ?? fail(409, 'no_round', 'Start a round first');
       await tx.query('UPDATE review_rounds SET accepting = $1 WHERE id = $2', [b.accepting, round.id]);
+      await log(tx, me, `${b.accepting ? 'Opened' : 'Closed'} entries for review round ${round.code}`, { round: round.code, accepting: b.accepting });
     });
-    const v = await hostView(ctx.db);
-    await log(ctx.db, me, `${b.accepting ? 'Opened' : 'Closed'} entries for review round ${v.round?.code}`, { round: v.round?.code, accepting: b.accepting });
-    return json(v);
+    return json(await hostView(ctx.db));
   });
 
   /** Draw the next site. `pool` is the wheel as it was drawn from (waiting entries, oldest first). */
@@ -229,25 +227,28 @@ export function registerHost(r: Router): void {
       if (!(await tx.one(`UPDATE review_entries SET status = 'picked', picked_at = now() WHERE id = $1 AND status = 'waiting' RETURNING 1`, [pick.id]))) {
         return fail(409, 'changed', 'The entries changed while spinning. Spin again.');
       }
+      await log(tx, me, `Spun the review wheel in round ${round.code}`, { round: round.code, entry: pick.id, pool: pool.length });
       return { pool: pool.map((e) => ({ id: e.id, name: e.name })), picked: pick.id };
     });
-    const v = await hostView(ctx.db);
-    await log(ctx.db, me, `Spun the review wheel in round ${round.code}`, { round: round.code, entry: out.picked, pool: out.pool.length });
-    return json({ ...out, ...v });
+    return json({ ...out, ...(await hostView(ctx.db)) });
   });
 
-  /** Let a checked entry into the draw (waiting), mark one reviewed or skipped, or put it back in. */
+  /** Let a checked entry into the draw (waiting), mark one reviewed or skipped, or put it back in. Current round only. */
   r.patch('/staff/review/entries/:id', async (ctx) => {
     const me = host(ctx);
     limit(limits.write, me.id);
     if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such entry');
     const b = await ctx.json<Record<string, unknown>>();
     const status = oneOf(b.status, 'status', SETTABLE);
-    const done = await ctx.db.one(
-      `UPDATE review_entries SET status = $2, done_at = CASE WHEN $2 = 'waiting' THEN NULL ELSE now() END,
-         picked_at = CASE WHEN $2 = 'waiting' THEN NULL ELSE picked_at END WHERE id = $1 RETURNING 1`, [ctx.params.id, status]);
-    if (!done) return fail(404, 'not_found', 'No such entry');
-    await log(ctx.db, me, `Set a review entry to ${status}`, { entry: ctx.params.id, status });
+    await ctx.db.tx(async (tx) => {
+      const done = await tx.one<{ round: string }>(
+        `UPDATE review_entries e SET status = $2, done_at = CASE WHEN $2 = 'waiting' THEN NULL ELSE now() END,
+           picked_at = CASE WHEN $2 = 'waiting' THEN NULL ELSE e.picked_at END
+         FROM review_rounds r WHERE e.id = $1 AND r.id = e.round_id
+           AND r.id = (SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1) RETURNING r.code AS round`, [ctx.params.id, status]);
+      if (!done) return fail(404, 'not_found', 'No such entry in this round');
+      await log(tx, me, `Set a review entry to ${status}`, { entry: ctx.params.id, round: done.round, status });
+    });
     return json(await hostView(ctx.db));
   });
 
@@ -261,6 +262,7 @@ export function registerHost(r: Router): void {
       `SELECT e.id, e.url, e.name, e.handle, e.status, e.created_at, e.picked_at, e.done_at, r.code AS round
        FROM review_entries e JOIN review_rounds r ON r.id = e.round_id
        WHERE e.name ILIKE $1 OR e.handle ILIKE $1 OR e.url ILIKE $1 ORDER BY e.created_at DESC LIMIT 20`, [like]);
+    await log(ctx.db, me, `Searched review entries (${entries.length} found)`, { found: entries.length });
     return json({ entries, as_of: new Date().toISOString() });
   });
 
@@ -269,9 +271,11 @@ export function registerHost(r: Router): void {
     const me = host(ctx);
     limit(limits.write, me.id);
     if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such entry');
-    const gone = await ctx.db.one<{ round: string }>('DELETE FROM review_entries e USING review_rounds r WHERE e.id = $1 AND r.id = e.round_id RETURNING r.code AS round', [ctx.params.id]);
-    if (!gone) return fail(404, 'not_found', 'No such entry');
-    await log(ctx.db, me, `Removed a review entry from round ${gone.round}`, { entry: ctx.params.id, round: gone.round });
+    await ctx.db.tx(async (tx) => {
+      const gone = await tx.one<{ round: string }>('DELETE FROM review_entries e USING review_rounds r WHERE e.id = $1 AND r.id = e.round_id RETURNING r.code AS round', [ctx.params.id]);
+      if (!gone) return fail(404, 'not_found', 'No such entry');
+      await log(tx, me, `Removed a review entry from round ${gone.round}`, { entry: ctx.params.id, round: gone.round });
+    });
     return noContent();
   });
 }

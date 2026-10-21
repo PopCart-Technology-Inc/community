@@ -8,6 +8,7 @@ import { h, icon } from '/static/lib/dom.js';
 import { get, post } from '/static/lib/api.js';
 import { creationOptionsFromJSON, credentialToJSON, requestOptionsFromJSON } from '/static/lib/webauthn.js';
 import { btn, empty, field, loading, toast } from '/static/ui.js';
+import { loadBrand } from '/static/lib/brand.js';
 import { has, S, setHandlers, sget } from './core.js';
 import { drawer } from './kit.js';
 import { ADMIN_NAV, person } from './admin.js';
@@ -16,6 +17,8 @@ import { OVERSEER_NAV } from './overseer.js';
 const root = () => document.getElementById('app');
 const NO_PASSKEY = 'This browser cannot use passkeys. Try an up-to-date Chrome, Safari, Edge or Firefox.';
 const T = { tick: null, sync: null };
+// the brand pack (fonts, Pop Mark), when the server has one: started now, waited for before the first screen
+const brand = loadBrand();
 
 function mount(node) {
   root().replaceChildren(node, h('div', { id: 'toast', role: 'status', aria: { live: 'polite' } }));
@@ -25,6 +28,7 @@ async function boot() {
   root().replaceChildren(loading('Checking the gate'));
   try {
     S.session = await get('/staff/session');
+    await brand;
   } catch (e) {
     mount(h('main', { class: 'st' }, empty('Could not reach the staff panel', (e && e.message) || '', btn('Try again', { kind: 'w', on: boot }))));
     return;

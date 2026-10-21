@@ -3,7 +3,7 @@
 // draws the pick; the wheel only lands on it. Entries come from the public page, /review.
 import { h, icon } from '/static/lib/dom.js';
 import { asOf } from '/static/lib/format.js';
-import { brandName, loadBrand, popMark } from '/static/lib/brand.js';
+import { brandName, popMark } from '/static/lib/brand.js';
 import { btn, fail, sheet, toast } from '/static/ui.js';
 import { enc, S, sdel, sget, spatch, spost } from './core.js';
 
@@ -90,10 +90,7 @@ function confirmSheet(title, text, action, run) {
 
 const STATUS_LABEL = { pending: 'To check', waiting: 'In the draw', picked: 'Up now', reviewed: 'Reviewed', skipped: 'Skipped' };
 
-let branded = false;
-
 export function liveReview() {
-  if (!branded) { branded = true; loadBrand(); }
 
   let view = null, drawn = null, spinning = false, offline = false, timer = 0, hidden = false;
   const w = wheel();

@@ -144,6 +144,7 @@ test('a round: open, one entry per device, staff check, then the draw', async ()
   const logged = await app.db.query<{ text: string; detail: unknown }>(`SELECT text, detail FROM staff_actions WHERE kind = 'review' ORDER BY at`);
   assert.ok(logged.length >= 8, 'round, open, let in, spins, marks, removal');
   assert.ok(logged.some((l) => /^Removed a review entry/.test(l.text)));
+  assert.ok(logged.some((l) => /^Searched review entries \(\d+ found\)$/.test(l.text)), 'the search is logged, never the words searched');
   for (const l of logged) assert.doesNotMatch(l.text + JSON.stringify(l.detail), /fixture|Viewer|tester/i, l.text);
 
   // a new round: empty and closed, the old round's hashes are gone, and the device may enter again
@@ -152,6 +153,7 @@ test('a round: open, one entry per device, staff check, then the draw', async ()
   assert.notEqual(next.body.round.code, made.body.round.code);
   const left = await app.db.one<{ n: string }>('SELECT count(*) AS n FROM review_entries WHERE device_hash IS NOT NULL OR ip_hash IS NOT NULL');
   assert.equal(Number(left!.n), 0, 'hashes cleared');
+  assert.equal((await staff.staff('PATCH', '/staff/review/entries/' + found.body.entries[0].id, { status: 'waiting' })).status, 404, 'entries of an old round stay as they were');
   await staff.staff('PATCH', '/staff/review/rounds/current', { accepting: true });
   assert.equal((await v1.call('GET', '/review')).body.entered, false);
   assert.equal((await v1.call('POST', '/review/entries', entry())).status, 201);

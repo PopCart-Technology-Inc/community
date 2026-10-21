@@ -8,14 +8,14 @@ import { brandName } from '../lib/brand.js';
 import { btn, errorBox, field, loading } from '../ui.js';
 
 const CONTACT = 'support.popcart@gmail.com';
-const HANDLE = '@popcartphl';
+const HANDLE = '@go_popcart';
 
 /**
  * The version of the consent text on this page (TERMS, dataTerms, CONSENTS). An entry sends this,
  * never the server's, so it records the text the person actually read. Raise it with the server's
  * CONSENT_VERSION (app/modules/review/routes.ts) whenever the text changes.
  */
-export const CONSENT_VERSION = '2026-10-22';
+export const CONSENT_VERSION = '2026-10-22.2';
 /** Days an entry is kept: part of the consent text, so fixed here with it (a test holds it equal to the server's). */
 export const KEEP_DAYS = 90;
 

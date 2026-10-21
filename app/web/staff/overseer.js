@@ -8,7 +8,7 @@ import { checkbox, confirmBox, dropdown, leftText, ring, spark, undoToast } from
 
 const KIND_LABEL = {
   session: 'Sign-in', staff: 'Staff', role: 'Roles', invite: 'Invites', report: 'Reports', appeal: 'Appeals',
-  account: 'Accounts', switch: 'Switches', approval: 'Approvals', vault: 'Vault', audit: 'Audit',
+  account: 'Accounts', switch: 'Switches', approval: 'Approvals', vault: 'Vault', audit: 'Audit', review: 'Live review',
 };
 const DAYS = [['30', '30 days'], ['90', '90 days'], ['180', '180 days'], ['365', '365 days']];
 const STALE_MS = 5 * 60_000;
