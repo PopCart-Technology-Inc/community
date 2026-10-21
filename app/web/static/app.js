@@ -15,11 +15,12 @@ import { dm, inbox } from './screens/messages.js';
 import { applicants, apply, gigCard, gigPage, newGig, rate, work } from './screens/work.js';
 import { invite, meRedirect, profile, proof, settings, socials } from './screens/me.js';
 import { actions, data, mod, records, report, transparency } from './screens/safety.js';
+import { review, reviewHost } from './screens/review.js';
 
 const SCREENS = {
   home: following, places, placesAt: places, trade, picks, join, login, post: postDetail, compose, explore, activity,
   spaces: spacesList, space: spacePage, channel, inbox, dm, work, gigNew: newGig, gig: gigPage, apply, applicants, rate,
-  profile, me: meRedirect, settings, invite, data, proof, records, actions, socials, report, transparency, mod,
+  profile, me: meRedirect, settings, invite, data, proof, records, actions, socials, report, transparency, mod, review, reviewHost,
 };
 const GROUP = {
   home: 'home', places: 'places', placesAt: 'places', trade: 'home', picks: 'home', post: 'home', compose: 'home', explore: 'explore', activity: 'activity',

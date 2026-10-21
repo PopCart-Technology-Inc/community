@@ -170,6 +170,21 @@ A **gig**: `{ id, poster: person, title, body, pay_amount, pay_currency, pay_uni
 
 Deviations: the tombstone handle uses a dot (`deleted.1a2b3c4d`, an example) because the handle rule does not allow `-`. Data rights (`/me/data`, `/me/export`, `DELETE /me`, `/me/mod-actions` and appeals) also work for a suspended account. Migration `0005_safety.sql` adds one-report-per-target, `reports.hid_content` and the appeal columns.
 
+## Live site review ✅ (`review/`)
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/review` | anyone | `{ round: { code, accepting } \| null, entered, consent_version, keep_days, as_of }`. `entered`: this address already has an entry in the current round. |
+| POST | `/review/entries` | anyone: `{ url, name, handle?, signature, consents: { shown, recorded, owner, clean, draw, data }, consent_version }` | 201 `{ entry: { url, name, handle, round, consented_at } }`. Every consent must be `true` (400) and `consent_version` current (409 `consent_changed`). `url`: a public http(s) site, no IP address, local name or user name and password in it. 409 `closed` when entries are closed, 409 `already_entered` for a second entry from the same address in a round. Rate limited per address. |
+| GET | `/review/host` | staff | `{ round, entries: [{ id, url, name, handle, status: waiting\|picked\|reviewed\|skipped, created_at, picked_at, done_at }], counts: { in, left }, as_of }`. Never signatures or address hashes. |
+| POST | `/review/rounds` | staff | 201, the host view of a new round (`live-YYYYMMDDHHmm`, Manila time), closed. |
+| PATCH | `/review/rounds/current` | staff: `{ accepting }` | the host view |
+| POST | `/review/spin` | staff | `{ pool: [{ id, name }], picked, …host view }`: the server draws one waiting entry (`crypto.randomInt`); `pool` is the wheel it was drawn from. 409 while an entry is still picked or when none are waiting. |
+| PATCH | `/review/entries/:id` | staff: `{ status: waiting\|reviewed\|skipped }` | the host view |
+| DELETE | `/review/entries/:id` | staff | 204. For rule breaks and withdrawals. |
+
+The sender's address is stored only as HMAC(`EMAIL_HASH_KEY`, round + address). Entries older than 90 days are deleted on every visit to these endpoints.
+
 ## Media ✅ (`media/`)
 
 | Method | Path | Body | Returns |

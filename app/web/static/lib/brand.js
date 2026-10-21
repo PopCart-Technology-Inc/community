@@ -58,6 +58,12 @@ export function brandName(size = 'm') {
   return h('span', { class: 'plainname plainname-' + size }, 'Community');
 }
 
+/** The pack's Pop Mark, untouched, or nothing without the pack. */
+export function popMark(cls) {
+  if (!document.documentElement.classList.contains('brand-art')) return null;
+  return useSymbol('mark', '0 0 120 120', cls);
+}
+
 const ILL = { rider: '0 0 440 400', fish: '0 0 420 400', grill: '0 0 400 400' };
 /** A brand illustration when the pack has one, otherwise nothing. */
 export function illustration(name, cls) {
