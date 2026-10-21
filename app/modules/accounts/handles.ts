@@ -22,16 +22,17 @@ const STAFF = ['admin', 'administrator', 'overseer', 'staff', 'mod', 'mods', 'mo
   'security', 'safety', 'official', 'verified', 'team', 'community', 'popcart', 'popcartph', 'root', 'system', 'sysadmin', 'superuser',
   'owner', 'operator', 'trust', 'abuse', 'legal', 'privacy', 'news', 'announcements', 'noreply', 'postmaster', 'webmaster', 'hostmaster', 'deleted'];
 /**
- * Words that may not be any part of a name either (parts are split at dots and underscores, with digits
- * at either end ignored), so "admin.popcart", "popcart_official" or "overseer1" are refused too. Ordinary
- * names that only start with one ("admiral", "staffing.pro") are fine.
+ * Words that may not be any part of a name either, so "admin.popcart", "popcart_official", "overseer1",
+ * "admin2jun" or "st4ff1" are refused too. A part is any stretch between dots, underscores, digits used as
+ * breaks, or the ends; a digit may be a break or a letter, and both readings are tried. Ordinary names
+ * that only start with one ("admiral", "staffing.pro") are fine.
  */
 const PART = ['admin', 'administrator', 'overseer', 'staff', 'mod', 'mods', 'moderator', 'moderators', 'support', 'helpdesk', 'security',
   'official', 'verified', 'popcart', 'popcartph', 'sysadmin', 'superuser', 'noreply', 'deleted'];
 /**
- * The brand and the top staff words may not appear anywhere in a name ("popcartphl", "theoverseer").
- * Checked on the key with and without the rn/vv folds, so a letter after the word ("overseernews", whose
- * key is "overseemews") can't hide it.
+ * The brand and the top staff words may not appear anywhere in a name ("popcartphl", "theoverseer",
+ * "overseernews"). Matched before the rn/vv folds, with each m allowed to be written rn and each w vv, so
+ * a fold can neither hide the word ("overseernews" folds to "overseemews") nor be mixed ("rnoderatornews").
  */
 const ANYWHERE = ['popcart', 'overseer', 'moderator', 'administrator'];
 /** The first part of every screen path in app/web/static/lib/router.js (a test checks they match). */
@@ -44,14 +45,22 @@ const FILES = ['api', 'static', 'brand', 'media', 'sw.js', 'manifest.webmanifest
 export const RESERVED: readonly string[] = [...STAFF, ...SCREENS, ...FILES];
 const RESERVED_KEYS = new Set(RESERVED.map(handleKey));
 const PART_KEYS = new Set(PART.map(handleKey));
-const ANYWHERE_KEYS = ANYWHERE.map(handleKey);
+const ANYWHERE_RES = ANYWHERE.map((w) => new RegExp(handleKey(w).replace(/m/g, '(?:m|rn)').replace(/w/g, '(?:w|vv)')));
+
+/** Every stretch of a part that starts at its start or after a digit and ends at its end or before a digit. */
+function stretches(part: string): string[] {
+  const out: string[] = [], digit = (c: string | undefined) => !!c && c >= '0' && c <= '9';
+  for (let i = 0; i < part.length; i++) {
+    if (i > 0 && !digit(part[i - 1])) continue;
+    for (let j = i + 1; j <= part.length; j++) if (j === part.length || digit(part[j])) out.push(part.slice(i, j));
+  }
+  return out;
+}
 
 export function isReserved(h: string): boolean {
   const k = handleKey(h), plain = h.toLowerCase().replace(/[._]/g, '').replace(/[0-9l]/g, (c) => AS[DIGITS.indexOf(c)] as string);
-  if (RESERVED_KEYS.has(k) || ANYWHERE_KEYS.some((w) => k.includes(w) || plain.includes(w))) return true;
-  // Parts: split at dots and underscores, and again at digits ("admin2jun", "support24x7").
-  const parts = h.toLowerCase().split(/[._]/);
-  return [...parts, ...parts.flatMap((p) => p.split(/[0-9]+/))].some((part) => PART_KEYS.has(handleKey(part)));
+  if (RESERVED_KEYS.has(k) || ANYWHERE_RES.some((re) => re.test(plain))) return true;
+  return h.toLowerCase().split(/[._]/).some((part) => stretches(part).some((s) => PART_KEYS.has(handleKey(s))));
 }
 
 export type HandleProblem = 'shape' | 'reserved' | 'taken' | null;
