@@ -63,7 +63,7 @@ test('closed until a round is open; staff only for the host', async () => {
   // the host is on the staff host only: the public host has no such endpoint, even for staff
   const overseer = await app.person({ role: 'staff' });
   for (const [m, path] of [['GET', '/review/host'], ['POST', '/review/rounds'], ['POST', '/review/spin'], ['GET', '/staff/review/host'], ['POST', '/staff/review/rounds'],
-    ['PATCH', '/staff/review/rounds/current'], ['POST', '/staff/review/spin'], ['GET', '/staff/review/entries?q=ab'], ['PATCH', '/staff/review/entries/x'], ['DELETE', '/staff/review/entries/x']]) {
+    ['PATCH', '/staff/review/rounds/current'], ['POST', '/staff/review/spin'], ['POST', '/staff/review/entries/search'], ['PATCH', '/staff/review/entries/x'], ['DELETE', '/staff/review/entries/x']]) {
     assert.equal((await overseer.call(m!, path!)).status, 404, path);
   }
   // polling the host view is not activity: the staff session's idle clock keeps running
@@ -141,13 +141,13 @@ test('a round: open, one entry per device, staff check, then the draw', async ()
   assert.equal((await staff.staff('GET', '/staff/review/host')).body.counts.in, 1);
 
   // a withdrawal after its round: staff find the entry in any round
-  const found = await staff.staff('GET', '/staff/review/entries?q=' + encodeURIComponent('fixture'));
+  const found = await staff.staff('POST', '/staff/review/entries/search', { q: 'fixture' });
   assert.equal(found.status, 200);
   assert.equal(found.body.entries.length, 1, 'the one entry left from that round');
   assert.equal(found.body.entries[0].round, made.body.round.code);
   assert.equal(found.body.entries[0].signature, undefined);
-  assert.equal((await (await app.person({ staffRole: 'Support' })).staff('GET', '/staff/review/entries?q=two')).status, 403);
-  assert.equal((await staff.staff('GET', '/staff/review/entries?q=%25%25')).body.entries.length, 0, 'LIKE wildcards are literal');
+  assert.equal((await (await app.person({ staffRole: 'Support' })).staff('POST', '/staff/review/entries/search', { q: 'two' })).status, 403);
+  assert.equal((await staff.staff('POST', '/staff/review/entries/search', { q: '%%' })).body.entries.length, 0, 'LIKE wildcards are literal');
 
   // every staff change is in the audit log, by entry id and round code only: never a name or a site
   const logged = await app.db.query<{ text: string; detail: unknown }>(`SELECT text, detail FROM staff_actions WHERE kind = 'review' ORDER BY at`);

@@ -9,6 +9,8 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 - **Live review in the Admin panel** (`/admin/review` on the staff host, new scope `review.host`), made to be shown on the live: the round, the wheel and the queue. Staff check each entry and let it in before it can reach the wheel; unchecked entries show only with the controls. Open and close entries, start a new round, spin, copy the picked link for the review browser, then mark the site reviewed, skipped or back in the draw, or remove an entry, and find an entry in any round to honour a withdrawal after its round. The server makes the draw; the wheel lands on it. The live shows only the **stream scene**, its own window (`/admin/review/scene`, opened from the controls): it never holds the To check list, the search or the round controls, and keeps Spin, Copy link, Reviewed and Skip for a host with one screen. Each change is in the staff audit log, by entry and round only.
 - **Privacy:** the device code and the internet address are kept only as keyed hashes scoped to the round, cleared when the next round starts (the address only caps entries from one connection, since many people share mobile addresses). Signatures never reach the host screen. Entries are deleted 90 days after they were sent, on an hourly timer.
 - API: `/review`, `/review/entries` and, on the staff host, `/staff/review/*` ([docs/api.md](docs/api.md)). Migration `0012_review_roulette.sql`.
+- The staff host serves the brand pack (`/brand/*`, behind the gate) for the scene's fonts and Pop Mark.
+- The staff panel's idle clock asks the server before locking, so a session open in two windows (the controls and the scene) only locks when it is idle in both.
 
 ## [0.10.0] - 2026-10-21
 

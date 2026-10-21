@@ -63,7 +63,24 @@ function paintClock() {
     el.classList.toggle('soon', left < 120_000);
     el.setAttribute('aria-label', `Locks in ${m} minutes ${s} seconds unless you use the panel. Press to lock now.`);
   }
-  if (left === 0) lock('idle');
+  if (left === 0) idleCheck();
+}
+
+// One staff session can be open in several windows (the live review's controls and its scene): the
+// server's clock counts activity in all of them, so ask it before locking on this window's own clock.
+let checking = false;
+async function idleCheck() {
+  if (checking) return;
+  checking = true;
+  try {
+    const s = await get('/staff/session');
+    if (!s.user) { stopClock(); toast('The staff session ended', true); S.session = s; signIn(); return; }
+    const ends = new Date(s.user.idle_ends_at).getTime();
+    if (ends > Date.now() + 1000) { S.idleEnds = ends; return; }
+    lock('idle');
+  } catch {
+    lock('idle'); // offline: the local clock still locks
+  } finally { checking = false; }
 }
 
 async function lock(why) {
@@ -219,6 +236,9 @@ function render(path, replace) {
 
 function navigate(path, opts = {}) { render(path, !!opts.replace); }
 
+/** This window shows the live review scene (captured for the stream): it never goes to another screen. */
+const onAir = () => !!document.querySelector('.rh.scene');
+
 function openMenu() {
   drawer('Staff panel', (close) => {
     const n = navEl.cloneNode(true);
@@ -265,11 +285,12 @@ document.addEventListener('click', (e) => {
   const url = new URL(a.href, location.href);
   if (url.origin !== location.origin || url.pathname.startsWith('/api/') || !mainEl || !mainEl.isConnected) return;
   e.preventDefault();
+  if (onAir()) return;
   navigate(url.pathname);
 });
-window.addEventListener('popstate', () => { if (mainEl && mainEl.isConnected) render(location.pathname, true); });
+window.addEventListener('popstate', () => { if (mainEl && mainEl.isConnected && !onAir()) render(location.pathname, true); });
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && mainEl && mainEl.isConnected) { e.preventDefault(); palette(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && mainEl && mainEl.isConnected) { e.preventDefault(); if (!onAir()) palette(); }
 });
 
 boot();

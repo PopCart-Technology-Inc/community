@@ -255,11 +255,15 @@ export function registerHost(r: Router): void {
     return json(await hostView(ctx.db));
   });
 
-  /** Find entries in any round (up to 20, newest first) by name, handle or site: to honour a withdrawal after its round. */
-  r.get('/staff/review/entries', async (ctx) => {
+  /**
+   * Find entries in any round (up to 20, newest first) by name, handle or site: to honour a withdrawal
+   * after its round. A POST so the words searched (names, sites) stay out of URLs and proxy logs.
+   */
+  r.post('/staff/review/entries/search', async (ctx) => {
     const me = host(ctx);
     limit(limits.write, me.id);
-    const q = str(ctx.query.get('q'), 'q', { min: 2, max: 100 });
+    const b = await ctx.json<Record<string, unknown>>();
+    const q = str(b.q, 'q', { min: 2, max: 100 });
     const like = '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
     const entries = await ctx.db.query<Entry & { round: string }>(
       `SELECT e.id, e.url, e.name, e.handle, e.status, e.created_at, e.picked_at, e.done_at, r.code AS round

@@ -5,7 +5,7 @@ import { h, icon } from '/static/lib/dom.js';
 import { asOf } from '/static/lib/format.js';
 import { brandName, popMark } from '/static/lib/brand.js';
 import { btn, fail, sheet, toast } from '/static/ui.js';
-import { enc, S, sdel, sget, spatch, speek, spost } from './core.js';
+import { enc, S, sdel, spatch, speek, spost } from './core.js';
 
 /* ---------- the wheel ---------- */
 
@@ -164,7 +164,7 @@ export function liveReview({ scene = false } = {}) {
     const n = ++searches;
     if (q.length < 2) { found.replaceChildren(); return; }
     try {
-      const r = await sget('/staff/review/entries', { q });
+      const r = await spost('/staff/review/entries/search', { q });
       if (n !== searches) return;
       found.replaceChildren(...(r.entries.length ? r.entries.map((e) => h('li', { class: 'rhqi' },
         h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url + ' · ' + e.round)),
@@ -175,6 +175,7 @@ export function liveReview({ scene = false } = {}) {
 
   /** Land the wheel on a pick: the pool it was drawn from, then the host view after it. */
   async function show(pool, picked, after) {
+    const at = changes;
     spinning = true;
     spinBtn.disabled = true;
     drawn = { pool, picked };
@@ -182,7 +183,8 @@ export function liveReview({ scene = false } = {}) {
     w.draw(pool);
     await w.spinTo(pool.findIndex((p) => p.id === picked), pool.length);
     spinning = false;
-    apply(after);
+    // a change made while the wheel turned is newer than `after`: read again instead
+    if (at === changes) apply(after); else refresh();
     const e = after.entries.find((x) => x.id === picked);
     live.textContent = e ? 'Up next: ' + e.name : '';
   }
@@ -263,6 +265,8 @@ export function liveReview({ scene = false } = {}) {
 
   function apply(v) {
     view = v;
+    const p = v.entries.find((e) => e.status === 'picked');
+    seenPick = p ? p.id : null;
     paint();
   }
 
