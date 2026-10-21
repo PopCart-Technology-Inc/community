@@ -21,7 +21,7 @@ export const SCOPE_GROUPS = [
     ['apps.manage', 'API apps', 'API apps and webhooks', 'Med'],
   ]],
   ['Live', [
-    ['review.host', 'Run the live review', 'Open and close entries, check entries, spin the wheel, remove entries', 'Med'],
+    ['review.host', 'Run the live review', 'Open and close entries, check entries, spin the wheel, remove entries; find entries by name, handle or site in any round of the last 90 days', 'Med'],
   ]],
 ] as const;
 

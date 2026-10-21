@@ -46,7 +46,9 @@ test('the entry page: the button submits, and it sends the consent version of th
   assert.deepEqual([...block.matchAll(/^\s*\['(\w+)'/gm)].map((m) => m[1]), [...CONSENTS], 'the page asks for exactly the points the server checks');
   assert.doesNotMatch(js, /reviewHost|\/review\/host/, 'the host screen is on the staff host only');
   const host = readFileSync(join(import.meta.dirname, '..', 'app', 'web', 'staff', 'review.js'), 'utf8');
-  assert.doesNotMatch(host, /cls: 'rhspin[^']*\bctl\b/, 'Spin stays in stream mode');
+  // the stream scene never builds what a viewer must not see: the To check list, the search, the round controls
+  for (const part of ['ctl', 'check', 'findIn', 'found', 'find']) assert.match(host, new RegExp(`const ${part} = scene \\? null`), part);
+  assert.doesNotMatch(host, /\bnoctl\b|'h' \|\| e\.key/, 'no hide-the-controls toggle: the live shows the scene window only');
   assert.match(host, /'\/staff\/review\/host'/);
 });
 
@@ -60,9 +62,15 @@ test('closed until a round is open; staff only for the host', async () => {
   assert.equal((await app.call('POST', '/review/entries', entry())).status, 409, 'no round yet');
   // the host is on the staff host only: the public host has no such endpoint, even for staff
   const overseer = await app.person({ role: 'staff' });
-  for (const [m, path] of [['GET', '/review/host'], ['POST', '/review/rounds'], ['POST', '/review/spin'], ['GET', '/staff/review/host']]) {
+  for (const [m, path] of [['GET', '/review/host'], ['POST', '/review/rounds'], ['POST', '/review/spin'], ['GET', '/staff/review/host'], ['POST', '/staff/review/rounds'],
+    ['PATCH', '/staff/review/rounds/current'], ['POST', '/staff/review/spin'], ['GET', '/staff/review/entries?q=ab'], ['PATCH', '/staff/review/entries/x'], ['DELETE', '/staff/review/entries/x']]) {
     assert.equal((await overseer.call(m!, path!)).status, 404, path);
   }
+  // polling the host view is not activity: the staff session's idle clock keeps running
+  await app.db.query(`UPDATE staff_sessions SET last_seen_at = now() - interval '5 minutes' WHERE user_id = $1`, [overseer.id]);
+  assert.equal((await overseer.staff('GET', '/staff/review/host')).status, 200);
+  const seen = await app.db.one<{ idle: boolean }>(`SELECT last_seen_at < now() - interval '4 minutes' AS idle FROM staff_sessions WHERE user_id = $1`, [overseer.id]);
+  assert.equal(seen!.idle, true, 'the poll left last_seen_at alone');
   // and needs the review.host scope there
   const mod = await app.person({ staffRole: 'Moderator' });
   assert.equal((await mod.staff('GET', '/staff/review/host')).status, 403);

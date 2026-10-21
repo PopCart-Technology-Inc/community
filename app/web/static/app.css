@@ -525,7 +525,6 @@ a.li:hover, button.li:hover { background: var(--cream); }
 .rhoff { margin: 0; align-self: center; background: var(--ember); color: var(--ink); border-radius: 999px; padding: 8px 16px; font-weight: 800; }
 .rhfoot { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; font: 500 13px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--cream); }
 .rhfoot b { color: var(--yellow); font-weight: 500; }
-.rh.noctl .ctl { display: none !important; }
 .rhctl.busy { pointer-events: none; opacity: .6; }
 .rhfind form { margin-bottom: 4px; } .rhfind .field { min-height: 44px; }
 @media (min-width: 900px) {

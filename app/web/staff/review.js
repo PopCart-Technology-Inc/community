@@ -1,6 +1,6 @@
-// The live review host (scope review.host): the round, the wheel and the queue, made to be shown on the
-// PopCart Community live. H hides the controls and the panel around them (stream mode). The server
-// draws the pick; the wheel only lands on it. Entries come from the public page, /review.
+// The live review host (scope review.host): the round, the wheel and the queue. The host runs the round
+// from the controls; the PopCart Community live shows only the scene, its own window. The server draws
+// the pick; the wheel only lands on it. Entries come from the public page, /review.
 import { h, icon } from '/static/lib/dom.js';
 import { asOf } from '/static/lib/format.js';
 import { brandName, popMark } from '/static/lib/brand.js';
@@ -69,13 +69,18 @@ function wheel() {
     // fast out, long slow settle, no overshoot: the pointer never passes the pick and swings back
     const ease = (t) => 1 - Math.pow(1 - t, 4);
     return new Promise((ok) => {
+      let done = false;
+      const end = () => { if (!done) { done = true; set(to); ok(); } };
       const step = (now) => {
-        if (stopped) { ok(); return; }
+        if (done) return;
+        if (stopped) { done = true; ok(); return; }
         const t = Math.min(1, (now - t0) / ms);
         set(from + (to - from) * ease(t));
-        if (t < 1) requestAnimationFrame(step); else { set(to); ok(); }
+        if (t < 1) requestAnimationFrame(step); else end();
       };
       requestAnimationFrame(step);
+      // a window the browser is not painting (covered while it is captured) gets no frames: land anyway
+      setTimeout(end, ms + 300);
     });
   }
   return { svg, draw, spinTo, stop: () => { stopped = true; } };
@@ -89,58 +94,69 @@ function confirmSheet(title, text, action, run) {
 }
 
 const STATUS_LABEL = { pending: 'To check', waiting: 'In the draw', picked: 'Up now', reviewed: 'Reviewed', skipped: 'Skipped' };
+export const SCENE_PATH = '/admin/review/scene';
 
-// Stream mode is the host's choice, not one mount's: it outlives an idle lock, a new sign-in and
-// moving between screens, so the screen never comes back with the controls on the live. Only H changes it.
-let streamMode = false;
-
-export function liveReview() {
-  let view = null, drawn = null, spinning = false, offline = false, timer = 0;
+/**
+ * Two views of one round. The controls (/admin/review) are the host's own screen and never go on the
+ * live. The scene (/admin/review/scene, opened in its own window for the stream software to capture)
+ * never builds anything a viewer must not see: no To check list, no search, no round controls. It
+ * keeps Spin, Copy link, Reviewed and Skip, so a host with one screen can run the draw from it.
+ */
+export function liveReview({ scene = false } = {}) {
+  let view = null, drawn = null, spinning = false, offline = false, timer = 0, seenPick;
   const w = wheel();
   const live = h('p', { class: 'rhlive', aria: { live: 'assertive' } });
   const roundLine = h('div', { class: 'rhround' });
-  const ctl = h('div', { class: 'rhctl ctl' });
-  // Spin stays in stream mode: drawing must never need the controls (and the To check list) on screen
+  const ctl = scene ? null : h('div', { class: 'rhctl' });
   const spinBtn = btn('Spin', { kind: 'y', icon: 'star', cls: 'rhspin' });
   const next = h('section', { class: 'rhnext', aria: { label: 'Up next' } });
   const queue = h('section', { class: 'rhq', aria: { label: 'Entries' } });
-  // entries no one has checked yet: only with the controls, so they never reach the stream unchecked
-  const check = h('section', { class: 'rhq rhcheck ctl', aria: { label: 'To check' } });
-  // a withdrawal can come after its round: find the entry in any round (staff, controls only)
-  const findIn = h('input', { type: 'search', placeholder: 'Name, handle or site', maxlength: 100, aria: { label: 'Find an entry in any round' } });
-  const found = h('ol');
-  const find = h('section', { class: 'rhq rhfind ctl', aria: { label: 'Find an entry' } }, h('h2', { class: 'mono' }, 'Withdraw an entry · any round'),
+  // entries no one has checked yet, and the search: the controls only, never built in the scene
+  const check = scene ? null : h('section', { class: 'rhq rhcheck', aria: { label: 'To check' } });
+  const findIn = scene ? null : h('input', { type: 'search', placeholder: 'Name, handle or site', maxlength: 100, aria: { label: 'Find an entry in any round' } });
+  const found = scene ? null : h('ol');
+  // a withdrawal can come after its round: find the entry in any round
+  const find = scene ? null : h('section', { class: 'rhq rhfind', aria: { label: 'Find an entry' } }, h('h2', { class: 'mono' }, 'Withdraw an entry · any round'),
     h('form', { class: 'row', on: { submit: (e) => { e.preventDefault(); search(); } } }, h('div', { class: 'field grow' }, findIn), btn('Find', { sm: true, kind: 'w', type: 'submit' })), found);
   const off = h('p', { class: 'rhoff', role: 'status', hidden: true });
   const share = (S.session && S.session.public_origin ? new URL(S.session.public_origin).host : location.host) + '/review';
-  const node = h('div', { class: 'rh' },
+  const openScene = () => { if (!window.open(SCENE_PATH, 'community-review-scene', 'popup,width=1280,height=720')) fail({ message: 'The browser blocked the scene window. Allow pop-ups for this site, or open ' + SCENE_PATH + ' in a new window.' }); };
+  const node = h('div', { class: ['rh', scene ? 'scene' : ''] },
     h('header', { class: 'rhtop' }, h('div', { class: 'rhbrand' }, brandName('m')), roundLine),
     ctl,
     h('div', { class: 'rhbody' },
       h('div', { class: 'rhwheel' }, w.svg, spinBtn, live),
       h('div', { class: 'rhside' }, next, check, queue, find)),
     off,
-    h('footer', { class: 'rhfoot' }, h('span', null, 'Send your site: ', h('b', null, share)), h('span', { class: 'ctl' }, ' · H hides controls')));
+    h('footer', { class: 'rhfoot' }, h('span', null, 'Send your site: ', h('b', null, share)),
+      scene ? null : h('span', null, ' · The live shows the scene window, never this screen')));
 
+  // in the scene nothing pops up over the live: messages go on the line under the wheel
+  const say = (msg, bad) => { if (scene) live.textContent = msg; else toast(msg, bad); };
+  const oops = (e) => { if (scene) live.textContent = (e && e.message) || 'Something went wrong'; else fail(e); };
   const copy = async (url) => {
-    try { await navigator.clipboard.writeText(url); toast('Link copied. Open it in the review browser.'); } catch { toast('Could not copy: ' + url, true); }
+    try { await navigator.clipboard.writeText(url); say(scene ? 'Link copied' : 'Link copied. Open it in the review browser.'); } catch { say('Could not copy the link', true); }
   };
-  // every view request is numbered; one that comes back after a newer one was shown is dropped
-  let asked = 0, shownSeq = 0;
-  const fresh = (n, v) => { if (n > shownSeq) { shownSeq = n; apply(v); } };
+
+  // A change's answer is always shown. A poll is shown only if no change was sent or answered while it
+  // was out: an older read never paints over a newer change.
+  let changes = 0, inFlight = 0;
+  const change = async (fn) => {
+    inFlight++;
+    try { return await fn(); } finally { inFlight--; changes++; }
+  };
   let busy = false;
   const act = (fn) => async () => {
     if (busy) return;
     busy = true;
-    ctl.classList.add('busy');
-    const n = ++asked;
-    try { fresh(n, await fn()); } catch (e) { fail(e); } finally { busy = false; ctl.classList.remove('busy'); }
+    if (ctl) ctl.classList.add('busy');
+    try { apply(await change(fn)); } catch (e) { oops(e); } finally { busy = false; if (ctl) ctl.classList.remove('busy'); }
   };
   const setOpen = (v) => act(() => spatch('/staff/review/rounds/current', { accepting: v }))();
   const newRound = act(() => spost('/staff/review/rounds'));
   const mark = (id, status) => act(() => spatch('/staff/review/entries/' + enc(id), { status }))();
   const remove = (e) => confirmSheet('Remove this entry?', `${e.name} (${e.url}) is deleted for good. Use this when it breaks the rules or the person asked to withdraw.`, 'Remove', async () => {
-    try { await sdel('/staff/review/entries/' + enc(e.id)); toast('Entry removed'); await refresh(); if (findIn.value.trim().length >= 2) await search(); } catch (err) { fail(err); }
+    try { await change(() => sdel('/staff/review/entries/' + enc(e.id))); toast('Entry removed'); await refresh(); if (findIn.value.trim().length >= 2) await search(); } catch (err) { fail(err); }
   });
   let searches = 0;
   async function search() {
@@ -157,25 +173,31 @@ export function liveReview() {
     } catch (e) { fail(e); }
   }
 
+  /** Land the wheel on a pick: the pool it was drawn from, then the host view after it. */
+  async function show(pool, picked, after) {
+    spinning = true;
+    spinBtn.disabled = true;
+    drawn = { pool, picked };
+    seenPick = picked;
+    w.draw(pool);
+    await w.spinTo(pool.findIndex((p) => p.id === picked), pool.length);
+    spinning = false;
+    apply(after);
+    const e = after.entries.find((x) => x.id === picked);
+    live.textContent = e ? 'Up next: ' + e.name : '';
+  }
+
   spinBtn.addEventListener('click', async () => {
-    if (spinning) return;
+    if (spinning || busy) return;
     spinning = true;
     spinBtn.disabled = true;
     live.textContent = 'Spinning…';
     try {
-      const n = ++asked;
-      const r = await spost('/staff/review/spin');
-      drawn = { pool: r.pool, picked: r.picked };
-      w.draw(r.pool);
-      await w.spinTo(r.pool.findIndex((p) => p.id === r.picked), r.pool.length);
-      spinning = false;
-      fresh(n, r);
-      const e = r.entries.find((x) => x.id === r.picked);
-      live.textContent = e ? 'Up next: ' + e.name : '';
+      const r = await change(() => spost('/staff/review/spin'));
+      await show(r.pool, r.picked, r);
     } catch (e) {
       spinning = false;
-      live.textContent = (e && e.message) || 'Could not spin';
-      fail(e);
+      oops(e);
       paint();
     }
   });
@@ -188,14 +210,18 @@ export function liveReview() {
     const picked = entries.find((e) => e.status === 'picked');
     roundLine.replaceChildren(...(round
       ? [h('span', { class: 'mono' }, round.code + ' · ' + (round.accepting ? 'entries open' : 'entries closed')), h('span', { class: 'mono rhcount' }, v.counts.in + ' in · ' + v.counts.left + ' left'),
-        v.counts.to_check ? h('span', { class: 'mono rhcount ctl' }, v.counts.to_check + ' to check') : null].filter(Boolean)
+        !scene && v.counts.to_check ? h('span', { class: 'mono rhcount' }, v.counts.to_check + ' to check') : null].filter(Boolean)
       : [h('span', { class: 'mono' }, 'No round yet')]));
-    ctl.replaceChildren(
-      btn('Open entries', { sm: true, kind: round && round.accepting ? 'w' : 'y', disabled: !round || round.accepting, on: () => setOpen(true) }),
-      btn('Close entries', { sm: true, kind: 'w', disabled: !round || !round.accepting, on: () => setOpen(false) }),
-      btn('New round', { sm: true, kind: 'w', on: () => (entries.length ? confirmSheet('Start a new round?', 'The wheel empties and entries stay closed until you open them. This round\'s entries are kept until they are 90 days old.', 'New round', newRound) : newRound()) }),
-      ...(v ? [h('span', { class: 'mono rhasof' }, asOf(v.as_of))] : []));
-    // after a draw the wheel keeps the pool it spun, with the pick marked, until that site is done
+    if (ctl) {
+      ctl.replaceChildren(
+        btn('Open entries', { sm: true, kind: round && round.accepting ? 'w' : 'y', disabled: !round || round.accepting, on: () => setOpen(true) }),
+        btn('Close entries', { sm: true, kind: 'w', disabled: !round || !round.accepting, on: () => setOpen(false) }),
+        btn('New round', { sm: true, kind: 'w', disabled: !v, on: () => (entries.length ? confirmSheet('Start a new round?', 'The wheel empties and entries stay closed until you open them. This round\'s entries are kept until they are 90 days old.', 'New round', newRound) : newRound()) }),
+        btn('Open stream scene', { sm: true, kind: 'w', icon: 'link', on: openScene }),
+        ...(v ? [h('span', { class: 'mono rhasof' }, asOf(v.as_of))] : []));
+    }
+    // after a draw the wheel keeps the pool it spun (less any entry removed since), with the pick
+    // marked, until that site is done
     if (!spinning) {
       if (picked && drawn && drawn.picked === picked.id) w.draw(drawn.pool.filter((p) => entries.some((e) => e.id === p.id)), picked.id);
       else w.draw(waiting);
@@ -207,32 +233,32 @@ export function liveReview() {
         h('div', { class: 'rhname' }, picked.name),
         h('div', { class: 'rhurl' }, picked.url),
         picked.handle ? h('div', { class: 'mono' }, picked.handle) : null,
-        // Copy link, Reviewed and Skip stay in stream mode: finishing a pick must never need the
-        // controls (and the To check list) on screen
         h('div', { class: 'row wrap' },
-          // copied, not opened here: this browser is signed in to the host screen; sites go in the review browser
+          // copied, not opened here: this browser is signed in to the staff panel; sites go in the review browser
           btn('Copy link', { sm: true, kind: 'y', icon: 'link', on: () => copy(picked.url) }),
           btn('Reviewed', { sm: true, icon: 'check', on: () => mark(picked.id, 'reviewed') }),
           btn('Skip', { sm: true, kind: 'w', on: () => mark(picked.id, 'skipped') }),
-          h('span', { class: 'ctl' }, btn('Back in the draw', { sm: true, kind: 'w', on: () => mark(picked.id, 'waiting') }))))
-      : h('p', { class: 'rhwait' }, !v ? 'Loading…' : waiting.length ? 'Spin the wheel.' : round && round.accepting ? 'Waiting for entries.' : 'Open entries to start.'));
+          scene ? null : btn('Back in the draw', { sm: true, kind: 'w', on: () => mark(picked.id, 'waiting') })))
+      : h('p', { class: 'rhwait' }, !v ? 'Loading…' : waiting.length ? 'Spin the wheel.' : round && round.accepting ? 'Waiting for entries.' : 'Entries open when the live starts.'));
 
     const pending = entries.filter((e) => e.status === 'pending');
     const shown = entries.filter((e) => e.status !== 'pending');
-    check.hidden = !pending.length;
-    check.replaceChildren(h('h2', { class: 'mono' }, 'To check · ' + pending.length), h('ol', null, pending.map((e) => h('li', { class: 'rhqi' },
-      h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url)),
-      btn('Let in', { sm: true, icon: 'check', on: () => mark(e.id, 'waiting') }),
-      h('button', { class: 'ib', type: 'button', aria: { label: 'Remove ' + e.name }, on: { click: () => remove(e) } }, icon('trash', 'sm b'))))));
+    if (check) {
+      check.hidden = !pending.length;
+      check.replaceChildren(h('h2', { class: 'mono' }, 'To check · ' + pending.length), h('ol', null, pending.map((e) => h('li', { class: 'rhqi' },
+        h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url)),
+        btn('Let in', { sm: true, icon: 'check', on: () => mark(e.id, 'waiting') }),
+        h('button', { class: 'ib', type: 'button', aria: { label: 'Remove ' + e.name }, on: { click: () => remove(e) } }, icon('trash', 'sm b'))))));
+    }
 
     queue.replaceChildren(h('h2', { class: 'mono' }, 'Queue'), shown.length
       ? h('ol', null, shown.map((e) => h('li', { class: ['rhqi', 'st-' + e.status] },
         h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url)),
         h('span', { class: 'tag' }, STATUS_LABEL[e.status] || e.status),
-        h('span', { class: 'ctl row' },
+        scene ? null : h('span', { class: 'row' },
           e.status === 'reviewed' || e.status === 'skipped' ? h('button', { class: 'ib', type: 'button', aria: { label: 'Back in the draw: ' + e.name }, on: { click: () => mark(e.id, 'waiting') } }, icon('back', 'sm b')) : null,
           h('button', { class: 'ib', type: 'button', aria: { label: 'Remove ' + e.name }, on: { click: () => remove(e) } }, icon('trash', 'sm b'))))))
-      : h('p', { class: 'rhwait' }, pending.length ? 'Let entries in once you have checked them.' : 'No entries yet. Share ' + share + '.'));
+      : h('p', { class: 'rhwait' }, !scene && pending.length ? 'Let entries in once you have checked them.' : 'No entries yet. Send your site at ' + share + '.'));
   }
 
   function apply(v) {
@@ -240,12 +266,25 @@ export function liveReview() {
     paint();
   }
 
+  /** A pick made in the other window: land the wheel on it here too (the pool: what is waiting, plus the pick, as the server drew it). */
+  function landRemote(v) {
+    const picked = v.entries.find((e) => e.status === 'picked');
+    const first = seenPick === undefined;
+    if (first || !picked || picked.id === seenPick) { seenPick = picked ? picked.id : null; return false; }
+    const pool = v.entries.filter((e) => e.status === 'waiting' || e.id === picked.id)
+      .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id < b.id ? -1 : 1))
+      .map((e) => ({ id: e.id, name: e.name }));
+    show(pool, picked.id, v);
+    return true;
+  }
+
   async function refresh() {
+    const at = changes;
     try {
-      const n = ++asked;
       const v = await speek('/staff/review/host');
       if (offline) { offline = false; off.hidden = true; }
-      if (!spinning) fresh(n, v);
+      if (spinning || inFlight || at !== changes) return;
+      if (!landRemote(v)) apply(v);
     } catch (e) {
       // the layout stays: the next poll that works fills it in
       offline = true;
@@ -254,32 +293,20 @@ export function liveReview() {
     }
   }
 
-  // The panel has no cleanup hook: once this screen is gone, the poll and the key stop themselves.
+  // The panel has no cleanup hook: once this screen is gone, the poll stops itself.
   const gone = () => {
     if (node.isConnected) return false;
     clearInterval(timer);
     w.stop();
-    document.removeEventListener('keydown', onKey);
-    // the panel chrome comes back only when no live review screen is up (another mount keeps it)
-    if (!document.querySelector('.rh')) document.body.classList.remove('streaming');
+    // the panel chrome comes back once no scene is up
+    if (!document.querySelector('.rh.scene')) document.body.classList.remove('streaming');
     return true;
   };
-  const onKey = (e) => {
-    if (gone()) return;
-    if (e.target.closest && e.target.closest('input, textarea, [contenteditable], dialog')) return;
-    if ((e.key === 'h' || e.key === 'H') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      streamMode = !streamMode;
-      setStream();
-      // no toast while hidden: that is what the stream sees
-      if (!streamMode) toast('Controls shown');
-    }
-  };
-  // stream mode: the controls go, and the panel's sidebar and top bar too (staff.css)
-  const setStream = () => { node.classList.toggle('noctl', streamMode); document.body.classList.toggle('streaming', streamMode); };
-  document.addEventListener('keydown', onKey);
-  setStream();
+  // the scene is the whole window: no panel sidebar or top bar (staff.css)
+  if (scene) document.body.classList.add('streaming');
   paint();
   refresh();
-  timer = setInterval(() => { if (!gone() && document.visibilityState === 'visible') refresh(); }, 3000);
-  return { title: 'Live review', node };
+  // the scene window may sit behind others while it is captured, so it polls whether or not it is shown
+  timer = setInterval(() => { if (!gone() && (scene || document.visibilityState === 'visible')) refresh(); }, 3000);
+  return { title: scene ? 'Live review scene' : 'Live review', node };
 }

@@ -13,6 +13,7 @@ import { has, S, setHandlers, sget } from './core.js';
 import { drawer } from './kit.js';
 import { ADMIN_NAV, person } from './admin.js';
 import { OVERSEER_NAV } from './overseer.js';
+import { liveReview, SCENE_PATH } from './review.js';
 
 const root = () => document.getElementById('app');
 const NO_PASSKEY = 'This browser cannot use passkeys. Try an up-to-date Chrome, Safari, Edge or Firefox.';
@@ -158,6 +159,8 @@ function route(path) {
   if (exact) return has(exact[3]) ? { screen: exact[4], path } : null;
   const m = /^\/admin\/people\/([a-z0-9._]{1,30})$/.exec(path);
   if (m && has('people.lookup')) return { screen: () => person({ handle: m[1] }), path: '/admin/people' };
+  // the live review's stream scene: its own window, captured by the stream software
+  if (path === SCENE_PATH && has('review.host')) return { screen: () => liveReview({ scene: true }), path: '/admin/review' };
   return null;
 }
 
