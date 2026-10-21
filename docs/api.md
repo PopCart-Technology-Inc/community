@@ -177,3 +177,35 @@ Deviations: the tombstone handle uses a dot (`deleted.1a2b3c4d`, an example) bec
 | POST | `/media` | raw image bytes, max 4 MB (413), 30 uploads an hour per person | 201 `{ media: { id, mime, bytes, width, height } }`. Typed by magic bytes (JPEG, PNG, WebP only), never by the name or `Content-Type`; width and height read from the image header; anything else is 400. The browser removes location data (re-encodes through a canvas) before upload. |
 | DELETE | `/media/:id` | owner only | 204; the file is removed, and cleared from the owner's avatar, cover and posts |
 | GET | `/media/:id` (outside `/api`) | | the file, `immutable` cache, sandboxed CSP |
+
+## Open Books ✅ (`books/`)
+
+The community's money, in public ([decision 0009](decisions/0009-open-books.md)). Amounts are whole centavos. Everything to read is public, signed in or not. "Keepers" are trustees and staff. The ledger format and the checks: [open-books.md](open-books.md).
+
+| Method | Path | Body / query | Returns |
+|---|---|---|---|
+| GET | `/books` | | `{ currency, entries, balance, total_in, total_out, last_entry_at, months: [{ month, in, out }] (12), categories: [{ category, in, out }], budgets: { year, items }, drafts_waiting, anchor, unanchored, bank_match, rule: { two_sig_over, set_by, set_at }, as_of }`. Corrections are netted against the month, category and side they correct. |
+| GET | `/books/entries` | `?limit&before=<seq>&kind=in|out&category=` | `{ items: [{ seq, hash, prev, sealed_at, kind, amount, date, category, description, party, related_note, evidence, reverses, reversed_by, assisted, drafted_by, needs, signers, conflicted }], end, as_of }`, newest first |
+| GET | `/books/entries/:seq` | | `{ entry, recomputed_hash, signed_body, anchored_in, as_of }` |
+| GET | `/books/payees` | | `{ paid: [{ kind, name, amount, entries, last_date }], funders: [...], as_of }`; a private person by ID only |
+| GET | `/books/ledger` | `?download=1` | the whole ledger: `{ format, currency, as_of, entries, keys, anchors, rules }` |
+| GET | `/books/verify` | | `{ ok, entries, anchors, balance, problems: [{ seq?, anchor?, check, detail }], as_of }` the server's own run of the checks |
+| GET | `/books/trustees` | | `{ trustees: [{ handle, first_name, appointed_at, appointed_by, ended_at, key_id, key_since }], as_of }`, former trustees included |
+| GET | `/books/drafts` | | `{ drafts: [{ id, created_at, body, needs, signatures: [{ handle, key_id, signed_at }], conflicts: [{ handle, note }] }], rule, as_of }`, public while they wait |
+| GET | `/books/anchors` · `/books/anchors/:id/proof` | | `{ anchors: [{ id, upto_seq, root, made_by, created_at, stamped, stamped_at }], as_of }` · the `.ots` file (404 until stamped) |
+| GET | `/books/reconciliations` | | `{ reconciliations: [{ id, statement_date, bank_balance, ledger_balance, statement_sha256, note, made_by, created_at }], as_of }` |
+| GET | `/books/me` | signed in | `{ trustee, staff, can_draft, key }` |
+| PUT | `/books/key` | trustee: `{ public_key }` (P-256 public JWK; a private part is refused) | 201 `{ key: { key_id, public_key } }`. Retires the old key; its signatures on waiting drafts are dropped. 409 `key_used` for a key already published. |
+| POST | `/books/drafts` | keeper: `{ kind, amount, date, category, party, description, evidence?, related_note?, assisted? }` or a correction `{ reverses, description, date, evidence? }` | 201 `{ draft }`. 400 for bad input (donors give money in only; a private person needs an ID like `C-0012`; a related party needs `related_note`; the date is from 2026-01-01 to today in Manila). 409 `balance` when the balance cannot cover it; 409 `already_reversed`. |
+| DELETE | `/books/drafts/:id` | the drafter or staff | 204 |
+| POST | `/books/drafts/:id/conflict` | trustee: `{ note? }` | `{ draft }`; that trustee's signature, if any, is dropped and they cannot sign it |
+| POST | `/books/drafts/:id/sign` | trustee: `{ key_id, sig }` | 201 `{ sealed: { seq, hash } }` when it has its signatures, otherwise `{ draft }` (and `waiting: "balance"` if the balance cannot cover it yet). 403 `own_draft`, `conflicted`; 409 `no_key`, `key_changed`, `already_signed`; 400 a signature that does not check. |
+| POST | `/books/drafts/:id/seal` | keeper | 201 `{ sealed }`; 409 `needs_signatures` or `balance` |
+| POST | `/books/anchors` | keeper | 201 `{ anchor: { id, upto_seq, root, stamped } }`; 409 `nothing_new` |
+| PUT | `/books/anchors/:id/proof` | keeper: `{ ots }` (base64) | `{ anchor }` once; 400 unless it is an OpenTimestamps proof of this root; 409 when it already has one |
+| POST | `/books/reconciliations` | keeper: `{ statement_date, bank_balance, statement_sha256?, note? }` | 201 `{ reconciliation: { id, statement_date, bank_balance, ledger_balance, matched } }` |
+| POST · DELETE | `/books/trustees` · `/books/trustees/:handle` | staff: `{ handle }` | 201 · 204 (ending a trustee retires their key) |
+| PUT | `/books/rule` | staff: `{ two_sig_over }` | `{ rule }`; every change stays published |
+| POST | `/books/budgets` | staff: `{ year, category, amount }` | 201 `{ budgets }`; every change stays published |
+
+Sealed entries, anchors (apart from attaching a proof once), rules, budgets and bank matches are append-only: migration `0008_open_books.sql` adds triggers that refuse UPDATE and DELETE. `npm run books:stamp` stamps anchors without a proof on Bitcoin (OpenTimestamps; only the root is sent).

@@ -15,18 +15,21 @@ import { dm, inbox } from './screens/messages.js';
 import { applicants, apply, gigCard, gigPage, newGig, rate, work } from './screens/work.js';
 import { invite, meRedirect, profile, proof, settings, socials } from './screens/me.js';
 import { actions, data, mod, records, report, transparency } from './screens/safety.js';
+import { books, booksActivity, booksApprovals, booksEntry, booksPayees, booksProof } from './screens/books.js';
 
 const SCREENS = {
   home: following, places, placesAt: places, trade, picks, join, login, post: postDetail, compose, explore, activity,
   spaces: spacesList, space: spacePage, channel, inbox, dm, work, gigNew: newGig, gig: gigPage, apply, applicants, rate,
   profile, me: meRedirect, settings, invite, data, proof, records, actions, socials, report, transparency, mod,
+  books, booksActivity, booksApprovals, booksPayees, booksProof, booksEntry,
 };
 const GROUP = {
   home: 'home', places: 'places', placesAt: 'places', trade: 'home', picks: 'home', post: 'home', compose: 'home', explore: 'explore', activity: 'activity',
   spaces: 'spaces', space: 'spaces', channel: 'spaces', inbox: 'inbox', dm: 'inbox', work: 'work', gigNew: 'work', gig: 'work', apply: 'work', applicants: 'work', rate: 'work',
   me: 'me', settings: 'me', invite: 'me', data: 'me', proof: 'me', records: 'me', actions: 'me', socials: 'me',
+  books: 'books', booksActivity: 'books', booksApprovals: 'books', booksPayees: 'books', booksProof: 'books', booksEntry: 'books',
 };
-const TAB_OF = { places: 'home', explore: 'home', activity: 'home' };
+const TAB_OF = { places: 'home', explore: 'home', activity: 'home', books: 'me' };
 const routes = compile(ROUTES);
 
 let main, wnav, wside, tabbar, cleanup = null, depth = 0, current = null, renders = 0;
@@ -100,12 +103,12 @@ function markCurrent() {
 function buildNav() {
   const me = state.me;
   const items = [['home', 'Home', '/', 'home'], ['places', 'Places', '/places', 'globe'], ['explore', 'Explore', '/explore', 'search'], ['spaces', 'Spaces', '/spaces', 'hash'],
-    ['work', 'Work', '/work', 'work'], ['inbox', 'Inbox', '/inbox', 'inbox'], ['activity', 'Activity', '/activity', 'bell'], ['me', 'Profile', '/me', 'user']];
+    ['work', 'Work', '/work', 'work'], ['inbox', 'Inbox', '/inbox', 'inbox'], ['activity', 'Activity', '/activity', 'bell'], ['books', 'Open Books', '/books', 'books'], ['me', 'Profile', '/me', 'user']];
   // replaceChildren takes nodes, not arrays: spread the menu and drop the empty slots.
   wnav.replaceChildren(...[
     h('a', { class: 'brandlink', href: '/', aria: { label: 'Community home' } }, brandName('m')),
     // Labels sit in .nl so the tablet rail can show icons only (the label stays for screen readers).
-    ...items.filter(([k]) => me || ['home', 'places', 'explore', 'spaces'].includes(k)).map(([k, label, href, ic]) => h('a', { class: 'nv', href, data: { g: k }, title: label }, icon(ic, 'lg'), h('span', { class: 'nl' }, label),
+    ...items.filter(([k]) => me || ['home', 'places', 'explore', 'spaces', 'books'].includes(k)).map(([k, label, href, ic]) => h('a', { class: 'nv', href, data: { g: k }, title: label }, icon(ic, 'lg'), h('span', { class: 'nl' }, label),
       (k === 'inbox' && badges.inbox) || (k === 'activity' && badges.activity) ? h('span', { class: 'badge' }, String(k === 'inbox' ? badges.inbox : badges.activity)) : null)),
     me ? btn(h('span', { class: 'nl' }, 'Post'), { href: '/compose', cls: 'postbtn', icon: 'pen', aria: { label: 'New post' } }) : btn(h('span', { class: 'nl' }, 'Log in'), { href: '/login', cls: 'postbtn', icon: 'finger', aria: { label: 'Log in' } }),
     me ? h('a', { class: 'who', href: '/u/' + encodeURIComponent(me.handle), title: '@' + me.handle }, avatar(me), h('div', { class: 'nl' }, h('div', { class: 'nm' }, me.first_name), h('div', { class: 'mute' }, '@' + me.handle))) : null,
@@ -125,7 +128,7 @@ function buildRail(force) {
   if (!force && Date.now() - railAt < 120000) return;
   railAt = Date.now();
   const me = state.me;
-  const foot = h('div', { class: 'wfoot' }, h('a', { href: '/transparency' }, 'Transparency'), h('a', { href: '/places' }, 'Places'), h('br'), 'Your data is never sold. Any ad is labelled. Open source.');
+  const foot = h('div', { class: 'wfoot' }, h('a', { href: '/transparency' }, 'Transparency'), h('a', { href: '/books' }, 'Open Books'), h('a', { href: '/places' }, 'Places'), h('br'), 'Your data is never sold. Any ad is labelled. Open source.');
   // Search first, as on X: it searches Spaces (Explore).
   const q = h('input', { type: 'search', placeholder: 'Search Spaces', aria: { label: 'Search Spaces' } });
   const search = h('form', { class: 'search wsearch', role: 'search', on: { submit: (e) => { e.preventDefault(); const v = q.value.trim(); go(v ? '/explore?q=' + encodeURIComponent(v) : '/explore'); } } }, icon('search', 'sm'), q);

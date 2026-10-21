@@ -72,6 +72,12 @@ export const ROUTES = [
   ['actions', '/me/actions'],
   ['socials', '/me/socials'],
   ['report', '/report'],
+  ['books', '/books'],
+  ['booksActivity', '/books/activity'],
+  ['booksApprovals', '/books/approvals'],
+  ['booksPayees', '/books/payees'],
+  ['booksProof', '/books/proof'],
+  ['booksEntry', '/books/e/:seq'],
   ['transparency', '/transparency'],
   ['mod', '/mod'],
 ];

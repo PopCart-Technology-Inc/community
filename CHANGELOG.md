@@ -4,6 +4,29 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-21
+
+PopCart holds Community's fund for now, and Open Books says so.
+
+### Changed
+- **Who holds the money** (decision [0009](docs/decisions/0009-open-books.md), point 9): a separate bank account that PopCart pays into, in place of a foundation that is not registered. Open Books says plainly that it is PopCart's money, set aside for Community. A fiscal sponsor, then Community's own foundation or cooperative, can take over later, each by a new decision; the ledger carries over unchanged.
+- **Money in comes only from PopCart:** a new `popcart` category ("From PopCart"), and the server refuses donations, grants and ad income for now. The new-entry form offers only "From PopCart" for money in.
+- Payments to PopCart, its owner or its staff count as a related party (two signatures and the reason), and the rules on the Proof page say so.
+
+## [0.7.0] - 2026-10-21
+
+Open Books: the community's money, in public, signed and checkable by anyone.
+
+### Added
+- **Open Books** (decision [0009](docs/decisions/0009-open-books.md)) at `/books`, for everyone, signed in or not: the balance, money in and out by month and by category, every entry, who was paid and who gave, drafts waiting for signatures, and the proof. It stays empty until the community's non-profit foundation holds money, and says so. It never shows example figures.
+- **Trustees sign every entry** with a key made in their own browser (only the public half reaches the server). One signature up to ₱20,000, two above it or for a related party. Nobody signs their own draft; a declared conflict is published and bars that trustee. Corrections are reversing entries, never edits, and the database refuses changes to sealed entries.
+- **Proof anyone can run:** every entry is hash-chained; anchors (Merkle roots) are stamped on Bitcoin with OpenTimestamps (`npm run books:stamp`; only the root is sent); the Proof page downloads the whole ledger and checks every hash, signature and rule in the browser. The format is in [docs/open-books.md](docs/open-books.md).
+- **Bank match:** trustees record each statement's closing balance and its fingerprint, shown next to the ledger's balance, matched or not.
+- **People are protected:** a person is named only with consent, otherwise by a stable ID (`C-0012`) that Community never links to a name. Receipts are hashed on the device; only the hash is stored.
+- **Branded form controls** (`controls.js`): a dropdown, a date picker, a file drop and a peso field, with keyboard and screen-reader support, used by Open Books in place of the browser's own.
+- API: `/books/*` ([docs/api.md](docs/api.md)). Migration `0008_open_books.sql`.
+- Open Books in the navigation, the right rail, Settings and the transparency page.
+
 ## [0.6.0] - 2026-10-20
 
 Invites now go to an email address, so they cannot be passed on as a link.

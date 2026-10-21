@@ -137,6 +137,7 @@ export function transparency() {
       rows.map(([l, v]) => h('div', { class: 'rate' }, h('span', null, l), h('span', { class: 'bignum' }, r.launched ? String(v ?? 0) : '—'))),
       r.launched ? h('p', { class: 'asof' }, 'Live · ' + asOf(r.as_of)) :
         h('div', { class: 'note' }, icon('info'), h('div', null, h('b', null, 'No numbers yet.'), h('p', null, 'Community hasn\'t launched. The first report comes six months after launch. We never show made-up numbers.'))),
+      h('div', { class: 'note' }, icon('books'), h('div', null, h('b', null, 'The money is in public too.'), h('p', null, 'Open Books shows every peso in and out, who was paid, and the proof.'), btn('Open Books', { kind: 'w', sm: true, href: '/books' }))),
     ];
   });
   return { node: h('div', null, appBar({ title: 'Transparency', back: '/' }), h('div', { class: 'pad' }, node)), title: 'Transparency' };
