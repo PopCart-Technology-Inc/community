@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startApp, type TestApp } from './helpers.ts';
-import { CONSENT_VERSION, CONSENTS, PER_ADDRESS, roundCode, siteUrl, sweepReviews } from '../app/modules/review/routes.ts';
+import { CONSENT_VERSION, CONSENTS, KEEP_DAYS, PER_ADDRESS, roundCode, siteUrl, sweepReviews } from '../app/modules/review/routes.ts';
 
 let app: TestApp;
 before(async () => { app = await startApp(); });
@@ -41,6 +41,8 @@ test('the entry page: the button submits, and it sends the consent version of th
   assert.match(js, /btn\('Enter the roulette', \{[^}]*type: 'submit'/);
   assert.equal(/export const CONSENT_VERSION = '([^']+)'/.exec(js)?.[1], CONSENT_VERSION, 'the page and the server agree on the consent text');
   assert.match(js, /consent_version: CONSENT_VERSION/);
+  assert.equal(Number(/export const KEEP_DAYS = (\d+)/.exec(js)?.[1]), KEEP_DAYS, 'the days in the consent text are the days kept');
+  assert.doesNotMatch(js, /cls: 'rhspin[^']*\bctl\b/, 'Spin stays in stream mode');
 });
 
 test('closed until a round is open; staff only for the host', async () => {
@@ -73,6 +75,7 @@ test('a round: open, one entry per device, staff check, then the draw', async ()
   assert.equal((await v1.call('POST', '/review/entries', entry({ consent_version: '2000-01-01' }))).status, 409, 'old consent text');
   assert.equal((await v1.call('POST', '/review/entries', entry({ signature: '' }))).status, 400, 'signed');
   assert.equal((await v1.call('POST', '/review/entries', entry({ url: 'http://localhost' }))).status, 400);
+  assert.equal((await v1.call('POST', '/review/entries', entry({ name: 'Bad\u202Ename' }))).status, 400, 'no direction overrides on the stream');
 
   const ok = await v1.call('POST', '/review/entries', entry());
   assert.equal(ok.status, 201);
@@ -117,6 +120,15 @@ test('a round: open, one entry per device, staff check, then the draw', async ()
 
   assert.equal((await staff.call('DELETE', '/review/entries/' + last.body.picked)).status, 204, 'withdrawn');
   assert.equal((await staff.call('GET', '/review/host')).body.counts.in, 1);
+
+  // a withdrawal after its round: staff find the entry in any round
+  const found = await staff.call('GET', '/review/entries?q=' + encodeURIComponent('fixture'));
+  assert.equal(found.status, 200);
+  assert.equal(found.body.entries.length, 1, 'the one entry left from that round');
+  assert.equal(found.body.entries[0].round, made.body.round.code);
+  assert.equal(found.body.entries[0].signature, undefined);
+  assert.equal((await (await app.person()).call('GET', '/review/entries?q=two')).status, 403);
+  assert.equal((await staff.call('GET', '/review/entries?q=%25%25')).body.entries.length, 0, 'LIKE wildcards are literal');
 
   // a new round: empty and closed, the old round's hashes are gone, and the device may enter again
   const next = await staff.call('POST', '/review/rounds');

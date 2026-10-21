@@ -18,6 +18,8 @@ const HANDLE = '@popcartphl';
  * CONSENT_VERSION (app/modules/review/routes.ts) whenever the text changes.
  */
 export const CONSENT_VERSION = '2026-10-22';
+/** Days an entry is kept: part of the consent text, so fixed here with it (a test holds it equal to the server's). */
+export const KEEP_DAYS = 90;
 
 /** The consent points, keyed as the server checks them (app/modules/review/routes.ts, CONSENTS). */
 export const CONSENTS = [
@@ -74,9 +76,9 @@ export function review() {
       : !open ? 'Entries open when the live starts. Follow ' + HANDLE + ' on TikTok to know when.'
         : !ready() ? 'Fill in your site and name, agree to every point and sign to enter.' : '';
     const s = d.signature.trim();
-    sigLine.replaceChildren(s.length >= 2
+    sigLine.replaceChildren(...(s.length >= 2
       ? [h('span', { class: 'rvsig-name' }, s), h('span', { class: 'mono' }, 'Signed ' + fullTime(new Date().toISOString()))]
-      : h('span', { class: 'mono mute' }, 'Not signed'));
+      : [h('span', { class: 'mono mute' }, 'Not signed')]));
   };
 
   const input = (key, attrs) => {
@@ -112,7 +114,7 @@ export function review() {
       field('Chat handle · optional', input('handle', { type: 'text', autocomplete: 'off', placeholder: '@you', maxlength: 40 }))),
     h('section', { class: 'rvcard', aria: { labelledby: 'rv-terms' } },
       h('h2', { id: 'rv-terms' }, 'Disclaimer & consent'),
-      h('div', { class: 'rvterms' }, [...TERMS, dataTerms(st.keep_days)].map(([lead, text]) => h('p', null, h('b', null, lead), ' ', text))),
+      h('div', { class: 'rvterms' }, [...TERMS, dataTerms(KEEP_DAYS)].map(([lead, text]) => h('p', null, h('b', null, lead), ' ', text))),
       h('div', { class: 'rvchecks', role: 'group', aria: { label: 'Consent' } }, CONSENTS.map(([k, label]) => check(label, (v) => { d.consents[k] = v; update(); })))),
     h('section', { class: 'rvcard', aria: { labelledby: 'rv-sign' } },
       h('h2', { id: 'rv-sign' }, 'Sign'),
@@ -220,6 +222,7 @@ function wheel() {
     }));
   }
 
+  let stopped = false;
   /** Spin to `index`; resolves when it stops. Reduced motion: jump there. */
   function spinTo(index, n) {
     const to = landing(angle, index, n, 6, Math.random() * 2 - 1);
@@ -229,6 +232,7 @@ function wheel() {
     const ease = (t) => 1 - Math.pow(1 - t, 4);
     return new Promise((ok) => {
       const step = (now) => {
+        if (stopped) { ok(); return; }
         const t = Math.min(1, (now - t0) / ms);
         set(from + (to - from) * ease(t));
         if (t < 1) requestAnimationFrame(step); else { set(to); ok(); }
@@ -236,7 +240,7 @@ function wheel() {
       requestAnimationFrame(step);
     });
   }
-  return { svg, draw, spinTo };
+  return { svg, draw, spinTo, stop: () => { stopped = true; } };
 }
 
 /* ---------- /review/host: the round, the wheel, the queue (staff) ---------- */
@@ -257,11 +261,17 @@ export function reviewHost() {
   const live = h('p', { class: 'rhlive', aria: { live: 'assertive' } });
   const roundLine = h('div', { class: 'rhround' });
   const ctl = h('div', { class: 'rhctl ctl' });
-  const spinBtn = btn('Spin', { kind: 'y', icon: 'star', cls: 'rhspin ctl' });
+  // Spin stays in stream mode: drawing must never need the controls (and the To check list) on screen
+  const spinBtn = btn('Spin', { kind: 'y', icon: 'star', cls: 'rhspin' });
   const next = h('section', { class: 'rhnext', aria: { label: 'Up next' } });
   const queue = h('section', { class: 'rhq', aria: { label: 'Entries' } });
   // entries no one has checked yet: only with the controls, so they never reach the stream unchecked
   const check = h('section', { class: 'rhq rhcheck ctl', aria: { label: 'To check' } });
+  // a withdrawal can come after its round: find the entry in any round (staff, controls only)
+  const findIn = h('input', { type: 'search', placeholder: 'Name, handle or site', maxlength: 100, aria: { label: 'Find an entry in any round' } });
+  const found = h('ol');
+  const find = h('section', { class: 'rhq rhfind ctl', aria: { label: 'Find an entry' } }, h('h2', { class: 'mono' }, 'Withdraw an entry · any round'),
+    h('form', { class: 'row', on: { submit: (e) => { e.preventDefault(); search(); } } }, h('div', { class: 'field grow' }, findIn), btn('Find', { sm: true, kind: 'w', type: 'submit' })), found);
   const off = h('p', { class: 'rhoff', role: 'status', hidden: true });
   const share = location.host + '/review';
   const node = h('div', { class: 'rh' },
@@ -269,20 +279,37 @@ export function reviewHost() {
     ctl,
     h('div', { class: 'rhbody' },
       h('div', { class: 'rhwheel' }, w.svg, spinBtn, live),
-      h('div', { class: 'rhside' }, next, check, queue)),
+      h('div', { class: 'rhside' }, next, check, queue, find)),
     off,
     h('footer', { class: 'rhfoot' }, h('span', null, 'Send your site: ', h('b', null, share)), h('span', { class: 'ctl' }, ' · H hides controls')));
 
   const copy = async (url) => {
     try { await navigator.clipboard.writeText(url); toast('Link copied. Open it in the review browser.'); } catch { toast('Could not copy: ' + url, true); }
   };
-  const act = (fn) => async () => { try { apply(await fn()); } catch (e) { fail(e); } };
+  let busy = false;
+  const act = (fn) => async () => {
+    if (busy) return;
+    busy = true;
+    ctl.classList.add('busy');
+    try { apply(await fn()); } catch (e) { fail(e); } finally { busy = false; ctl.classList.remove('busy'); }
+  };
   const setOpen = (v) => act(() => patch('/review/rounds/current', { accepting: v }))();
   const newRound = act(() => post('/review/rounds'));
   const mark = (id, status) => act(() => patch('/review/entries/' + id, { status }))();
   const remove = (e) => confirmSheet('Remove this entry?', `${e.name} (${e.url}) is deleted for good. Use this when it breaks the rules or the person asked to withdraw.`, 'Remove', async () => {
-    try { await del('/review/entries/' + e.id); await refresh(); } catch (err) { fail(err); }
+    try { await del('/review/entries/' + e.id); toast('Entry removed'); await refresh(); if (findIn.value.trim().length >= 2) await search(); } catch (err) { fail(err); }
   });
+  async function search() {
+    const q = findIn.value.trim();
+    if (q.length < 2) { found.replaceChildren(); return; }
+    try {
+      const r = await get('/review/entries', { q });
+      found.replaceChildren(...(r.entries.length ? r.entries.map((e) => h('li', { class: 'rhqi' },
+        h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url + ' · ' + e.round)),
+        h('button', { class: 'ib', type: 'button', aria: { label: 'Remove ' + e.name }, on: { click: () => remove(e) } }, icon('trash', 'sm b'))))
+        : [h('li', { class: 'rhwait' }, 'No entry matches.')]));
+    } catch (e) { fail(e); }
+  }
 
   spinBtn.addEventListener('click', async () => {
     if (spinning) return;
@@ -388,5 +415,5 @@ export function reviewHost() {
   paint();
   refresh();
   timer = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 3000);
-  return { node, bare: true, cls: 'bare-host', title: 'Review host', cleanup: () => { clearInterval(timer); document.removeEventListener('keydown', onKey); } };
+  return { node, bare: true, cls: 'bare-host', title: 'Review host', cleanup: () => { clearInterval(timer); w.stop(); document.removeEventListener('keydown', onKey); } };
 }

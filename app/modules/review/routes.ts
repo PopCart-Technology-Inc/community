@@ -120,10 +120,11 @@ export function register(r: Router): void {
     limit(limits.auth, 'review:' + ctx.ip);
     const b = await ctx.json<Record<string, unknown>>();
     const url = siteUrl(b.url);
-    const name = str(b.name, 'name', { min: 1, max: 60 });
+    // no control or direction-override characters: the name is read out and shown on the stream
+    const name = str(b.name, 'name', { min: 1, max: 60, pattern: /^[^\p{C}]+$/u });
     let handle = str(b.handle, 'handle', { max: 40, optional: true, pattern: /^@?[\p{L}\p{N}._-]+$/u });
     if (handle && !handle.startsWith('@')) handle = '@' + handle;
-    const signature = str(b.signature, 'signature', { min: 2, max: 80, pattern: /\p{L}/u });
+    const signature = str(b.signature, 'signature', { min: 2, max: 80, pattern: /^(?=[^\p{C}]*\p{L})[^\p{C}]+$/u });
     if (b.consent_version !== CONSENT_VERSION) return fail(409, 'consent_changed', 'The consent text has changed. Reload the page and read it again.');
     const agreed = (b.consents && typeof b.consents === 'object' ? b.consents : {}) as Record<string, unknown>;
     for (const k of CONSENTS) if (agreed[k] !== true) return bad('consents', 'every point must be agreed');
@@ -193,8 +194,9 @@ export function register(r: Router): void {
     const round = await current(ctx.db) ?? fail(409, 'no_round', 'Start a round first');
     const out = await ctx.db.tx(async (tx) => {
       // lock the round first: two host screens spinning at once take turns (and the
-      // review_entries_one_picked index refuses a second pick in any case)
+      // review_entries_one_picked index refuses a second pick in any case); a round started meanwhile wins
       await tx.query('SELECT 1 FROM review_rounds WHERE id = $1 FOR UPDATE', [round.id]);
+      if ((await tx.one<{ id: string }>('SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1'))?.id !== round.id) return fail(409, 'new_round', 'A new round has started');
       if (await tx.one(`SELECT 1 FROM review_entries WHERE round_id = $1 AND status = 'picked'`, [round.id])) {
         return fail(409, 'still_picked', 'Mark the current site reviewed or skipped first');
       }
@@ -219,6 +221,18 @@ export function register(r: Router): void {
          picked_at = CASE WHEN $2 = 'waiting' THEN NULL ELSE picked_at END WHERE id = $1 RETURNING 1`, [ctx.params.id, status]);
     if (!done) return fail(404, 'not_found', 'No such entry');
     return json(await hostView(ctx.db));
+  });
+
+  /** Find entries in any round (up to 20, newest first) by name, handle or site: to honour a withdrawal after its round. */
+  r.get('/review/entries', async (ctx) => {
+    requireStaff(ctx);
+    const q = str(ctx.query.get('q'), 'q', { min: 2, max: 100 });
+    const like = '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
+    const entries = await ctx.db.query<Entry & { round: string }>(
+      `SELECT e.id, e.url, e.name, e.handle, e.status, e.created_at, e.picked_at, e.done_at, r.code AS round
+       FROM review_entries e JOIN review_rounds r ON r.id = e.round_id
+       WHERE e.name ILIKE $1 OR e.handle ILIKE $1 OR e.url ILIKE $1 ORDER BY e.created_at DESC LIMIT 20`, [like]);
+    return json({ entries, as_of: new Date().toISOString() });
   });
 
   /** Remove an entry for good: it broke the rules, or the person asked to withdraw. */
