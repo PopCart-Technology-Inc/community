@@ -2,7 +2,7 @@
 // to change or delete a row (migration 0010), so this file only ever inserts and reads.
 import type { Db } from '../../db/index.ts';
 
-export const KINDS = ['session', 'staff', 'role', 'invite', 'report', 'appeal', 'account', 'switch', 'approval', 'vault', 'audit'] as const;
+export const KINDS = ['session', 'staff', 'role', 'invite', 'report', 'appeal', 'account', 'switch', 'approval', 'vault', 'audit', 'review'] as const;
 export type Kind = (typeof KINDS)[number];
 
 export interface Actor { id: string | null; handle: string }

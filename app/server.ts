@@ -11,6 +11,7 @@ import { AccessVerifier } from './http/access.ts';
 import { loadStaffSession } from './http/staff-session.ts';
 import { emailHash } from './modules/accounts/routes.ts';
 import { registerHost as registerStaffHost } from './modules/staff/routes.ts';
+import { registerHost as registerReviewHost } from './modules/review/routes.ts';
 import { liftSuspensions, registerPanel } from './modules/staff/panel.ts';
 import { allowedWhenReadOnly, switchOn } from './modules/staff/switches.ts';
 import type { Db } from './db/index.ts';
@@ -112,7 +113,7 @@ export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
   const staffOn = !!config.staffOrigin && staffConfigProblem(config) === null;
   const staffHost = staffOn ? new URL(config.staffOrigin!).host.toLowerCase() : null;
   const staffRouter = new Router();
-  if (staffOn) { registerStaffHost(staffRouter); registerPanel(staffRouter, router); }
+  if (staffOn) { registerStaffHost(staffRouter); registerPanel(staffRouter, router); registerReviewHost(staffRouter); }
   const access = staffOn && config.accessTeam ? (deps.access ?? new AccessVerifier(config.accessTeam, config.accessAud!)) : null;
   const staffPage = staffOn ? shell(config, 'staff.html') : null;
 
@@ -146,8 +147,9 @@ export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
         checkCsrf(req, config, config.staffOrigin!);
         const m = staffRouter.match(req.method || 'GET', path.slice(4));
         if (!m) throw new HttpError(404, 'not_found', 'No such endpoint');
-        // Reading the session's own status doesn't count as activity, so the idle lock still comes.
-        const touch = !(req.method === 'GET' && path === '/api/staff/session');
+        // Reading the session's own status, and the live review screen's polling, don't count as
+        // activity, so the idle lock still comes.
+        const touch = !(req.method === 'GET' && (path === '/api/staff/session' || path === '/api/staff/review/host'));
         const ctx = ctxFor(req, res, url, m.params, await loadStaffSession(db, req, gate, touch));
         ctx.staffGate = gate;
         send(res, await m.handler(ctx));
@@ -156,6 +158,8 @@ export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method', 'Method not allowed');
       if (path.startsWith('/static/') && staticFile(req, res, join(WEB, 'static'), path.slice(8), REVALIDATE)) return;
       if (path.startsWith('/staff-ui/') && staticFile(req, res, join(WEB, 'staff'), path.slice(10), REVALIDATE)) return;
+      // The brand pack, for the live review stream scene (the Pop Mark and wordmark).
+      if (path.startsWith('/brand/') && config.brandDir && staticFile(req, res, config.brandDir, path.slice(7), 'public, max-age=86400')) return;
       if (/^\/(static|staff-ui|media|brand)\//.test(path) || path === '/sw.js' || path === '/manifest.webmanifest') throw new HttpError(404, 'not_found', 'Not found');
       staffPage!(res);
     } catch (e) {

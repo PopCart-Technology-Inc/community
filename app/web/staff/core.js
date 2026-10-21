@@ -32,5 +32,6 @@ async function call(method, path, body) {
 export const sget = (path, params) => call('GET', path + qs(params));
 export const spost = (path, body) => call('POST', path, body === undefined ? {} : body);
 export const sput = (path, body) => call('PUT', path, body);
+export const spatch = (path, body) => call('PATCH', path, body);
 export const sdel = (path) => call('DELETE', path);
 export const enc = encodeURIComponent;
