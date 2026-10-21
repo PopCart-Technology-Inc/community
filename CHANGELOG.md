@@ -4,6 +4,18 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-21
+
+Nobody can take a staff word or one of the app's own paths as a username.
+
+### Fixed
+- **Reserved usernames** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). Staff words (`admin`, `overseer`, `support`…), the first part of every screen path and the server's own files (`sw.js`, `api`…) can no longer be taken. Joining with one shows "That username is reserved". Their profile page looks exactly like a name nobody has.
+- **Look-alike names are the same name.** Dots and underscores are ignored, and 0, 1, 3, 4, 5 and 7 count as o, i, e, a, s and t. So `adm1n` is reserved like `admin`, and `mariasantos` is taken once `maria.santos` exists.
+- **The username rule** now also needs a letter or digit at the start and end, and no two dots in a row. Existing accounts keep their names; `npm run handles:check` lists any that break the rule.
+
+### Added
+- The staff panels design and decision 0009: panels on a separate staff host behind a gate, scopes instead of roles, two people for the big actions, and a log nobody can edit ([preview](docs/design/staff-panels/preview.html)). Built over the next releases.
+
 ## [0.6.0] - 2026-10-20
 
 Invites now go to an email address, so they cannot be passed on as a link.
@@ -107,7 +119,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.1
 [0.6.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.0
 [0.5.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.1
 [0.5.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.0

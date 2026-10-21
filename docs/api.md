@@ -15,7 +15,7 @@ Status: ✅ built · 🔨 being built.
 | GET | `/terms` | | `{ version }` |
 | POST | `/accounts/join/start` | `{ email }` | 202 `{ sent: true, resend_after_seconds, code_minutes }`, the same reply whether or not the address has an invite; a 6-digit code is emailed only if it has one (one per 30 s, 5 per hour per address) |
 | POST | `/accounts/join/verify` | `{ email, code }` | `{ ticket, ticket_minutes }`; 400 `code_invalid` (tries left in the message) or `code_expired` (10 minutes, one use, 5 tries) |
-| POST | `/accounts/register/options` | `{ ticket, handle, first_name, trade, home_area?, agree: true, adult: true, terms_version, improve_usage, improve_surveys }` | `{ challengeId, options }` (WebAuthn creation options) |
+| POST | `/accounts/register/options` | `{ ticket, handle, first_name, trade, home_area?, agree: true, adult: true, terms_version, improve_usage, improve_surveys }` | `{ challengeId, options }` (WebAuthn creation options). `handle` follows the rule in decision 0009: 400 `invalid` for the shape, 409 `handle_reserved` for a reserved name or its look-alike, 409 `handle_taken` when it or a look-alike is taken |
 | POST | `/accounts/register/verify` | `{ challengeId, response }` | 201 `{ user }` + session cookie |
 | POST | `/accounts/login/options` | | `{ challengeId, options }` |
 | POST | `/accounts/login/verify` | `{ challengeId, response }` | `{ user }` + session cookie |

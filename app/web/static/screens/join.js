@@ -259,10 +259,11 @@ function profile(d, go) {
   const err = h('p', { class: 'err', role: 'alert' });
   const first = h('input', { value: d.first_name, autocomplete: 'given-name', maxlength: '40', required: true });
   const handle = h('input', { value: d.handle, autocomplete: 'username', maxlength: '30', autocapitalize: 'none', spellcheck: 'false', required: true });
-  const hint = h('span', null, '3-30 letters, numbers, dots or underscores.');
+  const RULE = '3-30 letters, numbers, dots or underscores. Start and end with a letter or number.';
+  const hint = h('span', null, RULE);
   handle.addEventListener('input', () => {
     handle.value = handle.value.toLowerCase();
-    hint.textContent = HANDLE_RE.test(handle.value) ? 'Looks good.' : '3-30 letters, numbers, dots or underscores.';
+    hint.textContent = HANDLE_RE.test(handle.value) ? 'Looks good.' : RULE;
   });
   const trades = choiceChips(TRADES.map(([k, l]) => [k, l]), d.trade, (v) => { d.trade = v; }, 'What do you do?');
   const city = placeSearch(d.home_name, (a) => { d.home_area = a ? a.code : null; d.home_name = a ? a.name : ''; });
@@ -282,7 +283,7 @@ function profile(d, go) {
     d.first_name = first.value.trim();
     d.handle = handle.value.trim().toLowerCase();
     if (!d.first_name) { err.textContent = 'Add your first name.'; first.focus(); return; }
-    if (!HANDLE_RE.test(d.handle)) { err.textContent = 'Pick a username: 3-30 letters, numbers, dots or underscores.'; handle.focus(); return; }
+    if (!HANDLE_RE.test(d.handle)) { err.textContent = 'Pick a username: ' + RULE.charAt(0).toLowerCase() + RULE.slice(1); handle.focus(); return; }
     if (!d.trade) { err.textContent = 'Pick what you do (or Other).'; return; }
     go.next();
   });
@@ -308,7 +309,7 @@ function passkey(d, go) {
       authed(r.user);
       go.next();
     } catch (e) {
-      if (e && e.code === 'handle_taken') { d.error = e.message; go.goto(2); return; }
+      if (e && (e.code === 'handle_taken' || e.code === 'handle_reserved')) { d.error = e.message; go.goto(2); return; }
       if (e && e.code === 'invite_invalid') { go.restart(); return; }
       if (e && e.code === 'terms_changed') { try { d.terms = (await get('/terms')).version; } catch { /* keep */ } d.agree = false; go.goto(0); return; }
       msg.textContent = e && e.name === 'NotAllowedError' ? 'The passkey was cancelled or timed out. Try again.' : ((e && e.message) || 'Could not make the passkey');
