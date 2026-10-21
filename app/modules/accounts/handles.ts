@@ -60,7 +60,11 @@ function stretches(part: string): string[] {
 export function isReserved(h: string): boolean {
   const k = handleKey(h), plain = h.toLowerCase().replace(/[._]/g, '').replace(/[0-9l]/g, (c) => AS[DIGITS.indexOf(c)] as string);
   if (RESERVED_KEYS.has(k) || ANYWHERE_RES.some((re) => re.test(plain))) return true;
-  return h.toLowerCase().split(/[._]/).some((part) => stretches(part).some((s) => PART_KEYS.has(handleKey(s))));
+  // Parts between dots and underscores, and every run of neighbouring parts joined, so a dot inside the
+  // word doesn't hide it ("ad.min.jun" has "admin", "adm.in2" has "admin2").
+  const parts = h.toLowerCase().split(/[._]/), runs: string[] = [];
+  for (let i = 0; i < parts.length; i++) for (let j = i + 1; j <= parts.length; j++) runs.push(parts.slice(i, j).join(''));
+  return runs.some((part) => stretches(part).some((s) => PART_KEYS.has(handleKey(s))));
 }
 
 export type HandleProblem = 'shape' | 'reserved' | 'taken' | null;

@@ -36,7 +36,9 @@ test('reserved names and their look-alikes are refused; ordinary names are not',
     'support24x7', 'mod1jun',
     // Second review of #22: digits as letters and as breaks in one name, and mixed folds.
     'st4ff1', 'm0d1', 'adm1n2', 'h3lpd3sk2', 'n0reply2', 'd3leted9', 'verifi3d1', 'sysadm1n2', 'm0ds2', 'adm1n2jun', 'jun2adm1n',
-    's3curity24x7', 'supp0rt24x7', 'rnoderatorn', 'rnoderatornews', 'adrninistratorn', 'adrninistratornews']) {
+    's3curity24x7', 'supp0rt24x7', 'rnoderatorn', 'rnoderatornews', 'adrninistratorn', 'adrninistratornews',
+    // Third review: a dot or underscore inside the word.
+    'adm.in2', 'a.dmin2', 'ad.min.jun', 's_taff2', 'st.aff_ph', 'mo.d2', 'sup.port24x7', 'a.d.m.i.n.2']) {
     assert.ok(isReserved(r), r);
   }
   for (const ok of ['maria.santos', 'admiral', 'adminah', 'staffing.pro', 'jun.rides', 'moderna', 'lia.cruz', 'modesto', 'supporter.of.jun', 'jun2rides', 'ma1a.santos', 'carnival', 'vernon']) assert.equal(await handleProblem(ok), null, ok);
