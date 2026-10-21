@@ -40,14 +40,14 @@ npm run handles:check                     # lists usernames that break the rule 
 
 ### The staff host
 
-Staff tools are on their own host, never on the public site (decision 0009). The server answers that host only when the request carries a token from the gate, and gives a plain 404 to anything else:
+Staff tools are on their own host (decision 0009). In 0.9.0 the report queue, appeals and invites still answer on the public site for a staff role; from 0.10.0 staff powers work only on the staff host. The server answers that host only when the request carries a token from the gate, and gives a plain 404 to anything else:
 
 1. Point the staff host name at the same server as Community (a tunnel or proxy is fine; set `TRUST_PROXY=1`).
 2. In Cloudflare Zero Trust, add a self-hosted Access application for that host. Its policy lets in only the staff email addresses. Copy the application's audience tag to `ACCESS_AUD` and the team domain to `ACCESS_TEAM_DOMAIN`.
 3. Give each staff member's gate address to the server: `npm run staff -- grant <username> <role> --email <address>` (only a keyed hash is kept). A staff invite records it on joining.
 4. The person makes a setup code in Community (Settings, Staff passkey), opens the staff host, passes the gate and types the code to make their staff passkey.
 
-The server refuses to start with a public `STAFF_ORIGIN` that is not https, is the public host, or has no Access settings, with an `ACCESS_TEAM_DOMAIN` that is not an https origin, or with a `STAFF_RP_ID` that doesn't fit the staff host or also covers the public site. On `localhost` (for example `http://staff.localhost:8080`) it runs without the gate, for trying it on your own machine only.
+The server refuses to start with a public `STAFF_ORIGIN` that is not https, is the public host, or has no Access settings, with an `ACCESS_TEAM_DOMAIN` that is not an https origin, or with a `STAFF_RP_ID` that doesn't fit the staff host or also covers the public site. On `localhost` (for example `http://staff.localhost:8080`), and only when `COMMUNITY_ORIGIN` is on `localhost` too, it runs without the gate for trying it on your own machine: then it answers only connections from the machine itself. `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set together or not at all.
 
 **Protecting the audit log from the database owner.** Triggers refuse UPDATE, DELETE and TRUNCATE on `staff_actions`, but the role that owns a table can switch its triggers off. For full protection, let one role own the tables and run migrations, and run the app as a second role with only the rights it needs (on `staff_actions`: `INSERT` and `SELECT`). This is not set up for you.
 

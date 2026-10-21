@@ -53,10 +53,9 @@ export class AccessVerifier {
     if (!h || !p || !s || extra !== undefined) return null;
     const head = part(h), claims = part(p);
     if (!head || !claims || head.alg !== 'RS256' || typeof head.kid !== 'string') return null;
-    try {
-      await this.load(false);
-      if (!this.keys.has(head.kid)) await this.load(true);
-    } catch { return null; }
+    // A fetch that fails (the endpoint is down) leaves the keys we already have in use.
+    try { await this.load(false); } catch { /* keep the cached keys */ }
+    if (!this.keys.has(head.kid)) { try { await this.load(true); } catch { /* as above */ } }
     const key = this.keys.get(head.kid);
     if (!key || !verify('sha256', Buffer.from(`${h}.${p}`), key, Buffer.from(s, 'base64url'))) return null;
     const t = now / 1000;

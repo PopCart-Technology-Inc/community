@@ -19,7 +19,10 @@ Staff get their own door: a separate address behind a gate, opened with a staff 
 - Taking a role away also ends that person's staff sessions and removes their staff passkeys and gate address.
 
 ### Security
-- The server will not start with a public staff host that is not https, is the same host as Community, or has no gate settings.
+- The server will not start with a public staff host that is not https, is the same host as Community, or has no gate settings; with an `ACCESS_TEAM_DOMAIN` that is not an https origin or only one of the two gate settings; with a `STAFF_RP_ID` that doesn't fit the staff host or also covers Community; or with a `localhost` staff host while Community is public.
+- Without the gate (a staff host on this machine), the staff host answers only connections from the machine itself.
+- When the gate's key list can't be fetched, the keys already fetched keep working.
+- In this version the report queue, appeals and invites still answer on Community for a staff role; they move to the staff host in 0.10.0.
 
 ## [0.8.0] - 2026-10-21
 

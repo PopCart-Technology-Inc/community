@@ -5,7 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, createHmac, createSign, generateKeyPairSync, randomBytes, sign, type KeyObject } from 'node:crypto';
 import { request } from 'node:http';
-import { loadConfig, staffConfigProblem } from '../app/config.ts';
+import { isLoopback, loadConfig, staffConfigProblem } from '../app/config.ts';
 import { AccessVerifier } from '../app/http/access.ts';
 import { limits, RateLimiter } from '../app/http/security.ts';
 import { emailHash } from '../app/modules/accounts/routes.ts';
@@ -124,7 +124,10 @@ after(async () => { await app.close(); });
 test('config: a public staff host needs https, its own host and the gate; this machine may run without it', () => {
   const c = (env: Record<string, string>) => staffConfigProblem(loadConfig({ COMMUNITY_ORIGIN: 'https://community.example', ...env }));
   assert.equal(c({}), null, 'no staff host: nothing to check');
-  assert.equal(c({ STAFF_ORIGIN: 'http://localhost:8081' }), null, 'this machine, gate off');
+  assert.match(c({ STAFF_ORIGIN: 'http://localhost:8081' })!, /this machine only/, 'gate off needs Community on this machine too (review of #25)');
+  assert.equal(staffConfigProblem(loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', STAFF_ORIGIN: 'http://staff.localhost:8081' })), null, 'this machine, gate off');
+  assert.match(c({ STAFF_ORIGIN: 'https://staff.example', ACCESS_TEAM_DOMAIN: TEAM })!, /set both or neither/);
+  assert.match(staffConfigProblem(loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', STAFF_ORIGIN: 'http://staff.localhost:8081', ACCESS_TEAM_DOMAIN: TEAM }))!, /set both or neither/);
   assert.match(c({ STAFF_ORIGIN: 'https://community.example' })!, /different host/);
   assert.match(c({ STAFF_ORIGIN: 'https://staff.example/panel' })!, /origin only/);
   assert.match(c({ STAFF_ORIGIN: 'http://staff.example', ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD })!, /https/);
@@ -337,4 +340,22 @@ test('the audit log is append-only: no update, delete or truncate, Overseers inc
   await assert.rejects(app.db.query('DELETE FROM staff_actions'), /append-only/);
   await assert.rejects(app.db.query('TRUNCATE staff_actions'), /append-only/);
   await assert.rejects(app.db.query(`INSERT INTO staff_actions (actor_handle, kind, text) VALUES ('system', 'Bad Kind', 'x')`));
+});
+
+test('without the gate, only this machine itself: the socket address decides, never a header (review of #25)', () => {
+  for (const a of ['127.0.0.1', '::1', '::ffff:127.0.0.1', '127.0.0.53']) assert.ok(isLoopback(a), a);
+  for (const a of ['203.0.113.5', '198.51.100.2', '::ffff:203.0.113.5', '', undefined]) assert.ok(!isLoopback(a), String(a));
+});
+
+test('the gate token: when the cached keys are old and the certs endpoint is down, the old keys still work (review of #25)', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  let up = true;
+  const v = new AccessVerifier(TEAM, AUD, async () => {
+    if (!up) throw new Error('down');
+    return { keys: [{ ...rsa.publicKey.export({ format: 'jwk' }), kid: KID, alg: 'RS256', use: 'sig' }] };
+  });
+  assert.ok(await v.verify(token('a@example.com')), 'keys fetched');
+  up = false;
+  t.mock.timers.tick(61 * 60_000); // past the hour the keys are cached for
+  assert.ok(await v.verify(token('a@example.com')), 'the refetch failed; the keys we had are used');
 });

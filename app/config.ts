@@ -58,6 +58,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 }
 
 const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
+const isLocal = (host: string): boolean => LOCAL.has(host) || host.endsWith('.localhost');
+
+/** A connection from this machine itself (the socket's address; X-Forwarded-For is never trusted for this). */
+export const isLoopback = (addr: string | undefined): boolean => !!addr && (addr === '::1' || /^(::ffff:)?127\./.test(addr));
 
 /**
  * Why this config can't run a staff host, or null. A public staff host must be https, on its own host
@@ -69,7 +73,11 @@ export function staffConfigProblem(c: Config): string | null {
   try { s = new URL(c.staffOrigin); } catch { return 'STAFF_ORIGIN is not a URL'; }
   if (s.host === new URL(c.origin).host) return 'STAFF_ORIGIN must be a different host from COMMUNITY_ORIGIN';
   if (s.pathname !== '/' || s.search) return 'STAFF_ORIGIN is an origin only, with no path';
-  if (LOCAL.has(s.hostname) || s.hostname.endsWith('.localhost')) return null;
+  if (!c.accessTeam !== !c.accessAud) return 'ACCESS_TEAM_DOMAIN and ACCESS_AUD go together: set both or neither';
+  if (isLocal(s.hostname)) {
+    // Without the gate only for trying it out: Community itself must be on this machine too.
+    return isLocal(new URL(c.origin).hostname) ? null : 'A localhost STAFF_ORIGIN is for a Community on this machine only (COMMUNITY_ORIGIN is public)';
+  }
   if (s.protocol !== 'https:') return 'STAFF_ORIGIN must be https';
   if (!c.accessTeam || !c.accessAud) return 'ACCESS_TEAM_DOMAIN and ACCESS_AUD are required with a public STAFF_ORIGIN';
   let team: URL;
@@ -82,6 +90,3 @@ export function staffConfigProblem(c: Config): string | null {
   if (pub === rp || pub.endsWith('.' + rp)) return 'STAFF_RP_ID must not also cover COMMUNITY_ORIGIN: leave it unset to use the staff host name';
   return null;
 }
-
-/** True when the staff host runs without the Access gate: only ever on this machine. */
-export const staffGateOff = (c: Config): boolean => !!c.staffOrigin && !c.accessTeam && staffConfigProblem(c) === null;

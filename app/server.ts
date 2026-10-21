@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, normalize, extname } from 'node:path';
-import { staffConfigProblem, type Config } from './config.ts';
+import { isLoopback, staffConfigProblem, type Config } from './config.ts';
 import { AccessVerifier } from './http/access.ts';
 import { loadStaffSession } from './http/staff-session.ts';
 import { emailHash } from './modules/accounts/routes.ts';
@@ -132,6 +132,8 @@ export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     try {
       let gate: Buffer | null = null;
+      // Gate off (a staff host on this machine): only connections from this machine itself.
+      if (!access && !isLoopback(req.socket.remoteAddress)) throw new HttpError(404, 'not_found', 'Not found');
       if (access) {
         const who = await access.verify(String(req.headers['cf-access-jwt-assertion'] || '') || undefined);
         if (!who) throw new HttpError(404, 'not_found', 'Not found');
