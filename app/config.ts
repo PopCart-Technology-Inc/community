@@ -21,6 +21,17 @@ export interface Config {
   resendKey: string | null;
   /** The From line, e.g. "PopCart Community <hello@example.org>". Required with resendKey. */
   mailFrom: string | null;
+  /**
+   * The staff host (decision 0009), e.g. https://<random letters>.example.org. Unset: no staff panels and
+   * no staff API anywhere. Keep the real name in private config only.
+   */
+  staffOrigin: string | null;
+  /** WebAuthn relying party id for staff passkeys: the staff host name. */
+  staffRpId: string | null;
+  /** The Cloudflare Access team domain that guards the staff host, e.g. https://<team>.cloudflareaccess.com. */
+  accessTeam: string | null;
+  /** The Access application's audience tag (AUD). */
+  accessAud: string | null;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -39,5 +50,30 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     emailKey: env.EMAIL_HASH_KEY || null,
     resendKey: env.RESEND_API_KEY || null,
     mailFrom: env.MAIL_FROM || null,
+    staffOrigin: env.STAFF_ORIGIN ? env.STAFF_ORIGIN.replace(/\/$/, '') : null,
+    staffRpId: env.STAFF_ORIGIN ? (env.STAFF_RP_ID || new URL(env.STAFF_ORIGIN).hostname) : null,
+    accessTeam: env.ACCESS_TEAM_DOMAIN ? env.ACCESS_TEAM_DOMAIN.replace(/\/$/, '') : null,
+    accessAud: env.ACCESS_AUD || null,
   };
 }
+
+const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * Why this config can't run a staff host, or null. A public staff host must be https, on its own host
+ * name, and behind Access; only a staff host on this machine (development) may run without the gate.
+ */
+export function staffConfigProblem(c: Config): string | null {
+  if (!c.staffOrigin) return null;
+  let s: URL;
+  try { s = new URL(c.staffOrigin); } catch { return 'STAFF_ORIGIN is not a URL'; }
+  if (s.host === new URL(c.origin).host) return 'STAFF_ORIGIN must be a different host from COMMUNITY_ORIGIN';
+  if (s.pathname !== '/' || s.search) return 'STAFF_ORIGIN is an origin only, with no path';
+  if (LOCAL.has(s.hostname) || s.hostname.endsWith('.localhost')) return null;
+  if (s.protocol !== 'https:') return 'STAFF_ORIGIN must be https';
+  if (!c.accessTeam || !c.accessAud) return 'ACCESS_TEAM_DOMAIN and ACCESS_AUD are required with a public STAFF_ORIGIN';
+  return null;
+}
+
+/** True when the staff host runs without the Access gate: only ever on this machine. */
+export const staffGateOff = (c: Config): boolean => !!c.staffOrigin && !c.accessTeam && staffConfigProblem(c) === null;

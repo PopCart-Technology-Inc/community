@@ -36,10 +36,9 @@ export function baseHeaders(res: ServerResponse, config: Config): void {
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** State-changing requests need our Origin (browsers send it on fetch POST/PUT/PATCH/DELETE). */
-export function checkCsrf(req: IncomingMessage, config: Config): void {
+export function checkCsrf(req: IncomingMessage, config: Config, origin = config.origin): void {
   if (SAFE.has(req.method || 'GET')) return;
-  const origin = req.headers.origin;
-  if (origin !== config.origin) throw new HttpError(403, 'bad_origin', 'Requests must come from the Community site');
+  if (req.headers.origin !== origin) throw new HttpError(403, 'bad_origin', 'Requests must come from the Community site');
 }
 
 /** Fixed-window limiter per key. Returns false when over the limit. */

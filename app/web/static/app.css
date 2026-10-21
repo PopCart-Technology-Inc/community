@@ -250,6 +250,8 @@ textarea.bare-area:focus-visible { outline: 3px solid var(--blue); border-radius
 .passkey-art { width: 96px; height: 96px; margin: 24px auto 8px; border-radius: 999px; background: var(--cream); display: grid; place-items: center; }
 .field input.codein { font: 600 28px/1 var(--mono); letter-spacing: .4em; text-align: center; }
 .linkrow { text-align: center; margin: 8px 0 0; }
+.code-big { font: 700 34px/1 var(--mono); letter-spacing: .2em; text-align: center; margin: 0; padding: 18px 8px; border: var(--edge); border-radius: 16px; background: var(--yellow); overflow-wrap: anywhere; }
+.steps { margin: 12px 0 0; padding-left: 22px; display: grid; gap: 8px; font-size: 15px; }
 .note-ok { display: flex; gap: 8px; align-items: flex-start; padding: 12px 14px; border: var(--edge); border-radius: 14px; background: var(--kiwi); font-size: 14px; }
 .linkbtn { min-height: 44px; padding: 0 12px; font-weight: 700; font-size: 14px; color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
 .suggest { border: var(--hair); border-radius: 14px; margin-top: 6px; overflow: hidden; }

@@ -4,6 +4,23 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-21
+
+Staff get their own door: a separate address behind a gate, opened with a staff passkey.
+
+### Added
+- **The staff host** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). Set `STAFF_ORIGIN` and the server answers that host with the staff panel, and nothing else. Every request must carry the gate's signed token (Cloudflare Access, checked by the server itself), or it gets a plain 404. See [docs/running.md](docs/running.md#the-staff-host).
+- **Staff passkeys.** Made for the staff host only, set up once with a code from Settings, Staff passkey on Community. A member passkey does not open the staff panel, and a staff passkey does not sign in on Community.
+- **Staff sessions** lock after 15 idle minutes and end after 12 hours. The panel shows the time left and has a Lock button.
+- **The staff audit log.** Sign-ins, failed sign-ins, locks and setup codes are written to a log the database refuses to change or delete. Overseers read and filter it in the panel.
+- `npm run staff -- grant <username> <role> --email <address>` records the address the gate lets through for that person (as a keyed hash).
+
+### Changed
+- Taking a role away also ends that person's staff sessions and removes their staff passkeys and gate address.
+
+### Security
+- The server will not start with a public staff host that is not https, is the same host as Community, or has no gate settings.
+
 ## [0.8.0] - 2026-10-21
 
 Staff have roles, and a role is a list of what it may do.
@@ -149,7 +166,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.9.0
 [0.8.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.8.0
 [0.7.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.7.0
 [0.6.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.1

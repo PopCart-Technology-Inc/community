@@ -1,6 +1,6 @@
 // npm run staff -- list
 // npm run staff -- roles
-// npm run staff -- grant <username> <role> [--days 90]
+// npm run staff -- grant <username> <role> [--days 90] [--email address-on-the-gate-list]
 // npm run staff -- renew <username> [--days 90]
 // npm run staff -- revoke <username>
 // Staff roles from the server's command line (decision 0009). Until a second Overseer exists, this is
@@ -9,6 +9,7 @@ import { loadConfig } from '../../config.ts';
 import { connectPg } from '../../db/index.ts';
 import { migrate } from '../../db/migrate.ts';
 import { HttpError } from '../../http/router.ts';
+import { emailHash, emailOf } from '../accounts/routes.ts';
 import { grantRole, listStaff, renewRole, revokeRole, roleNames } from './members.ts';
 
 const [cmd, ...args] = process.argv.slice(2);
@@ -27,14 +28,15 @@ try {
   } else if (cmd === 'roles') {
     console.log((await roleNames(db)).join('\n'));
   } else if (cmd === 'grant' && args[0] && args[1]) {
-    const r = await grantRole(db, { handle: args[0], role: args[1], days });
-    console.log(`@${args[0]} is now ${args[1]} (${day(r.ends_at)}).`);
+    const email = opt('--email');
+    const r = await grantRole(db, { handle: args[0], role: args[1], days, emailHash: email ? emailHash(config, emailOf(email)) : undefined });
+    console.log(`@${args[0]} is now ${args[1]} (${day(r.ends_at)})${email ? ', with that address for the staff host gate' : ''}.`);
   } else if (cmd === 'renew' && args[0]) {
     console.log(`renewed until ${day((await renewRole(db, { handle: args[0], days })).ends_at)}.`);
   } else if (cmd === 'revoke' && args[0]) {
     console.log(`@${args[0]} is no longer ${(await revokeRole(db, args[0])).role}.`);
   } else {
-    console.log('usage: npm run staff -- list | roles | grant <username> <role> [--days 90] | renew <username> [--days 90] | revoke <username>');
+    console.log('usage: npm run staff -- list | roles | grant <username> <role> [--days 90] [--email address] | renew <username> [--days 90] | revoke <username>');
     process.exitCode = 1;
   }
 } catch (e) {
