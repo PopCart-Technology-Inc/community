@@ -1,6 +1,7 @@
 // Test harness: a fresh in-memory Postgres (PGlite) with the real migrations, the real server on a
 // random port, and helpers to make people and call the API as them. Test-only fixture data.
 import { createHash, randomBytes } from 'node:crypto';
+import { request } from 'node:http';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { loadConfig, type Config } from '../app/config.ts';
 import { memoryDb, type Db } from '../app/db/index.ts';
 import { migrate } from '../app/db/migrate.ts';
 import { createApp, type AppDeps } from '../app/server.ts';
+import { startStaffSession } from '../app/http/staff-session.ts';
 
 export interface TestApp {
   db: Db;
@@ -31,6 +33,34 @@ export interface Person {
   handle: string;
   cookie: string;
   call(method: string, path: string, body?: unknown): Promise<{ status: number; body: any; headers: Headers }>;
+  /** Staff only: a call to the staff host with a staff session (the test staff host runs without the gate). */
+  staff(method: string, path: string, body?: unknown): Promise<HostReply>;
+}
+
+export interface HostReply { status: number; body: any; headers: Record<string, string | string[] | undefined> }
+
+/** The test staff host: on this machine, so it runs without the gate (decision 0009). */
+export const TEST_STAFF_ORIGIN = 'http://staff.localhost:8081';
+
+/** A request with a Host header of our choosing (fetch can't set Host), e.g. to the staff host. */
+export function hostCall(port: number, origin: string, method: string, path: string, opts: { body?: unknown; headers?: Record<string, string> } = {}): Promise<HostReply> {
+  const headers: Record<string, string> = { Host: new URL(origin).host, Origin: origin, ...opts.headers };
+  const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body);
+  if (payload) headers['Content-Type'] = 'application/json';
+  return new Promise((ok, bad) => {
+    const r = request({ host: '127.0.0.1', port, method, path, headers }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        let body: unknown = text;
+        try { body = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+        ok({ status: res.statusCode || 0, body, headers: res.headers });
+      });
+    });
+    r.on('error', bad);
+    r.end(payload);
+  });
 }
 
 let seq = 0;
@@ -40,7 +70,7 @@ export async function startApp(opts: { env?: Record<string, string>; deps?: AppD
   const db = await memoryDb();
   await migrate(db);
   const port = 0;
-  const config = { ...loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', MEDIA_DIR: mkdtempSync(join(tmpdir(), 'cm-media-')), EMAIL_HASH_KEY: randomBytes(32).toString('hex'), ...opts.env }), port };
+  const config = { ...loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', MEDIA_DIR: mkdtempSync(join(tmpdir(), 'cm-media-')), EMAIL_HASH_KEY: randomBytes(32).toString('hex'), STAFF_ORIGIN: TEST_STAFF_ORIGIN, ...opts.env }), port };
   const { server } = createApp(db, config, opts.deps);
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
   const listening = (server.address() as AddressInfo).port;
@@ -72,7 +102,12 @@ export async function startApp(opts: { env?: Record<string, string>; deps?: AppD
     await db.query(`INSERT INTO sessions (id_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '1 day')`,
       [createHash('sha256').update(v).digest(), u!.id]);
     const cookie = `cs=${v}`;
-    return { id: u!.id, handle, cookie, call: (m, path, body) => call(m, path, body, cookie) };
+    const staffCookie = staffRole ? (await startStaffSession(db, u!.id)).split(';')[0]! : null;
+    const staff: Person['staff'] = (m, path, body) => {
+      if (!staffCookie) throw new Error('not staff');
+      return hostCall(listening, config.staffOrigin!, m, '/api' + path, { body, headers: { Cookie: staffCookie } });
+    };
+    return { id: u!.id, handle, cookie, call: (m, path, body) => call(m, path, body, cookie), staff };
   };
 
   return { db, config, base, port: listening, call, person, close: async () => { await new Promise((ok) => server.close(ok)); await db.close(); } };

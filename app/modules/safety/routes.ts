@@ -10,6 +10,7 @@ import { fail, isUuid, json, noContent, type Ctx, type Router, type SessionUser 
 import { limit, limits } from '../../http/security.ts';
 import { can, endSession, requireScope, requireUser } from '../../http/session.ts';
 import { bad, oneOf, page, PERSON_COLS, str, type Person } from '../shared.ts';
+import { switchOn } from '../staff/switches.ts';
 
 const TARGET_KINDS = ['post', 'message', 'dm', 'user', 'gig', 'space'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
@@ -308,51 +309,6 @@ export function register(r: Router): void {
     return noContent();
   });
 
-  // ---- Appeals: staff only, and never the person who took the action ----
-  r.get('/mod/appeals', async (ctx) => {
-    const me = requireScope(ctx, 'reports.review');
-    const rows = await ctx.db.query<Record<string, unknown> & { actor_id: string; subject_id: string | null }>(
-      `SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, reason, created_at, appealed_at, appeal_note
-       FROM mod_actions WHERE appealed_at IS NOT NULL AND appeal_decision IS NULL ORDER BY appealed_at LIMIT 100`);
-    const appeals = [];
-    for (const { actor_id, subject_id, ...a } of rows) {
-      appeals.push({ ...a, subject: await person(ctx.db, subject_id), can_decide: actor_id !== me.id && subject_id !== me.id });
-    }
-    return json({ appeals, as_of: now() });
-  });
-
-  r.post('/mod/appeals/:id/decide', async (ctx) => {
-    const me = requireScope(ctx, 'reports.review');
-    limit(limits.write, me.id);
-    if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such appeal');
-    const b = await ctx.json<Record<string, unknown>>();
-    const decision = oneOf(b.decision, 'decision', ['upheld', 'overturned'] as const);
-    const note = str(b.note, 'note', { min: 3, max: 500 });
-    const a = await ctx.db.one<{ id: string; actor_id: string; subject_id: string | null; action: string; target_kind: string; target_id: string; report_id: string | null; appealed_at: string | null; appeal_decision: string | null }>(
-      'SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, appealed_at, appeal_decision FROM mod_actions WHERE id = $1', [ctx.params.id]);
-    if (!a || !a.appealed_at) return fail(404, 'not_found', 'No such appeal');
-    if (a.appeal_decision) return fail(409, 'decided', 'This appeal has already been decided');
-    if (a.actor_id === me.id) return fail(403, 'same_moderator', 'A different staff member must decide this appeal');
-    if (a.subject_id === me.id) return fail(403, 'own_content', 'You cannot decide your own appeal');
-    await ctx.db.tx(async (tx) => {
-      const done = await tx.one(
-        `UPDATE mod_actions SET appeal_decision = $2, appeal_decision_note = $3, appeal_decided_by = $4, appeal_decided_at = now()
-         WHERE id = $1 AND appeal_decision IS NULL RETURNING 1`, [a.id, decision, note, me.id]);
-      if (!done) fail(409, 'decided', 'This appeal has already been decided');
-      if (decision === 'overturned') {
-        if (a.action === 'remove' && a.target_kind === 'post') await tx.query('UPDATE posts SET deleted_at = NULL WHERE id = $1', [a.target_id]);
-        if (a.action === 'remove' && a.target_kind === 'message') await tx.query('UPDATE messages SET deleted_at = NULL WHERE id = $1', [a.target_id]);
-        if (a.action === 'remove' && a.target_kind === 'gig') await tx.query(`UPDATE gigs SET status = 'open' WHERE id = $1 AND status = 'closed'`, [a.target_id]);
-        if (a.action === 'suspend') await tx.query(`UPDATE users SET status = 'active' WHERE id = $1 AND status = 'suspended'`, [a.target_id]);
-        await tx.query(
-          `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason) VALUES ($1, $2, 'restore', $3, $4, $5, $6)`,
-          [me.id, a.subject_id, a.target_kind, a.target_id, a.report_id, note]);
-      }
-      if (a.subject_id) await tx.query(`INSERT INTO notifications (user_id, kind, ref_kind, ref_id) VALUES ($1, 'mod_action', 'mod_action', $2)`, [a.subject_id, a.id]);
-    });
-    return noContent();
-  });
-
   // ---- Your data: what we hold, in plain words, with live counts ----
   r.get('/me/data', async (ctx) => {
     const me = signedIn(ctx);
@@ -497,9 +453,12 @@ export function register(r: Router): void {
   });
 
   // ---- Vault openings for this person ----
-  r.get('/me/record-log', (ctx) => {
-    signedIn(ctx);
-    return json({ openings: [], as_of: now(), note: 'The sealed vault is not built yet, so it has never been opened. When it exists, every opening about you is listed here.' });
+  r.get('/me/record-log', async (ctx) => {
+    const me = signedIn(ctx);
+    // What staff did with this account (decision 0009, point 12). Staff are not named: no one is targeted as staff.
+    const staff = await ctx.db.query<{ at: string; kind: string; text: string }>(
+      'SELECT at, kind, text FROM staff_actions WHERE subject_id = $1 ORDER BY at DESC LIMIT 100', [me.id]);
+    return json({ openings: [], staff, as_of: now(), note: 'The sealed vault is not built yet, so it has never been opened. When it exists, every opening about you is listed here.' });
   });
 
   // ---- Transparency report: live counts, never invented ----
@@ -511,7 +470,54 @@ export function register(r: Router): void {
          (SELECT count(*)::int FROM legal_requests WHERE outcome = 'refused') AS refused,
          (SELECT count(*)::int FROM mod_actions WHERE action = 'remove' AND target_kind = 'post') AS posts_removed,
          (SELECT count(*)::int FROM reports) AS reports`);
-    return json({ as_of: now(), launched: false, counts: c });
+    return json({ as_of: now(), launched: await switchOn(ctx.db, 'launched'), counts: c });
+  });
+}
+
+/** Appeals: staff only (the staff host, decision 0009), and never the person who took the action. */
+export function registerAppeals(r: Router): void {
+  r.get('/mod/appeals', async (ctx) => {
+    const me = requireScope(ctx, 'reports.review');
+    const rows = await ctx.db.query<Record<string, unknown> & { actor_id: string; subject_id: string | null }>(
+      `SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, reason, created_at, appealed_at, appeal_note
+       FROM mod_actions WHERE appealed_at IS NOT NULL AND appeal_decision IS NULL ORDER BY appealed_at LIMIT 100`);
+    const appeals = [];
+    for (const { actor_id, subject_id, ...a } of rows) {
+      appeals.push({ ...a, subject: await person(ctx.db, subject_id), can_decide: actor_id !== me.id && subject_id !== me.id });
+    }
+    return json({ appeals, as_of: now() });
+  });
+
+  r.post('/mod/appeals/:id/decide', async (ctx) => {
+    const me = requireScope(ctx, 'reports.review');
+    limit(limits.write, me.id);
+    if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such appeal');
+    const b = await ctx.json<Record<string, unknown>>();
+    const decision = oneOf(b.decision, 'decision', ['upheld', 'overturned'] as const);
+    const note = str(b.note, 'note', { min: 3, max: 500 });
+    const a = await ctx.db.one<{ id: string; actor_id: string; subject_id: string | null; action: string; target_kind: string; target_id: string; report_id: string | null; appealed_at: string | null; appeal_decision: string | null }>(
+      'SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, appealed_at, appeal_decision FROM mod_actions WHERE id = $1', [ctx.params.id]);
+    if (!a || !a.appealed_at) return fail(404, 'not_found', 'No such appeal');
+    if (a.appeal_decision) return fail(409, 'decided', 'This appeal has already been decided');
+    if (a.actor_id === me.id) return fail(403, 'same_moderator', 'A different staff member must decide this appeal');
+    if (a.subject_id === me.id) return fail(403, 'own_content', 'You cannot decide your own appeal');
+    await ctx.db.tx(async (tx) => {
+      const done = await tx.one(
+        `UPDATE mod_actions SET appeal_decision = $2, appeal_decision_note = $3, appeal_decided_by = $4, appeal_decided_at = now()
+         WHERE id = $1 AND appeal_decision IS NULL RETURNING 1`, [a.id, decision, note, me.id]);
+      if (!done) fail(409, 'decided', 'This appeal has already been decided');
+      if (decision === 'overturned') {
+        if (a.action === 'remove' && a.target_kind === 'post') await tx.query('UPDATE posts SET deleted_at = NULL WHERE id = $1', [a.target_id]);
+        if (a.action === 'remove' && a.target_kind === 'message') await tx.query('UPDATE messages SET deleted_at = NULL WHERE id = $1', [a.target_id]);
+        if (a.action === 'remove' && a.target_kind === 'gig') await tx.query(`UPDATE gigs SET status = 'open' WHERE id = $1 AND status = 'closed'`, [a.target_id]);
+        if (a.action === 'suspend') await tx.query(`UPDATE users SET status = 'active' WHERE id = $1 AND status = 'suspended'`, [a.target_id]);
+        await tx.query(
+          `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason) VALUES ($1, $2, 'restore', $3, $4, $5, $6)`,
+          [me.id, a.subject_id, a.target_kind, a.target_id, a.report_id, note]);
+      }
+      if (a.subject_id) await tx.query(`INSERT INTO notifications (user_id, kind, ref_kind, ref_id) VALUES ($1, 'mod_action', 'mod_action', $2)`, [a.subject_id, a.id]);
+    });
+    return noContent();
   });
 }
 

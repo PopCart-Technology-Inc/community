@@ -32,6 +32,8 @@ export interface Config {
   accessTeam: string | null;
   /** The Access application's audience tag (AUD). */
   accessAud: string | null;
+  /** Which feature switch column applies here: `staging` or `production` (the default). */
+  stage: 'staging' | 'production';
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -54,6 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     staffRpId: env.STAFF_ORIGIN ? (env.STAFF_RP_ID || new URL(env.STAFF_ORIGIN).hostname) : null,
     accessTeam: env.ACCESS_TEAM_DOMAIN ? env.ACCESS_TEAM_DOMAIN.replace(/\/$/, '') : null,
     accessAud: env.ACCESS_AUD || null,
+    stage: env.COMMUNITY_STAGE === 'staging' ? 'staging' : 'production',
   };
 }
 

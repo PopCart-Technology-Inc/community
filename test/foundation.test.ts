@@ -52,12 +52,13 @@ async function ticketFor(email: string): Promise<string> {
   return v.body.ticket;
 }
 
-test('invites go to an email address: only staff send them, and no code or link comes back', async () => {
+test('invites go to an email address: only staff send them, from the staff host, and no code or link comes back', async () => {
   const member = await app.person();
-  assert.equal((await member.call('POST', '/accounts/invites', { email: 'a@example.com' })).status, 403);
+  assert.equal((await member.call('POST', '/accounts/invites', { email: 'a@example.com' })).status, 404, 'no invite API on the public host');
   const staff = await app.person({ role: 'staff' });
-  assert.equal((await staff.call('POST', '/accounts/invites', { email: 'not an email' })).status, 400);
-  const made = await staff.call('POST', '/accounts/invites', { email: ' Invited.Person@Example.com ', note: 'tester' });
+  assert.equal((await staff.call('POST', '/accounts/invites', { email: 'a@example.com' })).status, 404, 'not for staff either: invites are sent from the staff host');
+  assert.equal((await staff.staff('POST', '/staff/member-invites', { email: 'not an email' })).status, 400);
+  const made = await staff.staff('POST', '/staff/member-invites', { email: ' Invited.Person@Example.com ', note: 'tester' });
   assert.equal(made.status, 201);
   assert.deepEqual(Object.keys(made.body).sort(), ['expires_at', 'expires_in_days', 'sent']);
   const mail = lastMail('invited.person@example.com')!;
@@ -69,7 +70,7 @@ test('invites go to an email address: only staff send them, and no code or link 
   assert.doesNotMatch(JSON.stringify(rows), /invited\.person/i);
   // inviting again renews the same invite rather than adding one
   const n = (await app.db.query('SELECT 1 FROM invites WHERE email_hash IS NOT NULL')).length;
-  await staff.call('POST', '/accounts/invites', { email: 'invited.person@example.com' });
+  await staff.staff('POST', '/staff/member-invites', { email: 'invited.person@example.com' });
   assert.equal((await app.db.query('SELECT 1 FROM invites WHERE email_hash IS NOT NULL')).length, n);
 });
 

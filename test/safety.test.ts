@@ -68,13 +68,13 @@ test('child_safety: hidden at once, staff only', async () => {
   assert.equal(modQueue.status, 200);
   assert.equal(modQueue.body.reports.length, 0, 'the Space moderator never sees child_safety');
   assert.equal((await mod.call('POST', `/mod/reports/${r.body.report.id}/decide`, { action: 'keep' })).status, 404);
-  const staffQueue = await staff.call('GET', '/mod/reports');
+  const staffQueue = await staff.staff('GET', '/staff/reports');
   const seen = staffQueue.body.reports.find((x: any) => x.id === r.body.report.id);
   assert.ok(seen, 'staff see it');
   assert.equal(seen.reporter.id, reporter.id);
   assert.equal(seen.target.body, 'to be hidden');
   // staff keep it: the hide is undone
-  assert.equal((await staff.call('POST', `/mod/reports/${r.body.report.id}/decide`, { action: 'keep', note: 'not a violation' })).status, 204);
+  assert.equal((await staff.staff('POST', `/staff/reports/${r.body.report.id}/decide`, { action: 'keep', note: 'not a violation' })).status, 204);
   assert.equal(await deletedAt(p), null);
 });
 
@@ -82,7 +82,7 @@ test('child_safety escalation does not tip off the author', async () => {
   const author = await app.person(), reporter = await app.person(), staff = await app.person({ role: 'staff' });
   const p = await post(author, 'escalate me');
   const r = await report(reporter, 'post', p, 'child_safety');
-  assert.equal((await staff.call('POST', `/mod/reports/${r.body.report.id}/decide`, { action: 'escalate', note: 'routed to the authorities' })).status, 204);
+  assert.equal((await staff.staff('POST', `/staff/reports/${r.body.report.id}/decide`, { action: 'escalate', note: 'routed to the authorities' })).status, 204);
   const n = await app.db.one<{ n: number }>(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1`, [author.id]);
   assert.equal(n!.n, 0);
   assert.equal((await author.call('GET', '/me/mod-actions')).body.actions.length, 0);
@@ -152,19 +152,19 @@ test('appeals: once each, decided by a different staff member only', async () =>
   const staffA = await app.person({ role: 'staff' }), staffB = await app.person({ role: 'staff' }), member = await app.person();
   const p = await post(author, 'appeal me');
   const r = await report(reporter, 'post', p, 'harassment');
-  assert.equal((await staffA.call('POST', `/mod/reports/${r.body.report.id}/decide`, { action: 'remove', note: 'Harassment' })).status, 204);
+  assert.equal((await staffA.staff('POST', `/staff/reports/${r.body.report.id}/decide`, { action: 'remove', note: 'Harassment' })).status, 204);
   const actionId = (await author.call('GET', '/me/mod-actions')).body.actions[0].id;
   assert.equal((await reporter.call('POST', `/me/mod-actions/${actionId}/appeal`, { note: 'not mine' })).status, 404);
   assert.equal((await author.call('POST', `/me/mod-actions/${actionId}/appeal`, { note: 'It was a joke between friends' })).status, 204);
   assert.equal((await author.call('POST', `/me/mod-actions/${actionId}/appeal`, { note: 'again please' })).status, 409);
 
-  const list = await staffA.call('GET', '/mod/appeals');
+  const list = await staffA.staff('GET', '/staff/appeals');
   const mineInList = list.body.appeals.find((x: any) => x.id === actionId);
   assert.equal(mineInList.can_decide, false);
-  assert.equal((await member.call('POST', `/mod/appeals/${actionId}/decide`, { decision: 'overturned', note: 'ok then' })).status, 403);
-  assert.equal((await staffA.call('POST', `/mod/appeals/${actionId}/decide`, { decision: 'overturned', note: 'ok then' })).status, 403);
-  assert.equal((await staffB.call('POST', `/mod/appeals/${actionId}/decide`, { decision: 'overturned', note: 'Context shows a joke' })).status, 204);
-  assert.equal((await staffB.call('POST', `/mod/appeals/${actionId}/decide`, { decision: 'upheld', note: 'changed my mind' })).status, 409);
+  assert.equal((await member.call('POST', `/mod/appeals/${actionId}/decide`, { decision: 'overturned', note: 'ok then' })).status, 404, 'no appeals API on the public host');
+  assert.equal((await staffA.staff('POST', `/staff/appeals/${actionId}/decide`, { decision: 'overturned', note: 'ok then' })).status, 403);
+  assert.equal((await staffB.staff('POST', `/staff/appeals/${actionId}/decide`, { decision: 'overturned', note: 'Context shows a joke' })).status, 204);
+  assert.equal((await staffB.staff('POST', `/staff/appeals/${actionId}/decide`, { decision: 'upheld', note: 'changed my mind' })).status, 409);
   assert.equal(await deletedAt(p), null, 'overturned: the post is back');
   const after_ = (await author.call('GET', '/me/mod-actions')).body.actions;
   const original = after_.find((x: any) => x.id === actionId);
@@ -177,7 +177,7 @@ test('a keep decision cannot be appealed', async () => {
   const author = await app.person(), reporter = await app.person(), staff = await app.person({ role: 'staff' });
   const p = await post(author, 'fine post');
   const r = await report(reporter, 'post', p);
-  await staff.call('POST', `/mod/reports/${r.body.report.id}/decide`, { action: 'keep' });
+  await staff.staff('POST', `/staff/reports/${r.body.report.id}/decide`, { action: 'keep' });
   const a = (await author.call('GET', '/me/mod-actions')).body.actions[0];
   assert.equal(a.can_appeal, false);
   assert.equal((await author.call('POST', `/me/mod-actions/${a.id}/appeal`, { note: 'why?' })).status, 400);
@@ -191,7 +191,7 @@ test('DMs: only a participant can report, and only staff see what was revealed',
   assert.equal((await report(c, 'dm', dm!.id, 'harassment')).status, 404);
   const r = await report(a, 'dm', dm!.id, 'harassment', { revealed: [{ text: 'a threatening message (test fixture)' }] });
   assert.equal(r.status, 201);
-  const q = await staff.call('GET', '/mod/reports');
+  const q = await staff.staff('GET', '/staff/reports');
   const seen = q.body.reports.find((x: any) => x.id === r.body.report.id);
   assert.equal(seen.revealed[0].text, 'a threatening message (test fixture)');
   assert.equal(seen.target.sealed, true);

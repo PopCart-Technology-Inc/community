@@ -39,18 +39,31 @@ test('/me tells the person their role and scopes; members get none', async () =>
 
 test('scopes decide, not the word "staff": a Developer cannot see reports or invite; Support can invite', async () => {
   const dev = await app.person({ staffRole: 'Developer' }), support = await app.person({ staffRole: 'Support' }), mod = await app.person({ staffRole: 'Moderator' });
-  assert.equal((await dev.call('GET', '/mod/reports')).status, 403);
-  assert.equal((await dev.call('POST', '/accounts/invites', { email: 'x@example.com' })).status, 403);
-  assert.equal((await mod.call('POST', '/accounts/invites', { email: 'x@example.com' })).status, 403);
-  assert.equal((await support.call('POST', '/accounts/invites', { email: 'sent@example.com' })).status, 201);
-  assert.equal((await mod.call('GET', '/mod/reports')).status, 200);
-  assert.equal((await dev.call('GET', '/mod/appeals')).status, 403);
-  assert.equal((await mod.call('GET', '/mod/appeals')).status, 200);
+  assert.equal((await dev.staff('GET', '/staff/reports')).status, 403);
+  assert.equal((await dev.staff('POST', '/staff/member-invites', { email: 'x@example.com' })).status, 403);
+  assert.equal((await mod.staff('POST', '/staff/member-invites', { email: 'x@example.com' })).status, 403);
+  assert.equal((await support.staff('POST', '/staff/member-invites', { email: 'sent@example.com' })).status, 201);
+  assert.equal((await mod.staff('GET', '/staff/reports')).status, 200);
+  assert.equal((await dev.staff('GET', '/staff/appeals')).status, 403);
+  assert.equal((await mod.staff('GET', '/staff/appeals')).status, 200);
+});
+
+test('on the public host a staff role gives nothing: staff powers work only on the staff host', async () => {
+  const mod = await app.person({ staffRole: 'Moderator' }), over = await app.person({ role: 'staff' });
+  for (const p of [mod, over]) {
+    const q = await p.call('GET', '/mod/reports');
+    assert.equal(q.status, 403, 'the public queue is for Space moderators only');
+    assert.equal(q.body.error.code, 'not_moderator');
+  }
+  for (const path of ['/mod/appeals', '/accounts/invites', '/staff/reports', '/staff/overview']) {
+    assert.equal((await over.call(path === '/accounts/invites' ? 'POST' : 'GET', path, path === '/accounts/invites' ? { email: 'x@example.com' } : undefined)).status, 404, path);
+  }
+  assert.equal((await over.call('GET', '/me')).body.user.staff.role, 'Overseer', 'the person still sees their own role');
 });
 
 test('a role that has ended gives nothing', async () => {
   const gone = await app.person({ staffRole: 'Moderator', staffEnds: new Date(Date.now() - 1000) });
-  assert.equal((await gone.call('GET', '/mod/reports')).status, 403);
+  assert.equal((await gone.staff('GET', '/staff/reports')).status, 401, 'the staff session no longer counts');
   assert.equal((await gone.call('GET', '/me')).body.user.staff, null);
 });
 
@@ -60,9 +73,9 @@ test('without reports.child_safety, child-safety reports stay out of view', asyn
   const post = await author.call('POST', '/posts', { body: 'Something to report (test fixture)' });
   const rep = await reporter.call('POST', '/reports', { target_kind: 'post', target_id: post.body.post.id, reason: 'child_safety' });
   assert.equal(rep.status, 201);
-  const seen = (await reviewer.call('GET', '/mod/reports')).body.reports.map((r: any) => r.id);
+  const seen = (await reviewer.staff('GET', '/staff/reports')).body.reports.map((r: any) => r.id);
   assert.ok(!seen.includes(rep.body.report.id));
-  assert.equal((await reviewer.call('POST', `/mod/reports/${rep.body.report.id}/decide`, { action: 'keep' })).status, 404);
+  assert.equal((await reviewer.staff('POST', `/staff/reports/${rep.body.report.id}/decide`, { action: 'keep' })).status, 404);
 });
 
 test('granting, renewing and revoking roles; there is always an Overseer', async () => {

@@ -28,6 +28,7 @@ Set the environment (never commit real values):
 | `STAFF_RP_ID` | the passkey domain for staff passkeys; default the staff host's name. Staff passkeys never work on the public site, and member passkeys never work on the staff host |
 | `ACCESS_TEAM_DOMAIN` | the Cloudflare Access team domain that guards the staff host, e.g. `https://your-team.cloudflareaccess.com` (required with a public `STAFF_ORIGIN`) |
 | `ACCESS_AUD` | the Access application's audience tag (required with a public `STAFF_ORIGIN`) |
+| `COMMUNITY_STAGE` | `production` (default) or `staging`: which column of the feature switches this server reads |
 
 ```
 npm start                                  # migrates, then listens
@@ -47,9 +48,11 @@ Staff tools are on their own host, never on the public site (decision 0009). The
 3. Give each staff member's gate address to the server: `npm run staff -- grant <username> <role> --email <address>` (only a keyed hash is kept). A staff invite records it on joining.
 4. The person makes a setup code in Community (Settings, Staff passkey), opens the staff host, passes the gate and types the code to make their staff passkey.
 
-The server refuses to start with a public `STAFF_ORIGIN` that is not https, is the public host, or has no Access settings. On `localhost` (for example `http://staff.localhost:8080`) it runs without the gate, for trying it on your own machine only.
+The server refuses to start with a public `STAFF_ORIGIN` that is not https, is the public host, or has no Access settings. On `localhost` (for example `http://staff.localhost:8080`) it runs without the gate, for trying it on your own machine only. `npm run dev:memory` turns it on at `http://staff.localhost:<port>`.
 
-Joining is invite-only until the privacy lawyer's review (decision 0006), and invites go to an email address (decision 0008). The first staff account comes from `npm run invite -- --email <address> --staff` on the server and joins as an Overseer; people with the `invites.send` scope then invite others from the app (Settings, Invite by email). Staff roles (decision 0009) are given and taken with `npm run staff`, which keeps at least one Overseer. The invited person opens the join page, types that address and the 6-digit code sent to it, then makes a passkey. `npm run dev:memory` invites `DEV_EMAIL` (default `you@example.com`) and prints the code in its window.
+The panel has two parts. **Overseer** (overview, approvals, staff, roles and scopes, audit log, platform switches, vault requests) and **Admin** (reports, appeals, people, member invites, feature switches, health). Each person sees only the screens their role's scopes allow. Changes that are hard to undo need a second Overseer within 72 hours: making or removing an Overseer, `launched`, and turning a feature on in production. Keep at least two Overseers.
+
+Joining is invite-only until the privacy lawyer's review (decision 0006), and invites go to an email address (decision 0008). The first staff account comes from `npm run invite -- --email <address> --staff` on the server and joins as an Overseer; people with the `invites.send` scope then invite others from the staff panel (Admin, Invite a member). Staff roles (decision 0009) are given and taken with `npm run staff`, which keeps at least one Overseer. The invited person opens the join page, types that address and the 6-digit code sent to it, then makes a passkey. `npm run dev:memory` invites `DEV_EMAIL` (default `you@example.com`) and prints the code in its window.
 
 ## Places data
 
