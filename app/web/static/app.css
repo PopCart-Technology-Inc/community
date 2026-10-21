@@ -530,3 +530,4 @@ a.li:hover, button.li:hover { background: var(--cream); }
   .rh { padding: 22px 28px 24px; }
   .rhbody { grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); }
 }
+.streaming #toast { display: none; } /* stream mode: nothing pops up over the scene */

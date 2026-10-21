@@ -5,9 +5,9 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added (0.11.0)
-- **Live site review** at `/review`, for everyone, signed in or not: send your website to be reviewed on the PopCart Community live. One entry per person per live. Every consent point (shown live, recorded, you own it, it is clean, a random draw, how your data is kept) must be agreed and the entry signed by typing your full name. The page says whether entries are open, live.
-- **Review host screen** at `/review/host` (staff), made to be shown on the live: the round, the wheel and the queue. Open and close entries, start a new round, spin, then mark the site reviewed, skipped or back in the draw, or remove an entry. The server makes the draw; the wheel lands on it. H hides the controls.
-- **Privacy:** the sender's internet address is never stored, only a keyed hash scoped to the round (to hold one entry per viewer). Signatures never reach the host screen. Entries are deleted 90 days after they were sent.
+- **Live site review** at `/review`, for everyone, signed in or not: send your website to be reviewed on the PopCart Community live. One entry per device per live (one essential cookie). Every consent point (shown live, recorded, you own it, it is clean, a random draw, how your data is kept) must be agreed and the entry signed by typing your full name. The page says whether entries are open, live.
+- **Review host screen** at `/review/host` (staff), made to be shown on the live: the round, the wheel and the queue. Staff check each entry and let it in before it can reach the wheel; unchecked entries show only with the controls. Open and close entries, start a new round, spin, copy the picked link for the review browser, then mark the site reviewed, skipped or back in the draw, or remove an entry. The server makes the draw; the wheel lands on it. H hides the controls.
+- **Privacy:** the device code and the internet address are kept only as keyed hashes scoped to the round, cleared when the next round starts (the address only caps entries from one connection, since many people share mobile addresses). Signatures never reach the host screen. Entries are deleted 90 days after they were sent, on an hourly timer.
 - API: `/review/*` ([docs/api.md](docs/api.md)). Migration `0012_review_roulette.sql`.
 
 ## [0.6.0] - 2026-10-20

@@ -174,16 +174,16 @@ Deviations: the tombstone handle uses a dot (`deleted.1a2b3c4d`, an example) bec
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | `/review` | anyone | `{ round: { code, accepting } \| null, entered, consent_version, keep_days, as_of }`. `entered`: this address already has an entry in the current round. |
-| POST | `/review/entries` | anyone: `{ url, name, handle?, signature, consents: { shown, recorded, owner, clean, draw, data }, consent_version }` | 201 `{ entry: { url, name, handle, round, consented_at } }`. Every consent must be `true` (400) and `consent_version` current (409 `consent_changed`). `url`: a public http(s) site, no IP address, local name or user name and password in it. 409 `closed` when entries are closed, 409 `already_entered` for a second entry from the same address in a round. Rate limited per address. |
-| GET | `/review/host` | staff | `{ round, entries: [{ id, url, name, handle, status: waiting\|picked\|reviewed\|skipped, created_at, picked_at, done_at }], counts: { in, left }, as_of }`. Never signatures or address hashes. |
-| POST | `/review/rounds` | staff | 201, the host view of a new round (`live-YYYYMMDDHHmm`, Manila time), closed. |
+| GET | `/review` | anyone | `{ round: { code, accepting } \| null, entered, consent_version, keep_days, as_of }`. Sets the essential `rv` cookie (a random device code, HttpOnly, `Path=/api/review`, 120 days) when the browser has none. `entered`: this device already has an entry in the current round. |
+| POST | `/review/entries` | anyone: `{ url, name, handle?, signature, consents: { shown, recorded, owner, clean, draw, data }, consent_version }` | 201 `{ entry: { url, name, handle, round, consented_at } }`, status `pending` until staff check it. Every consent must be `true` (400) and `consent_version` current (409 `consent_changed`). `url`: a public http(s) site, no IP address, local name or user name and password in it. 409 `closed` when entries are closed, 409 `already_entered` for a second entry from the same device in a round, 429 `too_many_here` after 5 entries from one internet address in a round, 503 `not_set_up` without `EMAIL_HASH_KEY`. Rate limited per address. |
+| GET | `/review/host` | staff | `{ round, entries: [{ id, url, name, handle, status: pending\|waiting\|picked\|reviewed\|skipped, created_at, picked_at, done_at }], counts: { in, left, to_check }, as_of }`. Never signatures or hashes. |
+| POST | `/review/rounds` | staff | 201, the host view of a new round (`live-YYYYMMDDHHmm`, Manila time, `-2`… for a second in the same minute), closed. Clears the device and address hashes of every earlier round. |
 | PATCH | `/review/rounds/current` | staff: `{ accepting }` | the host view |
-| POST | `/review/spin` | staff | `{ pool: [{ id, name }], picked, …host view }`: the server draws one waiting entry (`crypto.randomInt`); `pool` is the wheel it was drawn from. 409 while an entry is still picked or when none are waiting. |
-| PATCH | `/review/entries/:id` | staff: `{ status: waiting\|reviewed\|skipped }` | the host view |
+| POST | `/review/spin` | staff | `{ pool: [{ id, name }], picked, …host view }`: the server draws one `waiting` entry (`crypto.randomInt`); `pool` is the wheel it was drawn from. 409 while an entry is still picked (also held by a unique index) or when none are waiting. |
+| PATCH | `/review/entries/:id` | staff: `{ status: waiting\|reviewed\|skipped }` | the host view. `waiting` lets a checked entry into the draw, or puts one back. |
 | DELETE | `/review/entries/:id` | staff | 204. For rule breaks and withdrawals. |
 
-The sender's address is stored only as HMAC(`EMAIL_HASH_KEY`, round + address). Entries older than 90 days are deleted on every visit to these endpoints.
+The device code and the address are stored only as HMAC(`EMAIL_HASH_KEY`, round + value), and both are cleared when the next round starts. The server deletes entries older than 90 days every hour (`sweepReviews`, from `app/main.ts`), and the endpoints sweep too, at most every 10 minutes.
 
 ## Media ✅ (`media/`)
 

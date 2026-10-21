@@ -26,11 +26,11 @@ const TERMS = [
   ['What happens.', 'If the roulette picks your entry, the PopCart Community host opens your website live on the PopCart Community stream and gives an honest review of its design, copy, speed and usability. Feedback may be critical. It is an opinion for learning, not professional, legal or security advice.'],
   ['Recording.', 'The live may be recorded, and the recording, clips and screenshots of your website may be published on PopCart\'s social pages (' + HANDLE + ') indefinitely.'],
   ['Your site, your responsibility.', 'You confirm you own the website or have permission to submit it, and that it contains no malware, phishing, adult, hateful or illegal content and no private personal data (yours or anyone else\'s) you would not want shown publicly. Entries that break this are removed without review.'],
-  ['Safety.', 'Every site is opened in an isolated, throwaway browser with downloads, app launches, camera, microphone, location, clipboard and file access blocked. Do not submit links that try to download files, ask for logins or ask for payment.'],
-  ['No guarantee.', 'Sending your site does not guarantee a review. A random draw decides who is picked, and the host may skip any entry. No payment is asked for or offered.'],
+  ['Safety.', 'The host opens sites in a separate browser kept only for reviews, never the one they use day to day. Do not submit links that try to download files, ask for logins or ask for payment.'],
+  ['No guarantee.', 'Sending your site does not guarantee a review. Staff check every entry before it joins the wheel, a random draw decides who is picked, and the host may skip any entry. No payment is asked for or offered.'],
 ];
 
-const dataTerms = (days) => ['Your data.', `We store the link, the name and handle you give, your typed signature, the time you agreed and a one-way hash of your internet address (to hold one entry per viewer). Nothing is sold. Entries are deleted within ${days} days. To withdraw or delete your entry at any time, email ${CONTACT} with "Review" in the subject.`];
+const dataTerms = (days) => ['Your data.', `We store the link, the name and handle you give, your typed signature and the time you agreed. To hold one entry per device, this page keeps a random code in one essential cookie, and we keep a keyed hash of that code and of your internet address, both cleared when the next round starts. Nothing is sold. Entries are deleted within ${days} days. To withdraw or delete your entry at any time, email ${CONTACT} with "Review" in the subject. Withdrawing cannot undo a live that already happened or clips already published.`];
 
 function check(label, onChange) {
   const input = h('input', { type: 'checkbox' });
@@ -51,7 +51,7 @@ export function review() {
   let timer = 0;
   const node = h('div', { class: 'rv' }, loading());
   const pillSlot = h('div', { class: 'rvtop-r' });
-  const submit = btn('Enter the roulette', { block: true, disabled: true, icon: 'send' });
+  const submit = btn('Enter the roulette', { block: true, type: 'submit', disabled: true, icon: 'send' });
   const why = h('p', { class: 'hint rvwhy', aria: { live: 'polite' } });
   const msg = h('p', { class: 'err', role: 'alert' });
   const sigLine = h('div', { class: 'rvsig' });
@@ -60,7 +60,7 @@ export function review() {
   const update = () => {
     const open = !!(st && st.round && st.round.accepting);
     submit.disabled = !open || !ready() || (st && st.entered);
-    why.textContent = st && st.entered ? 'You already have an entry in this round. One entry per live.'
+    why.textContent = st && st.entered ? 'This device already has an entry in this round. One entry per live.'
       : !open ? 'Entries open when the live starts. Follow ' + HANDLE + ' on TikTok to know when.'
         : !ready() ? 'Fill in your site and name, agree to every point and sign to enter.' : '';
     const s = d.signature.trim();
@@ -120,7 +120,7 @@ export function review() {
         h('dt', null, 'Name we read out'), h('dd', null, entry.name),
         entry.handle ? [h('dt', null, 'Chat handle'), h('dd', null, entry.handle)] : null,
         h('dt', null, 'Agreed'), h('dd', null, fullTime(entry.consented_at))),
-      h('p', { class: 'hint' }, icon('info', 'sm'), h('span', null, 'Changed your mind? Email ' + CONTACT + ' with "Review" in the subject and we delete your entry.')),
+      h('p', { class: 'hint' }, icon('info', 'sm'), h('span', null, 'Changed your mind? Email ' + CONTACT + ' with "Review" in the subject and we delete your entry. Staff check every entry before it joins the wheel.')),
       btn('Join the Community', { kind: 'w', href: '/' })));
     node.querySelector('h1').focus();
   }
@@ -133,10 +133,10 @@ export function review() {
       h('section', { class: 'rvhero' },
         h('p', { class: 'mono' }, 'Live site review'),
         h('h1', { class: 'x', tabindex: '-1' }, 'Get your site reviewed live.'),
-        h('p', { class: 'lede' }, 'Roulette · one entry per live. The wheel picks, we open your site on the PopCart Community live and review it honestly.'),
+        h('p', { class: 'lede' }, 'Roulette · one entry per live. Staff check it, the wheel picks, we open your site on the PopCart Community live and review it honestly.'),
         steps),
       form(),
-      h('footer', { class: 'rvfoot' }, 'This page sets no cookies of its own, and its fonts are served by Community itself. Questions: ' + CONTACT + '.'));
+      h('footer', { class: 'rvfoot' }, 'This page sets one essential cookie, so each device enters once per live. Its fonts are served by Community itself. Questions: ' + CONTACT + '.'));
     update();
   }
 
@@ -213,8 +213,8 @@ function wheel() {
     const to = landing(angle, index, n, 6, Math.random() * 2 - 1);
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { set(to); return Promise.resolve(); }
     const from = angle, ms = 5200, t0 = performance.now();
-    // fast out, long slow settle, a small overshoot back into place (the pop)
-    const ease = (t) => { const c = 1.15; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+    // fast out, long slow settle, no overshoot: the pointer never passes the pick and swings back
+    const ease = (t) => 1 - Math.pow(1 - t, 4);
     return new Promise((ok) => {
       const step = (now) => {
         const t = Math.min(1, (now - t0) / ms);
@@ -234,7 +234,7 @@ function confirmSheet(title, text, action, run) {
     h('div', { class: 'row wrap' }, btn(action, { kind: 'e', on: async () => { close(); await run(); } }), btn('Cancel', { kind: 'w', on: close }))));
 }
 
-const STATUS_LABEL = { waiting: 'In the draw', picked: 'Up now', reviewed: 'Reviewed', skipped: 'Skipped' };
+const STATUS_LABEL = { pending: 'To check', waiting: 'In the draw', picked: 'Up now', reviewed: 'Reviewed', skipped: 'Skipped' };
 
 export function reviewHost() {
   if (!state.me) return { node: errorBox({ status: 401 }), bare: true, title: 'Review host' };
@@ -248,17 +248,22 @@ export function reviewHost() {
   const spinBtn = btn('Spin', { kind: 'y', icon: 'star', cls: 'rhspin ctl' });
   const next = h('section', { class: 'rhnext', aria: { label: 'Up next' } });
   const queue = h('section', { class: 'rhq', aria: { label: 'Entries' } });
-  const off = h('p', { class: 'rhoff', role: 'status', hidden: true }, 'Queue offline. Retrying…');
+  // entries no one has checked yet: only with the controls, so they never reach the stream unchecked
+  const check = h('section', { class: 'rhq rhcheck ctl', aria: { label: 'To check' } });
+  const off = h('p', { class: 'rhoff', role: 'status', hidden: true });
   const share = location.host + '/review';
   const node = h('div', { class: 'rh' },
     h('header', { class: 'rhtop' }, h('div', { class: 'rhbrand' }, brandName('m')), roundLine),
     ctl,
     h('div', { class: 'rhbody' },
       h('div', { class: 'rhwheel' }, w.svg, spinBtn, live),
-      h('div', { class: 'rhside' }, next, queue)),
+      h('div', { class: 'rhside' }, next, check, queue)),
     off,
     h('footer', { class: 'rhfoot' }, h('span', null, 'Send your site: ', h('b', null, share)), h('span', { class: 'ctl' }, ' · H hides controls')));
 
+  const copy = async (url) => {
+    try { await navigator.clipboard.writeText(url); toast('Link copied. Open it in the review browser.'); } catch { toast('Could not copy: ' + url, true); }
+  };
   const act = (fn) => async () => { try { apply(await fn()); } catch (e) { fail(e); } };
   const setOpen = (v) => act(() => patch('/review/rounds/current', { accepting: v }))();
   const newRound = act(() => post('/review/rounds'));
@@ -296,7 +301,8 @@ export function reviewHost() {
     const waiting = entries.filter((e) => e.status === 'waiting');
     const picked = entries.find((e) => e.status === 'picked');
     roundLine.replaceChildren(...(round
-      ? [h('span', { class: 'mono' }, round.code + ' · ' + (round.accepting ? 'entries open' : 'entries closed')), h('span', { class: 'mono rhcount' }, v.counts.in + ' in · ' + v.counts.left + ' left')]
+      ? [h('span', { class: 'mono' }, round.code + ' · ' + (round.accepting ? 'entries open' : 'entries closed')), h('span', { class: 'mono rhcount' }, v.counts.in + ' in · ' + v.counts.left + ' left'),
+        v.counts.to_check ? h('span', { class: 'mono rhcount ctl' }, v.counts.to_check + ' to check') : null].filter(Boolean)
       : [h('span', { class: 'mono' }, 'No round yet')]));
     ctl.replaceChildren(
       btn('Open entries', { sm: true, kind: round && round.accepting ? 'w' : 'y', disabled: !round || round.accepting, on: () => setOpen(true) }),
@@ -313,20 +319,29 @@ export function reviewHost() {
         h('div', { class: 'rhurl' }, picked.url),
         picked.handle ? h('div', { class: 'mono' }, picked.handle) : null,
         h('div', { class: 'row wrap ctl' },
-          h('a', { class: 'btn sm y', href: picked.url, target: '_blank', rel: 'noopener noreferrer' }, icon('out', 'sm b'), 'Open site'),
+          // copied, not opened here: this browser is signed in to the host screen; sites go in the review browser
+          btn('Copy link', { sm: true, kind: 'y', icon: 'link', on: () => copy(picked.url) }),
           btn('Reviewed', { sm: true, icon: 'check', on: () => mark(picked.id, 'reviewed') }),
           btn('Skip', { sm: true, kind: 'w', on: () => mark(picked.id, 'skipped') }),
           btn('Back in the draw', { sm: true, kind: 'w', on: () => mark(picked.id, 'waiting') })))
-      : h('p', { class: 'rhwait' }, waiting.length ? 'Spin the wheel.' : round && round.accepting ? 'Waiting for entries.' : 'Open entries to start.'));
+      : h('p', { class: 'rhwait' }, !v ? 'Loading…' : waiting.length ? 'Spin the wheel.' : round && round.accepting ? 'Waiting for entries.' : 'Open entries to start.'));
 
-    queue.replaceChildren(h('h2', { class: 'mono' }, 'Queue'), entries.length
-      ? h('ol', null, entries.map((e) => h('li', { class: ['rhqi', 'st-' + e.status] },
+    const pending = entries.filter((e) => e.status === 'pending');
+    const shown = entries.filter((e) => e.status !== 'pending');
+    check.hidden = !pending.length;
+    check.replaceChildren(h('h2', { class: 'mono' }, 'To check · ' + pending.length), h('ol', null, pending.map((e) => h('li', { class: 'rhqi' },
+      h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url)),
+      btn('Let in', { sm: true, icon: 'check', on: () => mark(e.id, 'waiting') }),
+      h('button', { class: 'ib', type: 'button', aria: { label: 'Remove ' + e.name }, on: { click: () => remove(e) } }, icon('trash', 'sm b'))))));
+
+    queue.replaceChildren(h('h2', { class: 'mono' }, 'Queue'), shown.length
+      ? h('ol', null, shown.map((e) => h('li', { class: ['rhqi', 'st-' + e.status] },
         h('div', { class: 'grow' }, h('div', { class: 'rhqn' }, e.name, e.handle ? h('span', { class: 'mute' }, ' ' + e.handle) : null), h('div', { class: 'rhqu' }, e.url)),
         h('span', { class: 'tag' }, STATUS_LABEL[e.status] || e.status),
         h('span', { class: 'ctl row' },
           e.status === 'reviewed' || e.status === 'skipped' ? h('button', { class: 'ib', type: 'button', aria: { label: 'Back in the draw: ' + e.name }, on: { click: () => mark(e.id, 'waiting') } }, icon('back', 'sm b')) : null,
           h('button', { class: 'ib', type: 'button', aria: { label: 'Remove ' + e.name }, on: { click: () => remove(e) } }, icon('trash', 'sm b'))))))
-      : h('p', { class: 'rhwait' }, 'No entries yet. Share ' + share + '.'));
+      : h('p', { class: 'rhwait' }, pending.length ? 'Let entries in once you have checked them.' : 'No entries yet. Share ' + share + '.'));
   }
 
   function apply(v) {
@@ -340,8 +355,9 @@ export function reviewHost() {
       if (offline) { offline = false; off.hidden = true; }
       if (!spinning) apply(v);
     } catch (e) {
-      if (!view) { node.replaceChildren(errorBox(e, refresh)); return; }
+      // the layout stays: the next poll that works fills it in
       offline = true;
+      off.textContent = (view ? 'Queue offline. ' : 'Could not load the queue: ' + ((e && e.message) || 'error') + '. ') + 'Retrying…';
       off.hidden = false;
     }
   }
@@ -351,7 +367,9 @@ export function reviewHost() {
     if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) {
       hidden = !hidden;
       node.classList.toggle('noctl', hidden);
-      toast(hidden ? 'Controls hidden. Press H to show them.' : 'Controls shown');
+      document.body.classList.toggle('streaming', hidden);
+      // no toast while hidden: that is what the stream sees
+      if (!hidden) toast('Controls shown');
     }
   };
   document.addEventListener('keydown', onKey);
