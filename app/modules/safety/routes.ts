@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import type { Db } from '../../db/index.ts';
 import { fail, isUuid, json, noContent, type Ctx, type Router, type SessionUser } from '../../http/router.ts';
 import { limit, limits } from '../../http/security.ts';
-import { endSession, requireStaff, requireUser } from '../../http/session.ts';
+import { can, endSession, requireScope, requireUser } from '../../http/session.ts';
 import { bad, oneOf, page, PERSON_COLS, str, type Person } from '../shared.ts';
 
 const TARGET_KINDS = ['post', 'message', 'dm', 'user', 'gig', 'space'] as const;
@@ -169,7 +169,7 @@ export function register(r: Router): void {
   // ---- The review queue: staff see everything; a Space's owner and moderators see their Space ----
   r.get('/mod/reports', async (ctx) => {
     const me = requireUser(ctx);
-    const staff = me.role === 'staff';
+    const staff = can(me, 'reports.review');
     const { limit: n, before } = page(ctx.query);
     const decided = ctx.query.get('status') === 'decided';
     const slug = ctx.query.get('space');
@@ -183,6 +183,7 @@ export function register(r: Router): void {
     }
     if (staff) {
       where.push(decided ? `r.status NOT IN ('open', 'escalated')` : `r.status IN ('open', 'escalated')`);
+      if (!can(me, 'reports.child_safety')) where.push(`r.reason <> 'child_safety'`);
       if (spaceId) add('r.space_id = $?', spaceId);
     } else {
       const mine = await modSpaces(ctx.db, me.id);
@@ -222,7 +223,7 @@ export function register(r: Router): void {
   r.post('/mod/reports/:id/decide', async (ctx) => {
     const me = requireUser(ctx);
     limit(limits.write, me.id);
-    const staff = me.role === 'staff';
+    const staff = can(me, 'reports.review');
     if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such report');
     const b = await ctx.json<Record<string, unknown>>();
     const action = oneOf(b.action, 'action', ACTIONS);
@@ -230,6 +231,7 @@ export function register(r: Router): void {
     const rep = await ctx.db.one<ReportRow>('SELECT * FROM reports WHERE id = $1', [ctx.params.id]);
     if (!rep) return fail(404, 'not_found', 'No such report');
     const childSafety = rep.reason === 'child_safety';
+    if (childSafety && !can(me, 'reports.child_safety')) return fail(404, 'not_found', 'No such report');
     if (!staff) {
       // Hide the existence of staff-only reports from everyone else.
       if (childSafety || !rep.space_id) return fail(404, 'not_found', 'No such report');
@@ -241,7 +243,7 @@ export function register(r: Router): void {
     let logged: string = action;
     if (action === 'remove') {
       if (rep.target_kind === 'space') return fail(400, 'not_supported', 'Removing a whole Space is not built yet: escalate it to staff');
-      if ((rep.target_kind === 'user' || rep.target_kind === 'dm') && !staff) return fail(403, 'staff_only', 'Only staff can do that');
+      if ((rep.target_kind === 'user' || rep.target_kind === 'dm') && !can(me, 'accounts.suspend')) return fail(403, 'staff_only', 'Only staff can do that');
       if (rep.target_kind === 'user') logged = 'suspend';
     }
     await ctx.db.tx(async (tx) => {
@@ -264,7 +266,7 @@ export function register(r: Router): void {
       await tx.query(
         `UPDATE reports SET status = $1, decided_by = $2, decided_at = now(), decision_note = $3
          WHERE id = $4 OR ($5 AND target_kind = $6 AND target_id = $7 AND status = 'open' AND ($8 OR reason <> 'child_safety'))`,
-        [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id, staff]);
+        [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id, can(me, 'reports.child_safety')]);
       const a = await tx.one<{ id: string }>(
         `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
@@ -308,7 +310,7 @@ export function register(r: Router): void {
 
   // ---- Appeals: staff only, and never the person who took the action ----
   r.get('/mod/appeals', async (ctx) => {
-    const me = requireStaff(ctx);
+    const me = requireScope(ctx, 'reports.review');
     const rows = await ctx.db.query<Record<string, unknown> & { actor_id: string; subject_id: string | null }>(
       `SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, reason, created_at, appealed_at, appeal_note
        FROM mod_actions WHERE appealed_at IS NOT NULL AND appeal_decision IS NULL ORDER BY appealed_at LIMIT 100`);
@@ -320,7 +322,7 @@ export function register(r: Router): void {
   });
 
   r.post('/mod/appeals/:id/decide', async (ctx) => {
-    const me = requireStaff(ctx);
+    const me = requireScope(ctx, 'reports.review');
     limit(limits.write, me.id);
     if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such appeal');
     const b = await ctx.json<Record<string, unknown>>();
@@ -420,8 +422,9 @@ export function register(r: Router): void {
     const data = {
       exported_at: now(),
       about: 'Everything PopCart Community holds about you. Direct messages are the sealed envelopes: only your device can open them.',
-      profile: (await q(`SELECT id, handle, first_name, trade, bio, home_area, avatar_media_id, cover_media_id, role, status, terms_version,
+      profile: (await q(`SELECT id, handle, first_name, trade, bio, home_area, avatar_media_id, cover_media_id, status, terms_version,
         terms_accepted_at, improve_usage, improve_surveys, dm_public_key, created_at FROM users WHERE id = $1`))[0] ?? null,
+      staff_role: (await q(`SELECT role, ends_at, granted_at FROM staff_members WHERE user_id = $1`))[0] ?? null,
       posts: await q(`SELECT id, body, reply_to, space_id, media_ids, reach, area_code, lang, created_at, deleted_at FROM posts WHERE author_id = $1 ORDER BY created_at`),
       salamats_given: await q(`SELECT s.id, s.post_id, s.gig_id, u.handle AS to_handle, s.tags, s.week, s.created_at
         FROM salamats s JOIN users u ON u.id = s.receiver_id WHERE s.giver_id = $1 ORDER BY s.created_at`),

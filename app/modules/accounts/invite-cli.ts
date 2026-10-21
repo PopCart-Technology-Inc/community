@@ -1,5 +1,6 @@
 // npm run invite -- --email person@example.org [--staff] [--days 7] [--note "first staff account"]
-// Emails a one-time invite to that address. Run it on the server to create the first staff account.
+// Emails a one-time invite to that address. Run it on the server to create the first staff account:
+// --staff makes the person an Overseer when they join (decision 0009).
 // Joining then needs that address and the code sent to it (decision 0008); the address is not stored.
 import { loadConfig } from '../../config.ts';
 import { connectPg } from '../../db/index.ts';

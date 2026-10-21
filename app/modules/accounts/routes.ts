@@ -10,7 +10,8 @@ import type { Config } from '../../config.ts';
 import type { Db } from '../../db/index.ts';
 import { fail, json, noContent, type Ctx, type Router } from '../../http/router.ts';
 import { limit, limits } from '../../http/security.ts';
-import { endSession, requireUser, startSession } from '../../http/session.ts';
+import { endSession, requireScope, requireUser, STAFF_JOIN, startSession } from '../../http/session.ts';
+import { OVERSEER, scopesOf } from '../../http/scopes.ts';
 import { inviteEmail, joinCodeEmail } from '../../mail/messages.ts';
 import { sendMail } from '../../mail/send.ts';
 import { bool, oneOf, str } from '../shared.ts';
@@ -44,8 +45,20 @@ async function liveInvite(ctx: Ctx, ticket: unknown) {
   return inv ?? fail(404, 'invite_invalid', 'This join step expired. Start again from the join page.');
 }
 
-const MY_COLS = `id, handle, first_name, trade, bio, home_area, avatar_media_id, cover_media_id, role, status,
-  terms_version, improve_usage, improve_surveys, dm_public_key, created_at`;
+const MY_COLS = `u.id, u.handle, u.first_name, u.trade, u.bio, u.home_area, u.avatar_media_id, u.cover_media_id, u.status,
+  u.terms_version, u.improve_usage, u.improve_surveys, u.dm_public_key, u.created_at`;
+
+/**
+ * The signed-in person's own record. `staff` is their role, its scopes and when it ends (null for
+ * members); `role` ('staff' or 'member') is kept for clients written before 0.8.0.
+ */
+export async function myself(db: Db, id: string) {
+  const u = await db.one<Record<string, unknown> & { staff_role: string | null; staff_scopes: string[] | null; staff_ends_at: string | null }>(
+    `SELECT ${MY_COLS}, sm.role AS staff_role, sr.scopes AS staff_scopes, sm.ends_at AS staff_ends_at FROM users u ${STAFF_JOIN} WHERE u.id = $1`, [id]);
+  if (!u) return null;
+  const { staff_role, staff_scopes, staff_ends_at, ...rest } = u;
+  return { ...rest, role: staff_role ? 'staff' : 'member', staff: staff_role ? { role: staff_role, scopes: scopesOf(staff_role, staff_scopes), ends_at: staff_ends_at } : null };
+}
 
 export function register(r: Router): void {
   r.get('/terms', () => json({ version: TERMS_VERSION }));
@@ -148,16 +161,18 @@ export function register(r: Router): void {
       if (!used) fail(404, 'invite_invalid', 'This invite has been used or has expired');
       if (await t.one('SELECT 1 FROM users WHERE handle_key = $1', [handleKey(p.handle)])) fail(409, 'handle_taken', 'That username is taken');
       const u = await t.one<{ id: string }>(
-        `INSERT INTO users (handle, first_name, trade, home_area, role, terms_version, terms_accepted_at, improve_usage, improve_surveys)
-         VALUES ($1, $2, $3, $4, $5, $6, now(), $7, $8) RETURNING id`,
-        [p.handle, p.first_name, p.trade, p.home_area, p.role, TERMS_VERSION, p.improve_usage, p.improve_surveys]);
+        `INSERT INTO users (handle, first_name, trade, home_area, terms_version, terms_accepted_at, improve_usage, improve_surveys)
+         VALUES ($1, $2, $3, $4, $5, now(), $6, $7) RETURNING id`,
+        [p.handle, p.first_name, p.trade, p.home_area, TERMS_VERSION, p.improve_usage, p.improve_surveys]);
+      // A staff invite comes only from the server's command line (npm run invite -- --staff): it makes an Overseer.
+      if (p.role === 'staff') await t.query('INSERT INTO staff_members (user_id, role) VALUES ($1, $2)', [u!.id, OVERSEER]);
       await t.query('UPDATE invites SET used_by = $1 WHERE code_hash = $2', [u!.id, Buffer.from(p.code_hash, 'hex')]);
       await t.query('INSERT INTO passkeys (id, user_id, public_key, counter, transports) VALUES ($1, $2, $3, $4, $5)',
         [cred.id, u!.id, Buffer.from(cred.publicKey), cred.counter, cred.transports || []]);
       return u!;
     });
     const cookie = await startSession(ctx.db, ctx.config, user.id);
-    return json({ user: await ctx.db.one(`SELECT ${MY_COLS} FROM users WHERE id = $1`, [user.id]) }, 201, { 'Set-Cookie': cookie });
+    return json({ user: await myself(ctx.db, user.id) }, 201, { 'Set-Cookie': cookie });
   });
 
   r.post('/accounts/login/options', async (ctx) => {
@@ -185,13 +200,12 @@ export function register(r: Router): void {
     if (!v.verified) return fail(401, 'passkey', 'The passkey could not be checked');
     await ctx.db.query('UPDATE passkeys SET counter = $1, last_used_at = now() WHERE id = $2', [v.authenticationInfo.newCounter, pk.id]);
     const cookie = await startSession(ctx.db, ctx.config, pk.user_id);
-    return json({ user: await ctx.db.one(`SELECT ${MY_COLS} FROM users WHERE id = $1`, [pk.user_id]) }, 200, { 'Set-Cookie': cookie });
+    return json({ user: await myself(ctx.db, pk.user_id) }, 200, { 'Set-Cookie': cookie });
   });
 
   // Staff invite people by email while joining is invite-only.
   r.post('/accounts/invites', async (ctx) => {
-    const me = requireUser(ctx);
-    if (me.role !== 'staff') fail(403, 'staff_only', 'Only staff can invite while joining is invite-only');
+    const me = requireScope(ctx, 'invites.send');
     limit(limits.write, me.id);
     const b = await ctx.json<Record<string, unknown>>();
     const email = emailOf(b.email);
@@ -203,7 +217,7 @@ export function register(r: Router): void {
 
   r.get('/me', async (ctx) => {
     if (!ctx.user) return json({ user: null });
-    return json({ user: await ctx.db.one(`SELECT ${MY_COLS} FROM users WHERE id = $1`, [ctx.user.id]) });
+    return json({ user: await myself(ctx.db, ctx.user.id) });
   });
 
   r.patch('/me', async (ctx) => {
@@ -236,7 +250,7 @@ export function register(r: Router): void {
       set('dm_public_key', k === null ? null : JSON.stringify({ kty: 'EC', crv: 'P-256', x: k.x, y: k.y }));
     }
     if (sets.length) { vals.push(me.id); await ctx.db.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals); }
-    return json({ user: await ctx.db.one(`SELECT ${MY_COLS} FROM users WHERE id = $1`, [me.id]) });
+    return json({ user: await myself(ctx.db, me.id) });
   });
 }
 

@@ -4,6 +4,20 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-21
+
+Staff have roles, and a role is a list of what it may do.
+
+### Added
+- **Staff roles and scopes** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). The server now checks scopes such as `reports.review`, `invites.send` or `ops.health`, never the word "staff". The first roles are **Moderator**, **Support** and **Developer**; the **Overseer** role has every scope. Roles other than Overseer end on a date unless renewed.
+- `GET /me` says which role you hold and its scopes (`user.staff`).
+- `npm run staff` gives, renews and takes roles from the server's command line, and never removes the last Overseer.
+
+### Changed
+- Every staff account becomes an Overseer, so nobody loses anything. `npm run invite -- --staff` now makes an Overseer.
+- Settings shows "Moderator queue" and "Invite by email" only to people whose role has those scopes.
+- Child-safety reports need their own scope, `reports.child_safety`. Moderator has it.
+
 ## [0.7.0] - 2026-10-21
 
 Your profile is at the shortest address: community.popcartph.com/your.username.
@@ -127,7 +141,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.8.0
 [0.7.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.7.0
 [0.6.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.1
 [0.6.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.0

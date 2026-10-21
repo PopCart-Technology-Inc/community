@@ -5,7 +5,7 @@ import { del, get, patch, post } from '../lib/api.js';
 import { asOf, count, profilePath, TRADES, tradeLabel } from '../lib/format.js';
 import { uploadPhoto } from '../lib/media.js';
 import { illustration } from '../lib/brand.js';
-import { nav, state } from '../core.js';
+import { can, nav, state } from '../core.js';
 import { appBar, avatar, btn, buttonTabs, empty, errorBox, fail, field, followBtn, iconLink, later, pagedList, postView, tick, toast, toggle } from '../ui.js';
 import { placeSearch } from './join.js';
 
@@ -141,8 +141,8 @@ export function settings() {
     h('div', { class: 'group' }, row('lock', 'Your data', 'What we hold, download, delete', '/me/data'), row('eye', 'Who opened my records', '', '/me/records'),
       row('shield', 'What moderators did', 'Removals and warnings, with appeals', '/me/actions'), row('star', 'Proof', 'Signed credentials you show', '/me/proof'), row('link', 'Your other accounts', '', '/me/socials')),
     h('h2', { class: 'sect' }, 'Community'),
-    h('div', { class: 'group' }, row('scale', 'Transparency report', '', '/transparency'), me.role === 'staff' ? row('flag', 'Moderator queue', 'Staff', '/mod') : null,
-      me.role === 'staff' ? row('mail', 'Invite by email', 'Staff', '/me/invite') : null),
+    h('div', { class: 'group' }, row('scale', 'Transparency report', '', '/transparency'), can('reports.review') ? row('flag', 'Moderator queue', 'Staff', '/mod') : null,
+      can('invites.send') ? row('mail', 'Invite by email', 'Staff', '/me/invite') : null),
     h('div', { class: 'pad mb' }, btn('Log out', { block: true, kind: 'w', icon: 'logout', on: async () => { try { await post('/accounts/logout'); } catch { /* signed out anyway */ } state.me = null; window.dispatchEvent(new Event('cm:auth')); nav('/', { replace: true }); } })));
   return { node, title: 'Settings', tab: 'me' };
 }
@@ -153,7 +153,7 @@ export function settings() {
 // stored: this screen keeps no list of who was invited.
 export function invite() {
   const me = state.me;
-  if (!me || me.role !== 'staff') return { node: h('div', null, appBar({ title: 'Invite by email', back: '/me/settings' }), errorBox({ status: me ? 403 : 401 })), title: 'Invite by email', tab: 'me' };
+  if (!me || !can('invites.send')) return { node: h('div', null, appBar({ title: 'Invite by email', back: '/me/settings' }), errorBox({ status: me ? 403 : 401 })), title: 'Invite by email', tab: 'me' };
   const email = h('input', { type: 'email', autocomplete: 'off', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', maxlength: '254', required: true });
   const noteIn = h('input', { maxlength: '80', placeholder: 'Only staff see this' });
   const err = h('p', { class: 'err', role: 'alert' });
