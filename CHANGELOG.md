@@ -11,6 +11,7 @@ Your profile is at the shortest address: community.popcartph.com/your.username.
 ### Changed
 - **Profiles live at `/<username>`** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). Every link in the app uses the new address.
 - `/u/<username>` links already shared keep working: the server answers them with a permanent redirect to `/<username>`, and the app does the same for links opened inside it.
+- A username typed with capitals (`/Jun.Rides`) finds the profile.
 
 ## [0.6.1] - 2026-10-21
 

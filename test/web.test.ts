@@ -147,10 +147,16 @@ test('old profile links: /u/<username> is a permanent redirect to /<username>, n
   const r = await fetch(app.base + '/u/Jun.Rides?from=share', { redirect: 'manual' });
   assert.equal(r.status, 301);
   assert.equal(r.headers.get('location'), '/jun.rides?from=share');
-  for (const p of ['/u//evil.example', '/u/%2F%2Fevil.example', '/u/\evil.example', '/u/a/b']) {
+  // Nothing that isn't a plain username is redirected, so the Location can never leave the site.
+  for (const p of ['/u//evil.example', '/u/%2F%2Fevil.example', '/u/%5Cevil.example','/u/https:evil.example', '/u/a' + '@' + 'evil.example','/u/@evil', '/u/a/b', '/u/' + 'x'.repeat(31)]) {
     const x = await fetch(app.base + p, { redirect: 'manual' });
-    if (x.status === 301) assert.match(x.headers.get('location') || '', /^\/[a-z0-9._]+$/, p);
+    assert.notEqual(x.status, 301, p);
+    assert.equal(x.headers.get('location'), null, p);
   }
+  const q = await fetch(app.base + '/u/jun?//evil.example', { redirect: 'manual' });
+  assert.match(q.headers.get('location') || '', /^\/jun\?/, 'a query stays on this site');
+  const someone = await app.person();
+  assert.equal((await app.call('GET', '/people/' + someone.handle.toUpperCase())).status, 200, 'a username typed in capitals still finds the person');
   const prof = await fetch(app.base + '/jun.rides');
   assert.equal(prof.status, 200, 'a profile path serves the app');
   assert.match(prof.headers.get('content-type') || '', /text\/html/);

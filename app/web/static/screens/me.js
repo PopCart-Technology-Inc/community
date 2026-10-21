@@ -19,7 +19,7 @@ export function meRedirect() {
 
 /** Profiles moved from /u/<username> to /<username> in 0.7.0; old links still arrive here. */
 export function oldProfile({ params }) {
-  nav(profilePath(params.handle) + location.search, { replace: true });
+  nav(profilePath(String(params.handle).toLowerCase()) + location.search, { replace: true });
   return { node: h('div'), title: '@' + params.handle };
 }
 
