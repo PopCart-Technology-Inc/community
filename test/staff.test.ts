@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ALL_SCOPES, OVERSEER, ROLE_SCOPES, scopesOf } from '../app/http/scopes.ts';
 import { grantRole, listStaff, renewRole, revokeRole } from '../app/modules/staff/members.ts';
-import { inviteByEmail } from '../app/modules/accounts/routes.ts';
+import { emailHash, inviteByEmail } from '../app/modules/accounts/routes.ts';
 import { startApp, type TestApp } from './helpers.ts';
 
 let app: TestApp;
@@ -159,4 +159,49 @@ test('a member invite never renews an open staff invite; an expired one is clear
   await app.db.query(`UPDATE invites SET expires_at = now() - interval '1 minute' WHERE role = 'staff' AND used_at IS NULL`);
   assert.equal((await support.call('POST', '/accounts/invites', { email: 'held.staff@example.com' })).status, 201);
   assert.equal((await app.db.query(`SELECT 1 FROM invites WHERE role = 'staff' AND used_at IS NULL`)).length, before.length - 1, 'the expired staff invite is gone');
+});
+
+test('child safety follows the post: a second report on it gives a role without the scope nothing (third review of #24)', async () => {
+  await app.db.query(`INSERT INTO staff_roles (name, scopes) VALUES ('Appeals', '{reports.review}') ON CONFLICT DO NOTHING`);
+  const reviewer = await app.person({ staffRole: 'Appeals' }), reviewer2 = await app.person({ staffRole: 'Appeals' }), mod = await app.person({ staffRole: 'Moderator' });
+  const author = await app.person(), r1 = await app.person(), r2 = await app.person();
+  const post = await author.call('POST', '/posts', { body: 'Hidden for child safety (test fixture)' });
+  const id = post.body.post.id;
+  const cs = await r1.call('POST', '/reports', { target_kind: 'post', target_id: id, reason: 'child_safety' });
+  // The post is hidden now, so a second report is one made just before (inserted the way POST /reports does).
+  const other = { body: { report: (await app.db.one<{ id: string }>(
+    `INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, 'post', $2, 'harassment') RETURNING id`, [r2.id, id]))! } };
+  // A: the sibling report, and the hidden post in it, are not listed; B: nor can it be decided.
+  const listed = (await reviewer.call('GET', '/mod/reports')).body.reports;
+  assert.ok(!listed.some((x: any) => x.target_id === id), 'no report about that post is listed');
+  assert.equal((await reviewer.call('POST', `/mod/reports/${other.body.report.id}/decide`, { action: 'remove', note: 'Trying the sibling' })).status, 404);
+  // C: a Moderator removes it through the sibling; the appeal stays with the scope, and can't bring the post back while the child-safety report waits.
+  assert.equal((await mod.call('POST', `/mod/reports/${other.body.report.id}/decide`, { action: 'remove', note: 'Removed (test fixture)' })).status, 204);
+  const act = (await author.call('GET', '/me/mod-actions')).body.actions.find((x: any) => x.target_id === id);
+  assert.equal((await author.call('POST', `/me/mod-actions/${act.id}/appeal`, { note: 'Please look again (test fixture)' })).status, 204);
+  assert.ok(!(await reviewer.call('GET', '/mod/appeals')).body.appeals.some((x: any) => x.id === act.id));
+  assert.equal((await reviewer2.call('POST', `/mod/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Trying anyway' })).status, 404);
+  await app.db.query(`UPDATE reports SET status = 'open' WHERE id = $1`, [cs.body.report.id]);
+  const mod2 = await app.person({ staffRole: 'Moderator' });
+  const o = await mod2.call('POST', `/mod/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Reviewed again' });
+  assert.equal(o.status, 409);
+  assert.equal(o.body.error.code, 'child_safety_open');
+  assert.ok((await app.db.one<{ deleted_at: string | null }>('SELECT deleted_at FROM posts WHERE id = $1', [id]))!.deleted_at, 'still hidden');
+});
+
+test('a suspended Overseer can always delete their account (third review of #24)', async () => {
+  await app.db.query('DELETE FROM staff_members');
+  const a = await app.person({ role: 'staff' });
+  await app.db.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [a.id]);
+  assert.equal((await a.call('DELETE', '/me', { confirm: 'DELETE' })).status, 204, 'data rights never stop at a suspension');
+});
+
+test('two open invites for one address: a member invite still never renews the staff one (third review of #24)', async () => {
+  const support = await app.person({ staffRole: 'Support' });
+  await inviteByEmail(app.db, app.config, { email: 'two.rows@example.com' });
+  await app.db.query(`INSERT INTO invites (code_hash, email_hash, role, expires_at) VALUES ($1, $2, 'staff', now() + interval '7 days')`,
+    [Buffer.alloc(32, 7), emailHash(app.config, 'two.rows@example.com')]);
+  const m = await support.call('POST', '/accounts/invites', { email: 'two.rows@example.com' });
+  assert.equal(m.status, 409);
+  assert.equal(m.body.error.code, 'staff_invite_open');
 });

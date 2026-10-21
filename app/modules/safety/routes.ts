@@ -24,6 +24,12 @@ const APPEALABLE = new Set(['warn', 'remove', 'suspend']);
 
 const now = (): string => new Date().toISOString();
 
+/** SQL: the target of the row aliased `x` has a child-safety report (any status). */
+const CS_TARGET = (x: string) => `EXISTS (SELECT 1 FROM reports cs WHERE cs.target_kind = ${x}.target_kind AND cs.target_id = ${x}.target_id AND cs.reason = 'child_safety')`;
+/** Has anyone reported this target for child safety? Then only reports.child_safety may see or decide anything about it. */
+const csTarget = async (db: Db, kind: string, id: string): Promise<boolean> =>
+  !!(await db.one(`SELECT 1 FROM reports WHERE target_kind = $1 AND target_id = $2 AND reason = 'child_safety'`, [kind, id]));
+
 /** Signed in, active or suspended. Data rights (see, export, delete, appeal) never stop at a suspension. */
 function signedIn(ctx: Ctx): SessionUser {
   if (!ctx.user) return fail(401, 'sign_in', 'Sign in first');
@@ -185,14 +191,14 @@ export function register(r: Router): void {
     }
     if (staff) {
       where.push(decided ? `r.status NOT IN ('open', 'escalated')` : `r.status IN ('open', 'escalated')`);
-      if (!can(me, 'reports.child_safety')) where.push(`r.reason <> 'child_safety'`);
+      if (!can(me, 'reports.child_safety')) where.push(`NOT ${CS_TARGET('r')}`);
       if (spaceId) add('r.space_id = $?', spaceId);
     } else {
       const mine = await modSpaces(ctx.db, me.id);
       if (spaceId && !mine.has(spaceId)) return fail(403, 'not_moderator', 'You do not moderate this Space');
       if (!mine.size) return fail(403, 'not_moderator', 'Only staff and Space moderators can see reports');
-      // child_safety goes to staff only, whatever Space it came from.
-      where.push(`r.reason <> 'child_safety'`);
+      // child_safety goes to staff only, whatever Space it came from, with every other report on the same target.
+      where.push(`NOT ${CS_TARGET('r')}`);
       where.push(decided ? `r.status <> 'open'` : `r.status = 'open'`);
       if (spaceId) add('r.space_id = $?', spaceId);
       else add('r.space_id = ANY ($?::uuid[])', [...mine]);
@@ -233,10 +239,11 @@ export function register(r: Router): void {
     const rep = await ctx.db.one<ReportRow>('SELECT * FROM reports WHERE id = $1', [ctx.params.id]);
     if (!rep) return fail(404, 'not_found', 'No such report');
     const childSafety = rep.reason === 'child_safety';
-    if (childSafety && !can(me, 'reports.child_safety')) return fail(404, 'not_found', 'No such report');
+    const csAny = childSafety || await csTarget(ctx.db, rep.target_kind, rep.target_id);
+    if (csAny && !can(me, 'reports.child_safety')) return fail(404, 'not_found', 'No such report');
     if (!staff) {
       // Hide the existence of staff-only reports from everyone else.
-      if (childSafety || !rep.space_id) return fail(404, 'not_found', 'No such report');
+      if (csAny || !rep.space_id) return fail(404, 'not_found', 'No such report');
       if (!(await modSpaces(ctx.db, me.id)).has(rep.space_id)) return fail(403, 'not_moderator', 'You do not moderate this Space');
     }
     if (!(rep.status === 'open' || (rep.status === 'escalated' && staff))) return fail(409, 'decided', 'This report has already been decided');
@@ -321,7 +328,7 @@ export function register(r: Router): void {
     const rows = await ctx.db.query<Record<string, unknown> & { actor_id: string; subject_id: string | null }>(
       `SELECT a.id, a.actor_id, a.subject_id, a.action, a.target_kind, a.target_id, a.report_id, a.reason, a.created_at, a.appealed_at, a.appeal_note
        FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
-       WHERE a.appealed_at IS NOT NULL AND a.appeal_decision IS NULL AND (r.reason IS DISTINCT FROM 'child_safety' OR $1)
+       WHERE a.appealed_at IS NOT NULL AND a.appeal_decision IS NULL AND ($1 OR NOT ${CS_TARGET('a')})
        ORDER BY a.appealed_at LIMIT 100`, [can(me, 'reports.child_safety')]);
     const appeals = [];
     for (const { actor_id, subject_id, ...a } of rows) {
@@ -340,8 +347,7 @@ export function register(r: Router): void {
     const a = await ctx.db.one<{ id: string; actor_id: string; subject_id: string | null; action: string; target_kind: string; target_id: string; report_id: string | null; appealed_at: string | null; appeal_decision: string | null }>(
       'SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, appealed_at, appeal_decision FROM mod_actions WHERE id = $1', [ctx.params.id]);
     if (!a || !a.appealed_at) return fail(404, 'not_found', 'No such appeal');
-    if (a.report_id && !can(me, 'reports.child_safety')
-      && await ctx.db.one(`SELECT 1 FROM reports WHERE id = $1 AND reason = 'child_safety'`, [a.report_id])) return fail(404, 'not_found', 'No such appeal');
+    if (!can(me, 'reports.child_safety') && await csTarget(ctx.db, a.target_kind, a.target_id)) return fail(404, 'not_found', 'No such appeal');
     if (a.appeal_decision) return fail(409, 'decided', 'This appeal has already been decided');
     if (a.actor_id === me.id) return fail(403, 'same_moderator', 'A different staff member must decide this appeal');
     if (a.subject_id === me.id) return fail(403, 'own_content', 'You cannot decide your own appeal');
@@ -351,6 +357,10 @@ export function register(r: Router): void {
          WHERE id = $1 AND appeal_decision IS NULL RETURNING 1`, [a.id, decision, note, me.id]);
       if (!done) fail(409, 'decided', 'This appeal has already been decided');
       if (decision === 'overturned') {
+        if ((a.target_kind === 'post' || a.target_kind === 'message') && await tx.one(
+          `SELECT 1 FROM reports WHERE target_kind = $1 AND target_id = $2 AND reason = 'child_safety' AND status IN ('open', 'escalated')`, [a.target_kind, a.target_id])) {
+          fail(409, 'child_safety_open', 'A child-safety report on this is still open: it stays hidden until that is decided');
+        }
         if (a.action === 'remove' && a.target_kind === 'post') await tx.query('UPDATE posts SET deleted_at = NULL WHERE id = $1', [a.target_id]);
         if (a.action === 'remove' && a.target_kind === 'message') await tx.query('UPDATE messages SET deleted_at = NULL WHERE id = $1', [a.target_id]);
         if (a.action === 'remove' && a.target_kind === 'gig') await tx.query(`UPDATE gigs SET status = 'open' WHERE id = $1 AND status = 'closed'`, [a.target_id]);
@@ -486,7 +496,8 @@ export function register(r: Router): void {
     if (b.confirm !== 'DELETE') return fail(400, 'confirm', 'Type DELETE to confirm');
     const tombstone = `deleted.${randomHex(8)}`;
     const files = await ctx.db.tx(async (tx) => {
-      if (await tx.one('SELECT 1 FROM staff_members WHERE user_id = $1 AND role = $2', [me.id, OVERSEER]) && (await overseerCount(tx, { except: me.id, lock: true })) < 1) {
+      if (await tx.one(`SELECT 1 FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.user_id = $1 AND sm.role = $2 AND u.status = 'active'`, [me.id, OVERSEER])
+        && (await overseerCount(tx, { except: me.id, lock: true })) < 1) {
         fail(409, 'last_overseer', 'You are the last Overseer. Make someone else an Overseer first, then delete your account.');
       }
       const media = await tx.query<{ id: string }>('DELETE FROM media WHERE owner_id = $1 RETURNING id', [me.id]);
