@@ -487,6 +487,7 @@ export function register(r: Router): void {
       await tx.query('DELETE FROM notifications WHERE user_id = $1', [me.id]);
       await tx.query('DELETE FROM sessions WHERE user_id = $1', [me.id]);
       await tx.query('DELETE FROM passkeys WHERE user_id = $1', [me.id]);
+      await tx.query('DELETE FROM staff_members WHERE user_id = $1', [me.id]);
       await tx.query(
         `UPDATE users SET status = 'deleted', handle = $2, first_name = 'Deleted', bio = '', home_area = NULL, avatar_media_id = NULL,
            cover_media_id = NULL, dm_public_key = NULL, improve_usage = false, improve_surveys = false WHERE id = $1`, [me.id, tombstone]);

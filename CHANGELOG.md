@@ -11,12 +11,15 @@ Staff have roles, and a role is a list of what it may do.
 ### Added
 - **Staff roles and scopes** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). The server now checks scopes such as `reports.review`, `invites.send` or `ops.health`, never the word "staff". The first roles are **Moderator**, **Support** and **Developer**; the **Overseer** role has every scope. Roles other than Overseer end on a date unless renewed.
 - `GET /me` says which role you hold and its scopes (`user.staff`).
-- `npm run staff` gives, renews and takes roles from the server's command line, and never removes the last Overseer.
+- `npm run staff` gives, renews and takes roles from the server's command line, and never removes the last Overseer who can still act (a deleted or suspended account doesn't count).
 
 ### Changed
-- Every staff account becomes an Overseer, so nobody loses anything. `npm run invite -- --staff` now makes an Overseer.
+- Every staff account becomes an Overseer, so nobody loses anything (deleted accounts get no role). Deleting your account ends any staff role you hold. `npm run invite -- --staff` now makes an Overseer.
 - Settings shows "Moderator queue" and "Invite by email" only to people whose role has those scopes.
 - Child-safety reports need their own scope, `reports.child_safety`. Moderator has it.
+
+### Upgrading
+- This version removes the old staff flag from the database. Back up first, and don't run 0.7.0 against the database afterwards: it still reads that column.
 
 ## [0.7.0] - 2026-10-21
 

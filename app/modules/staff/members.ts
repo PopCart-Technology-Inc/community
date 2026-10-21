@@ -25,7 +25,9 @@ async function userId(db: Db, handle: string): Promise<string> {
   return u?.id ?? fail(404, 'not_found', 'No one has that username');
 }
 
-const overseerCount = async (db: Db): Promise<number> => (await db.one<{ n: number }>(`SELECT count(*)::int AS n FROM staff_members WHERE role = $1`, [OVERSEER]))!.n;
+/** Overseers who can still act: a deleted or suspended account doesn't count. */
+const overseerCount = async (db: Db): Promise<number> => (await db.one<{ n: number }>(
+  `SELECT count(*)::int AS n FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.role = $1 AND u.status = 'active'`, [OVERSEER]))!.n;
 
 /** Give someone a role (replacing any role they hold). Non-Overseer roles end after `days`. */
 export async function grantRole(db: Db, opts: { handle: string; role: string; days?: number; by?: string | null }): Promise<{ ends_at: string | null }> {
@@ -47,9 +49,11 @@ export async function grantRole(db: Db, opts: { handle: string; role: string; da
 /** Push a role's end date out by `days` from today (or from its current end, if later). */
 export async function renewRole(db: Db, opts: { handle: string; days?: number }): Promise<{ ends_at: string }> {
   const id = await userId(db, opts.handle);
+  const days = opts.days ?? DEFAULT_DAYS;
+  if (!Number.isInteger(days) || days < 1 || days > 366) fail(400, 'invalid', 'days: must be a whole number from 1 to 366');
   const row = await db.one<{ ends_at: string }>(
     `UPDATE staff_members SET ends_at = greatest(ends_at, now()) + make_interval(days => $2) WHERE user_id = $1 AND ends_at IS NOT NULL RETURNING ends_at`,
-    [id, opts.days ?? DEFAULT_DAYS]);
+    [id, days]);
   return row ?? fail(404, 'not_found', 'That person holds no role with an end date');
 }
 

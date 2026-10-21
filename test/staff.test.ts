@@ -82,8 +82,25 @@ test('granting, renewing and revoking roles; there is always an Overseer', async
   assert.equal((await revokeRole(app.db, a.handle)).role, OVERSEER, 'with a second Overseer, one can go');
 });
 
+test('a deleted or suspended Overseer does not count as the one left; deleting an account ends its role', async () => {
+  await app.db.query('DELETE FROM staff_members');
+  const a = await app.person(), b = await app.person({ role: 'staff' });
+  await grantRole(app.db, { handle: a.handle, role: OVERSEER });
+  await app.db.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [b.id]);
+  await assert.rejects(revokeRole(app.db, a.handle), /at least one Overseer/, 'a suspended Overseer is not one who can act');
+  await app.db.query(`UPDATE users SET status = 'active' WHERE id = $1`, [b.id]);
+  assert.equal((await b.call('DELETE', '/me', { confirm: 'DELETE' })).status, 204);
+  assert.equal(await app.db.one('SELECT 1 FROM staff_members WHERE user_id = $1', [b.id]), null, 'the deleted account holds no role');
+  await assert.rejects(revokeRole(app.db, a.handle), /at least one Overseer/);
+});
+
+test('renewing needs a whole number of days from 1 to 366', async () => {
+  const s = await app.person({ staffRole: 'Support' });
+  for (const days of [-100, 0, 1.5, Number.NaN, 400]) await assert.rejects(renewRole(app.db, { handle: s.handle, days }), /days: must be/, String(days));
+});
+
 test('migration 0009 made every old staff account an Overseer and dropped the flag', () => {
   const sql = readFileSync(join(import.meta.dirname, '..', 'app', 'db', 'migrations', '0009_staff_roles.sql'), 'utf8');
-  assert.match(sql, /INSERT INTO staff_members \(user_id, role\) SELECT id, 'Overseer' FROM users WHERE role = 'staff'/);
+  assert.match(sql, /INSERT INTO staff_members \(user_id, role\) SELECT id, 'Overseer' FROM users WHERE role = 'staff' AND status <> 'deleted'/);
   assert.match(sql, /ALTER TABLE users DROP COLUMN role/);
 });
