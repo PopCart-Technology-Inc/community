@@ -22,11 +22,16 @@ test('the shape rule', () => {
 });
 
 test('reserved names and their look-alikes are refused; ordinary names are not', async () => {
-  for (const r of ['admin', 'adm1n', 'a.d.m.i.n', 'ADMIN'.toLowerCase(), 'overseer', '0verseer', 'ov3rs33r', 'staff', 'mod', 'moderator', 'support',
+  for (const r of ['admin', 'adm1n', 'a.d.m.i.n', 'adrnin', 'admln', 'overseer', '0verseer', 'ov3rs33r', 'staff', 'mod', 'moderator', 'support',
     'security', 'popcart', 'pop_cart', 'community', 'sw.js', 'manifest.webmanifest', 'robots.txt', 'api', 'static', 'media', 'brand', 'me', 'transparency']) {
     assert.ok(isReserved(r), r);
   }
-  for (const ok of ['maria.santos', 'admiral', 'adminah', 'staffing.pro', 'jun.rides', 'moderna']) assert.equal(await handleProblem(ok), null, ok);
+  // A staff word as any part of a name, the brand anywhere, and the shape of a deleted account's name.
+  for (const r of ['admin.popcart', 'popcart_official', 'official.popcart', 'staff.popcart', 'support.team', 'overseer1', 'popcartphl',
+    'theoverseer', 'kim.moderator', 'deleted.abcdef12', 'jun_admin', 'mod.jun', 's3curity.ph']) {
+    assert.ok(isReserved(r), r);
+  }
+  for (const ok of ['maria.santos', 'admiral', 'adminah', 'staffing.pro', 'jun.rides', 'moderna', 'lia.cruz', 'modesto', 'supporter.of.jun']) assert.equal(await handleProblem(ok), null, ok);
   assert.equal(await handleProblem('adm1n'), 'reserved');
   assert.equal(await handleProblem('a..b'), 'shape');
 });
@@ -45,13 +50,13 @@ test('the client rule is the server rule', async () => {
 });
 
 test('the database look-alike key matches handleKey()', async () => {
-  for (const h of ['maria.santos', 'm4ria_s4nt0s', 'r1d3r.7_5', 'plain']) {
-    const row = await app.db.one<{ k: string }>(`SELECT translate($1, '013457._', 'oieast') AS k`, [h]);
+  for (const h of ['maria.santos', 'm4ria_s4nt0s', 'r1d3r.7_5', 'plain', 'adrnin', 'vvelder.2689', 'lola_l']) {
+    const row = await app.db.one<{ k: string }>(`SELECT replace(replace(translate($1, '0123456789l._', 'oizeasgtbgi'), 'rn', 'm'), 'vv', 'w') AS k`, [h]);
     assert.equal(row!.k, handleKey(h), h);
   }
   const p = await app.person({ handle: 'kim.welds' });
   const row = await app.db.one<{ handle_key: string }>('SELECT handle_key FROM users WHERE id = $1', [p.id]);
-  assert.equal(row!.handle_key, 'kimwelds');
+  assert.equal(row!.handle_key, 'kimweids');
 });
 
 const codeIn = (to: string) => /\b(\d{6})\b/.exec([...devOutbox].reverse().find((m) => m.to === to)?.subject || '')?.[1] || '';
@@ -73,7 +78,7 @@ test('joining: reserved names and look-alikes of existing people are refused wit
   assert.equal((await app.call('POST', '/accounts/register/options', { ...good, handle: 'New.Welder' })).status, 200, 'capitals are lowered, not refused');
 });
 
-test('a reserved name looks exactly like a name nobody has', async () => {
+test('a reserved name that nobody holds looks exactly like a name nobody has (older accounts keep theirs: npm run handles:check lists them)', async () => {
   const a = await app.call('GET', '/people/admin');
   const b = await app.call('GET', '/people/nobody.has.this');
   assert.equal(a.status, 404);

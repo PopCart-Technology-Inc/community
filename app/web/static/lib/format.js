@@ -46,7 +46,6 @@ export function count(n) {
 
 export const plural = (n, one, many) => (Number(n) === 1 ? one : many || one + 's');
 
-/** Username rule shared with the server: 3-30 of a-z, 0-9, dot, underscore. */
 /** Same rule as the server (app/modules/accounts/handles.ts); the server also checks reserved names. */
 export const HANDLE_RE = /^(?=.{3,30}$)(?!.*\.\.)[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$/;
 

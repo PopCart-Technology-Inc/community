@@ -9,8 +9,8 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 Nobody can take a staff word or one of the app's own paths as a username.
 
 ### Fixed
-- **Reserved usernames** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). Staff words (`admin`, `overseer`, `support`…), the first part of every screen path and the server's own files (`sw.js`, `api`…) can no longer be taken. Joining with one shows "That username is reserved". Their profile page looks exactly like a name nobody has.
-- **Look-alike names are the same name.** Dots and underscores are ignored, and 0, 1, 3, 4, 5 and 7 count as o, i, e, a, s and t. So `adm1n` is reserved like `admin`, and `mariasantos` is taken once `maria.santos` exists.
+- **Reserved usernames** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). Staff words (`admin`, `overseer`, `support`…), the first part of every screen path and the server's own files (`sw.js`, `api`…) can no longer be taken, and neither can a name with a staff word as one of its parts (`admin.popcart`, `popcart_official`, `overseer1`), a name with `popcart` anywhere in it, or the shape of a deleted account's name (`deleted.…`). Joining with one shows "That username is reserved". A reserved name nobody holds looks exactly like a name nobody has. Accounts that already hold one keep it: `npm run handles:check` lists them.
+- **Look-alike names are the same name.** Dots and underscores are ignored; digits count as the letters they look like (0 o, 1 i, 2 z, 3 e, 4 a, 5 s, 6 g, 7 t, 8 b, 9 g), `l` counts as `i`, `rn` as `m` and `vv` as `w`. So `adm1n` and `adrnin` are reserved like `admin`, and `mariasantos` is taken once `maria.santos` exists, even when two people join at the same moment.
 - **The username rule** now also needs a letter or digit at the start and end, and no two dots in a row. Existing accounts keep their names; `npm run handles:check` lists any that break the rule.
 
 ### Added

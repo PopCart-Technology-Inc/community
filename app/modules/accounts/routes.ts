@@ -146,6 +146,9 @@ export function register(r: Router): void {
       const used = await t.one(`UPDATE invites SET used_at = now(), email_hash = NULL, ticket_hash = NULL, ticket_expires_at = NULL
         WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING 1`, [Buffer.from(p.code_hash, 'hex')]);
       if (!used) fail(404, 'invite_invalid', 'This invite has been used or has expired');
+      // One join per look-alike key at a time, so two people can't take "maria.santos" and "mariasantos"
+      // at the same moment (the index on handle_key is not unique: older accounts keep their names).
+      await t.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['handle:' + handleKey(p.handle)]);
       if (await t.one('SELECT 1 FROM users WHERE handle_key = $1', [handleKey(p.handle)])) fail(409, 'handle_taken', 'That username is taken');
       const u = await t.one<{ id: string }>(
         `INSERT INTO users (handle, first_name, trade, home_area, role, terms_version, terms_accepted_at, improve_usage, improve_surveys)
