@@ -155,6 +155,8 @@ export function register(r: Router): void {
     const p = ch.pending as { code_hash: string; role: string; handle: string; first_name: string; trade: string; home_area: string | null; improve_usage: boolean; improve_surveys: boolean };
     const cred = v.registrationInfo.credential;
     const user = await ctx.db.tx(async (t) => {
+      // A staff invite's address is the one on the staff host's gate list (decision 0009): keep its hash there.
+      const staffGate = p.role === 'staff' ? (await t.one<{ email_hash: Buffer | null }>('SELECT email_hash FROM invites WHERE code_hash = $1', [Buffer.from(p.code_hash, 'hex')]))?.email_hash ?? null : null;
       // Used: the address hash and the ticket are cleared, so nothing ties the account to an email.
       const used = await t.one(`UPDATE invites SET used_at = now(), email_hash = NULL, ticket_hash = NULL, ticket_expires_at = NULL
         WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING 1`, [Buffer.from(p.code_hash, 'hex')]);
@@ -165,7 +167,7 @@ export function register(r: Router): void {
          VALUES ($1, $2, $3, $4, $5, now(), $6, $7) RETURNING id`,
         [p.handle, p.first_name, p.trade, p.home_area, TERMS_VERSION, p.improve_usage, p.improve_surveys]);
       // A staff invite comes only from the server's command line (npm run invite -- --staff): it makes an Overseer.
-      if (p.role === 'staff') await t.query('INSERT INTO staff_members (user_id, role) VALUES ($1, $2)', [u!.id, OVERSEER]);
+      if (p.role === 'staff') await t.query('INSERT INTO staff_members (user_id, role, email_hash) VALUES ($1, $2, $3)', [u!.id, OVERSEER, staffGate]);
       await t.query('UPDATE invites SET used_by = $1 WHERE code_hash = $2', [u!.id, Buffer.from(p.code_hash, 'hex')]);
       await t.query('INSERT INTO passkeys (id, user_id, public_key, counter, transports) VALUES ($1, $2, $3, $4, $5)',
         [cred.id, u!.id, Buffer.from(cred.publicKey), cred.counter, cred.transports || []]);

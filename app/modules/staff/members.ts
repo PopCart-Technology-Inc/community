@@ -27,8 +27,11 @@ async function userId(db: Db, handle: string): Promise<string> {
 
 const overseerCount = async (db: Db): Promise<number> => (await db.one<{ n: number }>(`SELECT count(*)::int AS n FROM staff_members WHERE role = $1`, [OVERSEER]))!.n;
 
-/** Give someone a role (replacing any role they hold). Non-Overseer roles end after `days`. */
-export async function grantRole(db: Db, opts: { handle: string; role: string; days?: number; by?: string | null }): Promise<{ ends_at: string | null }> {
+/**
+ * Give someone a role (replacing any role they hold). Non-Overseer roles end after `days`. `emailHash` is
+ * the keyed hash of their address on the gate list; kept when not given.
+ */
+export async function grantRole(db: Db, opts: { handle: string; role: string; days?: number; by?: string | null; emailHash?: Buffer }): Promise<{ ends_at: string | null }> {
   const id = await userId(db, opts.handle);
   if (!(await db.one('SELECT 1 FROM staff_roles WHERE name = $1', [opts.role]))) fail(400, 'invalid', `role: no role named ${opts.role}`);
   const days = opts.days ?? DEFAULT_DAYS;
@@ -37,9 +40,10 @@ export async function grantRole(db: Db, opts: { handle: string; role: string; da
     const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1', [id]);
     if (current?.role === OVERSEER && opts.role !== OVERSEER && (await overseerCount(t)) <= 1) fail(409, 'last_overseer', 'Community must keep at least one Overseer');
     const row = await t.one<{ ends_at: string | null }>(
-      `INSERT INTO staff_members (user_id, role, ends_at, granted_by) VALUES ($1, $2, CASE WHEN $2 = $5 THEN NULL ELSE now() + make_interval(days => $3) END, $4)
-       ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, ends_at = EXCLUDED.ends_at, granted_by = EXCLUDED.granted_by, granted_at = now()
-       RETURNING ends_at`, [id, opts.role, days, opts.by ?? null, OVERSEER]);
+      `INSERT INTO staff_members (user_id, role, ends_at, granted_by, email_hash) VALUES ($1, $2, CASE WHEN $2 = $5 THEN NULL ELSE now() + make_interval(days => $3) END, $4, $6)
+       ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, ends_at = EXCLUDED.ends_at, granted_by = EXCLUDED.granted_by, granted_at = now(),
+         email_hash = coalesce(EXCLUDED.email_hash, staff_members.email_hash)
+       RETURNING ends_at`, [id, opts.role, days, opts.by ?? null, OVERSEER, opts.emailHash ?? null]);
     return { ends_at: row!.ends_at };
   });
 }
@@ -61,6 +65,9 @@ export async function revokeRole(db: Db, handle: string): Promise<{ role: string
     if (!current) return fail(404, 'not_found', 'That person holds no staff role');
     if (current.role === OVERSEER && (await overseerCount(t)) <= 1) fail(409, 'last_overseer', 'Community must keep at least one Overseer');
     await t.query('DELETE FROM staff_members WHERE user_id = $1', [id]);
+    // Their staff passkeys and sessions go with the role.
+    await t.query('DELETE FROM staff_sessions WHERE user_id = $1', [id]);
+    await t.query('DELETE FROM staff_passkeys WHERE user_id = $1', [id]);
     return current;
   });
 }
