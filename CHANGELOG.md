@@ -4,6 +4,14 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-21
+
+Your profile is at the shortest address: community.popcartph.com/your.username.
+
+### Changed
+- **Profiles live at `/<username>`** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)). Every link in the app uses the new address.
+- `/u/<username>` links already shared keep working: the server answers them with a permanent redirect to `/<username>`, and the app does the same for links opened inside it.
+
 ## [0.6.1] - 2026-10-21
 
 Nobody can take a staff word or one of the app's own paths as a username.
@@ -119,7 +127,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.7.0
 [0.6.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.1
 [0.6.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.6.0
 [0.5.1]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.5.1

@@ -1,7 +1,7 @@
 // Shared pieces of the interface: app bar, avatar, post, sheets, toasts, the Places zoom, lists.
 import { h, icon } from './lib/dom.js';
 import { del, get, post as apiPost } from './lib/api.js';
-import { asOf, count, fullTime, timeAgo, tradeLabel } from './lib/format.js';
+import { asOf, count, fullTime, profilePath, timeAgo, tradeLabel } from './lib/format.js';
 import { LEVELS, levelIndex } from './lib/places.js';
 import { isMe, nav, state } from './core.js';
 
@@ -102,11 +102,11 @@ export const tick = () => h('span', { class: 'tick', role: 'img', aria: { label:
 
 export function personName(p, link = true) {
   const kids = [p.first_name || p.handle, p.id_checked ? tick() : null];
-  return link ? h('a', { class: 'nm', href: '/u/' + encodeURIComponent(p.handle) }, kids) : h('span', { class: 'nm' }, kids);
+  return link ? h('a', { class: 'nm', href: profilePath(p.handle) }, kids) : h('span', { class: 'nm' }, kids);
 }
 
 export function personRow(p, right, sub) {
-  return h('div', { class: 'li' }, h('a', { href: '/u/' + encodeURIComponent(p.handle), tabindex: '-1', aria: { hidden: 'true' } }, avatar(p)),
+  return h('div', { class: 'li' }, h('a', { href: profilePath(p.handle), tabindex: '-1', aria: { hidden: 'true' } }, avatar(p)),
     h('div', { class: 'grow' }, h('div', { class: 't1' }, personName(p)), h('div', { class: 't2' }, sub || ('@' + p.handle + ' · ' + tradeLabel(p.trade)))), right || null);
 }
 
@@ -155,7 +155,7 @@ export function postView(p, opts = {}) {
   const meta = [tradeLabel(a.trade), where, timeAgo(p.created_at)].filter(Boolean).join(' · ');
   const art = h('article', { class: 'pst', aria: { label: 'Post by ' + (a.first_name || a.handle) } });
   if (p.space && p.space.name) art.append(h('div', { class: 'ctx' }, icon('hash', 'sm'), 'Posted in ' + p.space.name));
-  art.append(h('a', { href: '/u/' + encodeURIComponent(a.handle || ''), tabindex: '-1', aria: { hidden: 'true' } }, avatar(a)));
+  art.append(h('a', { href: profilePath(a.handle || ''), tabindex: '-1', aria: { hidden: 'true' } }, avatar(a)));
   const col = h('div', { class: 'grow' },
     h('div', { class: 'hd' }, personName(a), h('span', { class: 'meta' }, ' · ' + meta),
       iconBtn('more', 'More about this post', () => postMenu(p, opts, art), 'more')),
