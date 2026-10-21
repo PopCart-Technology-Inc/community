@@ -9,8 +9,9 @@ import { nav, state } from '../core.js';
 import { appBar, btn, empty, errorBox, fail, field, later, linkTabs, loading, pagedList, sheet, toast, toggle, buttonTabs, choiceChips } from '../ui.js';
 import { control, datePicker, dropdown, fileDrop, niceDate, pesoField } from '../controls.js';
 
-export const CATEGORIES = [['donations', 'Donations'], ['grants', 'Grants'], ['ads', 'Ad income'], ['builders', 'Builders'], ['hosting', 'Hosting'],
+export const CATEGORIES = [['popcart', 'From PopCart'], ['donations', 'Donations'], ['grants', 'Grants'], ['ads', 'Ad income'], ['builders', 'Builders'], ['hosting', 'Hosting'],
   ['legal', 'Legal and filings'], ['events', 'Events'], ['community_aid', 'Community aid'], ['bank_fees', 'Bank fees'], ['other', 'Other']];
+const IN_ONLY = ['popcart', 'donations', 'grants', 'ads'];
 const PARTIES = [
   ['company', 'A company', 'Named in public'],
   ['person_consented', 'A person who agreed to be named', 'Named in public, with their consent'],
@@ -166,7 +167,7 @@ export function books() {
       h('p', { class: 'asof' }, 'Live · ' + asOf(r.as_of)));
     if (!r.entries) {
       return [hero, h('div', { class: 'note' }, icon('info'), h('div', null, h('b', null, 'No entries yet.'),
-        h('p', null, 'Community holds no money until its non-profit foundation is registered and its bank account is open. From the first peso, every entry shows here: signed, chained and checkable by anyone.'),
+        h('p', null, 'Community\'s money is a separate bank account that PopCart pays into. It is PopCart\'s money, set aside for Community, and the account is not open yet. From the first peso, every entry shows here: signed, chained and checkable by anyone.'),
         btn('How Open Books works', { kind: 'w', sm: true, href: '/books/proof' }))),
       r.drafts_waiting ? h('div', { class: 'pad' }, btn(r.drafts_waiting + ' waiting for signatures', { kind: 'w', sm: true, href: '/books/approvals' })) : null];
     }
@@ -222,7 +223,7 @@ export function booksActivity({ query }) {
         lastMonth = m;
         return h('div', null, head, entryRow(e));
       },
-      emptyNode: empty('No entries here', k || c ? 'Nothing matches these filters.' : 'The first entry will show here once the foundation holds money.'),
+      emptyNode: empty('No entries here', k || c ? 'Nothing matches these filters.' : 'The first entry will show here once PopCart pays into the fund.'),
     }));
   }
   draw(kind, category);
@@ -381,12 +382,17 @@ function entrySheet(rule, reload) {
     let kind = 'out', amount = null, files = [], assisted = false;
     const amt = pesoField({ onChange: (c) => { amount = c; needLine(); } });
     const date = datePicker({ value: today(), min: '2026-01-01', max: today() });
-    const cat = dropdown(CATEGORIES, { placeholder: 'Choose a category' });
+    // Money in comes only from PopCart while PopCart holds the fund (decision 0009, point 9).
+    const outCat = dropdown(CATEGORIES.filter(([k]) => !IN_ONLY.includes(k)), { placeholder: 'Choose a category' });
+    const inCat = dropdown(CATEGORIES.filter(([k]) => k === 'popcart'), { value: 'popcart' });
+    let cat = outCat;
+    const catCtl = control('Category', outCat), inBtn = inCat.querySelector('.dd-btn');
+    inBtn.setAttribute('aria-labelledby', [catCtl.querySelector('.lbl').id, inBtn.id].filter(Boolean).join(' '));
     const who = h('input', { type: 'text', maxlength: 80, autocomplete: 'off' });
     const ref = h('input', { type: 'text', maxlength: 12, autocomplete: 'off', placeholder: 'C-0012' });
     const why = h('textarea', { class: 'area', maxlength: 300, placeholder: 'Quotes compared, why this was the fair choice' });
     const desc = h('textarea', { class: 'area', maxlength: 200, placeholder: 'What it was for' });
-    const nameRow = field('Name (shown in public)', who), refRow = field('Stable ID (the foundation keeps who it is)', ref, 'Use the same ID every time for the same person.'), whyRow = field('Why it was fair (shown in public)', why);
+    const nameRow = field('Name (shown in public)', who), refRow = field('Stable ID (only the fund\'s holder knows who it is)', ref, 'Use the same ID every time for the same person.'), whyRow = field('Why it was fair (shown in public)', why);
     const party = dropdown(PARTIES, { value: 'company', onChange: () => partyRows() });
     const need = h('p', { class: 'bk-needline' });
     const err = h('p', { class: 'err', role: 'alert' });
@@ -421,8 +427,11 @@ function entrySheet(rule, reload) {
     partyRows();
     const partyCtl = control('Paid to', party);
     return [h('h2', null, 'New entry'), h('p', { class: 'mute' }, 'Everything here is public once it is sealed, except the receipt itself: only its fingerprint is kept.'),
-      control('Direction', choiceChips([['out', 'Money out'], ['in', 'Money in']], kind, (k) => { kind = k; partyCtl.querySelector('.lbl').textContent = k === 'in' ? 'From' : 'Paid to'; }, 'Direction')),
-      control('Amount', amt), h('div', { class: 'bk-two' }, control('Date', date), control('Category', cat)),
+      control('Direction', choiceChips([['out', 'Money out'], ['in', 'Money in']], kind, (k) => {
+        kind = k; partyCtl.querySelector('.lbl').textContent = k === 'in' ? 'From' : 'Paid to';
+        const next = k === 'in' ? inCat : outCat; cat.replaceWith(next); cat = next;
+      }, 'Direction')),
+      control('Amount', amt), h('div', { class: 'bk-two' }, control('Date', date), catCtl),
       partyCtl, nameRow, refRow, whyRow,
       field('What it was for', desc), control('Receipt or invoice', drop),
       h('div', { class: 'toggle' }, h('div', { class: 'grow' }, h('p', null, 'An AI tool helped prepare this'), h('p', { class: 'd' }, 'Shown on the entry. Only a person signs.')), ai),
@@ -551,7 +560,7 @@ function rulesCard(s, me, reload) {
         h('div', { class: 'mt' }, btn('Publish', { block: true, on: async () => { if (v.value === null) return; try { await put('/books/rule', { two_sig_over: v.value }); close(); reload(); } catch (e) { fail(e); } } }))];
     }) }),
     btn('Set a budget', { sm: true, kind: 'w', on: () => sheet('Budget', (close) => {
-      const c = dropdown(CATEGORIES.filter(([k]) => !['donations', 'grants', 'ads'].includes(k)), { placeholder: 'Choose a category' });
+      const c = dropdown(CATEGORIES.filter(([k]) => !IN_ONLY.includes(k)), { placeholder: 'Choose a category' });
       const v = pesoField();
       return [h('h2', null, year + ' budget'), h('p', { class: 'mute' }, 'Shown next to what was spent. Every change is published.'), control('Category', c), control('Budget for ' + year, v),
         h('div', { class: 'mt' }, btn('Publish', { block: true, on: async () => { if (!c.value || v.value === null) return; try { await post('/books/budgets', { year, category: c.value, amount: v.value }); close(); reload(); } catch (e) { fail(e); } } }))];
@@ -561,6 +570,7 @@ function rulesCard(s, me, reload) {
       h('li', null, 'One trustee signature up to ' + peso(s.rule.two_sig_over) + ', two above it or for a related party' + (s.rule.set_by ? ' (set by @' + s.rule.set_by + ', ' + niceDate(s.rule.set_at.slice(0, 10)) + ')' : '') + '.'),
       h('li', null, 'Nobody signs their own draft. A trustee with a conflict declares it and cannot sign.'),
       h('li', null, 'Nothing is edited or deleted. Mistakes get a reversing entry.'),
-      h('li', null, 'The money stays in the foundation\'s bank account. Only fingerprints go on Bitcoin.'),
+      h('li', null, 'The money stays in a bank account of its own, paid into by PopCart only. Only fingerprints go on Bitcoin.'),
+      h('li', null, 'Anything paid to PopCart, its owner or staff is a related party: two signatures and the reason.'),
       h('li', null, 'A person is named only with their consent.')), edit);
 }

@@ -4,6 +4,15 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-21
+
+PopCart holds Community's fund for now, and Open Books says so.
+
+### Changed
+- **Who holds the money** (decision [0009](docs/decisions/0009-open-books.md), point 9): a separate bank account that PopCart pays into, in place of a foundation that is not registered. Open Books says plainly that it is PopCart's money, set aside for Community. A fiscal sponsor, then Community's own foundation or cooperative, can take over later, each by a new decision; the ledger carries over unchanged.
+- **Money in comes only from PopCart:** a new `popcart` category ("From PopCart"), and the server refuses donations, grants and ad income for now. The new-entry form offers only "From PopCart" for money in.
+- Payments to PopCart, its owner or its staff count as a related party (two signatures and the reason), and the rules on the Proof page say so.
+
 ## [0.7.0] - 2026-10-21
 
 Open Books: the community's money, in public, signed and checkable by anyone.

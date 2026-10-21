@@ -80,18 +80,22 @@ test('drafts: who may draft, what is checked, and the balance never goes below z
   assert.equal((await app.call('POST', '/books/drafts', {})).status, 401);
   const bads: Record<string, unknown>[] = [
     { kind: 'out', amount: 100, category: 'hosting', party: { kind: 'donors' } },
-    { kind: 'in', amount: 0, category: 'donations', party: { kind: 'donors' } },
-    { kind: 'in', amount: 1.5, category: 'donations', party: { kind: 'donors' } },
+    { kind: 'in', amount: 0, category: 'popcart', party: { kind: 'donors' } },
+    { kind: 'in', amount: 1.5, category: 'popcart', party: { kind: 'donors' } },
+    // while PopCart holds the fund, money in is from PopCart only (decision 0009, point 9)
+    { kind: 'in', amount: 100, category: 'donations', party: { kind: 'donors' } },
+    { kind: 'in', amount: 100, category: 'grants', party: { kind: 'company', name: 'Test Grant Fund' } },
+    { kind: 'out', amount: 100, category: 'popcart', party: { kind: 'company', name: 'Test Hosting Co.' } },
     { kind: 'in', amount: 100, category: 'snacks', party: { kind: 'donors' } },
     { kind: 'out', amount: 100, category: 'builders', party: { kind: 'person_private', ref: 'Juan' } },
     { kind: 'out', amount: 100, category: 'builders', party: { kind: 'related_party', name: 'Test Related Co.' } },
-    { kind: 'in', amount: 100, category: 'donations', party: { kind: 'donors' }, date: '2099-01-01' },
-    { kind: 'in', amount: 100, category: 'donations', party: { kind: 'donors' }, evidence: [{ name: 'x', sha256: 'nothex' }] },
+    { kind: 'in', amount: 100, category: 'popcart', party: { kind: 'donors' }, date: '2099-01-01' },
+    { kind: 'in', amount: 100, category: 'popcart', party: { kind: 'donors' }, evidence: [{ name: 'x', sha256: 'nothex' }] },
   ];
   for (const x of bads) assert.equal((await draft(staff, x)).status, 400, JSON.stringify(x));
   assert.equal((await draft(staff, { kind: 'out', amount: 100, category: 'hosting', party: { kind: 'company', name: 'Test Hosting Co.' } })).status, 409, 'nothing to pay with yet');
 
-  const d = await draft(staff, { kind: 'in', amount: 1500000, category: 'donations', party: { kind: 'donors' }, description: 'Test donations, week 1',
+  const d = await draft(staff, { kind: 'in', amount: 1500000, category: 'popcart', party: { kind: 'company', name: 'Test Funder Co.' }, description: 'Test funding, week 1',
     evidence: [{ name: 'test-deposit-slip.pdf', sha256: 'a'.repeat(64) }] });
   assert.equal(d.status, 201);
   assert.equal(d.body.draft.needs, 1, 'up to the limit: one signature');
@@ -118,7 +122,7 @@ test('signing rules: never your own draft, never with a conflict, a bad signatur
   assert.equal(payment, 2);
 
   // over the limit: two signatures
-  const big = await draft(staff, { kind: 'in', amount: 2500000, category: 'grants', party: { kind: 'company', name: 'Test Grant Fund' } });
+  const big = await draft(staff, { kind: 'in', amount: 2500000, category: 'popcart', party: { kind: 'company', name: 'Test Funder Co.' } });
   assert.equal(big.body.draft.needs, 2);
   const first = await sign(a, big.body.draft.id);
   assert.equal(first.status, 200);
@@ -152,7 +156,7 @@ test('corrections are reversing entries, never edits; the database refuses chang
   assert.equal(e.body.recomputed_hash, e.body.entry.hash);
   const payees = (await app.call('GET', '/books/payees')).body;
   assert.equal(payees.paid.find((p: any) => p.name === 'Test Hosting Co.'), undefined, 'a reversed payment nets to nothing');
-  assert.equal(payees.funders.find((p: any) => p.name === 'Donors').amount, 1500000);
+  assert.equal(payees.funders.find((p: any) => p.name === 'Test Funder Co.').amount, 4000000);
   await assert.rejects(app.db.query(`UPDATE books_entries SET entry = jsonb_set(entry, '{body,amount}', '1') WHERE seq = 1`), /append-only/);
   await assert.rejects(app.db.query('DELETE FROM books_entries WHERE seq = 1'), /append-only/);
   await assert.rejects(app.db.query('UPDATE books_rules SET two_sig_over = 0'), /append-only/);

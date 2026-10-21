@@ -34,7 +34,7 @@ Everything hashed or signed is **canonical JSON**: object keys sorted (by UTF-16
 | `amount` | centavos, more than 0 |
 | `currency` | `PHP` |
 | `date` | the day the money moved |
-| `category` | `donations`, `grants`, `ads`, `builders`, `hosting`, `legal`, `events`, `community_aid`, `bank_fees` or `other` |
+| `category` | `popcart`, `donations`, `grants`, `ads`, `builders`, `hosting`, `legal`, `events`, `community_aid`, `bank_fees` or `other`. While PopCart holds the fund, money in is `popcart` only ([decision 0009](decisions/0009-open-books.md), point 9): the server refuses the other money-in categories. This is a rule of the holder, not of the chain, so the checks below do not test it. |
 | `description` | what it was for |
 | `party` | `{ kind, name }` for `company`, `person_consented` and `related_party`; `{ kind: "person_private", ref: "C-0012" }`; or `{ kind: "donors" }` (money in only) |
 | `related_note` | for a related party: why it was the fair choice |

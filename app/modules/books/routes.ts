@@ -13,7 +13,12 @@ import {
   type Body, type Entry, type KeyInfo, type LedgerFile, type PartyKind,
 } from './ledger.ts';
 
-export const CATEGORIES = ['donations', 'grants', 'ads', 'builders', 'hosting', 'legal', 'events', 'community_aid', 'bank_fees', 'other'] as const;
+export const CATEGORIES = ['popcart', 'donations', 'grants', 'ads', 'builders', 'hosting', 'legal', 'events', 'community_aid', 'bank_fees', 'other'] as const;
+/**
+ * Money in comes only from PopCart while PopCart holds the fund (decision 0009, point 9).
+ * Donations, grants and ad income open with a new decision and an independent holder.
+ */
+const IN_CATEGORIES: readonly string[] = ['popcart'];
 const PARTY_KINDS = ['company', 'person_consented', 'person_private', 'donors', 'related_party'] as const;
 const MAX_AMOUNT = 1_000_000_000_000; // ₱10 billion in centavos: a typo guard, not a policy
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -157,7 +162,7 @@ function party(v: unknown, kind: 'in' | 'out'): Body['party'] {
     if (kind !== 'in') return bad('party', 'donors can only give money in');
     return { kind: k };
   }
-  // A private person is shown by a stable ID only. Who it stands for is kept by the foundation, not here.
+  // A private person is shown by a stable ID only. Who it stands for is kept by the fund's holder, not here.
   if (k === 'person_private') return { kind: k, ref: str(p.ref, 'party.ref', { max: 12, pattern: /^C-\d{4,6}$/ }) };
   return { kind: k, name: str(p.name, 'party.name', { min: 2, max: 80 }) };
 }
@@ -395,7 +400,10 @@ export function register(r: Router): void {
     } else {
       const kind = oneOf(b.kind, 'kind', ['in', 'out'] as const);
       const p = party(b.party, kind);
-      body = { ...base, kind, amount: amountIn(b.amount), category: oneOf(b.category, 'category', CATEGORIES), party: p, evidence: evidence(b.evidence) };
+      const category = oneOf(b.category, 'category', CATEGORIES);
+      if (kind === 'in' && !IN_CATEGORIES.includes(category)) return bad('category', 'money in comes only from PopCart for now (decision 0009)');
+      if (kind === 'out' && category === 'popcart') return bad('category', 'popcart is for money in from PopCart');
+      body = { ...base, kind, amount: amountIn(b.amount), category, party: p, evidence: evidence(b.evidence) };
       // A related party (a trustee, staff, or a company tied to them) needs the reason it was fair, in public.
       if (p.kind === 'related_party') body.related_note = str(b.related_note, 'related_note', { min: 10, max: 300 });
     }
