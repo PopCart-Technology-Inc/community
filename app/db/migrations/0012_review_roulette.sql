@@ -8,7 +8,7 @@ CREATE TABLE review_rounds (
   code       text NOT NULL UNIQUE,           -- "live-202610221936", Manila time the round was made
   accepting  boolean NOT NULL DEFAULT false, -- entries open
   created_by uuid REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 CREATE INDEX review_rounds_latest ON review_rounds (created_at DESC);
 

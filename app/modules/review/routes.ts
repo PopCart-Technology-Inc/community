@@ -245,8 +245,9 @@ export function registerHost(r: Router): void {
         `UPDATE review_entries e SET status = $2, done_at = CASE WHEN $2 = 'waiting' THEN NULL ELSE now() END,
            picked_at = CASE WHEN $2 = 'waiting' THEN NULL ELSE e.picked_at END
          FROM review_rounds r WHERE e.id = $1 AND r.id = e.round_id
-           AND r.id = (SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1) RETURNING r.code AS round`, [ctx.params.id, status]);
-      if (!done) return fail(404, 'not_found', 'No such entry in this round');
+           AND r.id = (SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1)
+           AND ($2 = 'waiting' OR e.status IN ('waiting', 'picked')) RETURNING r.code AS round`, [ctx.params.id, status]);
+      if (!done) return fail(404, 'not_found', 'No such entry in this round, or it has not been let in yet');
       await log(tx, me, `Set a review entry to ${status}`, { entry: ctx.params.id, round: done.round, status });
     });
     return json(await hostView(ctx.db));

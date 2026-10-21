@@ -18,7 +18,7 @@ const root = () => document.getElementById('app');
 const NO_PASSKEY = 'This browser cannot use passkeys. Try an up-to-date Chrome, Safari, Edge or Firefox.';
 const T = { tick: null, sync: null };
 // the brand pack (fonts, Pop Mark), when the server has one: started now, waited for before the first screen
-const brand = loadBrand();
+const brand = Promise.race([loadBrand(), new Promise((ok) => setTimeout(ok, 2000))]);
 
 function mount(node) {
   root().replaceChildren(node, h('div', { id: 'toast', role: 'status', aria: { live: 'polite' } }));

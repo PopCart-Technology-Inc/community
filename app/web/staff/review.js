@@ -122,12 +122,16 @@ export function liveReview() {
   const copy = async (url) => {
     try { await navigator.clipboard.writeText(url); toast('Link copied. Open it in the review browser.'); } catch { toast('Could not copy: ' + url, true); }
   };
+  // every view request is numbered; one that comes back after a newer one was shown is dropped
+  let asked = 0, shownSeq = 0;
+  const fresh = (n, v) => { if (n > shownSeq) { shownSeq = n; apply(v); } };
   let busy = false;
   const act = (fn) => async () => {
     if (busy) return;
     busy = true;
     ctl.classList.add('busy');
-    try { apply(await fn()); } catch (e) { fail(e); } finally { busy = false; ctl.classList.remove('busy'); }
+    const n = ++asked;
+    try { fresh(n, await fn()); } catch (e) { fail(e); } finally { busy = false; ctl.classList.remove('busy'); }
   };
   const setOpen = (v) => act(() => spatch('/staff/review/rounds/current', { accepting: v }))();
   const newRound = act(() => spost('/staff/review/rounds'));
@@ -153,12 +157,13 @@ export function liveReview() {
     spinBtn.disabled = true;
     live.textContent = 'Spinning…';
     try {
+      const n = ++asked;
       const r = await spost('/staff/review/spin');
       drawn = { pool: r.pool, picked: r.picked };
       w.draw(r.pool);
       await w.spinTo(r.pool.findIndex((p) => p.id === r.picked), r.pool.length);
       spinning = false;
-      apply(r);
+      fresh(n, r);
       const e = r.entries.find((x) => x.id === r.picked);
       live.textContent = e ? 'Up next: ' + e.name : '';
     } catch (e) {
@@ -193,12 +198,14 @@ export function liveReview() {
         h('div', { class: 'rhname' }, picked.name),
         h('div', { class: 'rhurl' }, picked.url),
         picked.handle ? h('div', { class: 'mono' }, picked.handle) : null,
-        h('div', { class: 'row wrap ctl' },
+        // Copy link, Reviewed and Skip stay in stream mode: finishing a pick must never need the
+        // controls (and the To check list) on screen
+        h('div', { class: 'row wrap' },
           // copied, not opened here: this browser is signed in to the host screen; sites go in the review browser
           btn('Copy link', { sm: true, kind: 'y', icon: 'link', on: () => copy(picked.url) }),
           btn('Reviewed', { sm: true, icon: 'check', on: () => mark(picked.id, 'reviewed') }),
           btn('Skip', { sm: true, kind: 'w', on: () => mark(picked.id, 'skipped') }),
-          btn('Back in the draw', { sm: true, kind: 'w', on: () => mark(picked.id, 'waiting') })))
+          h('span', { class: 'ctl' }, btn('Back in the draw', { sm: true, kind: 'w', on: () => mark(picked.id, 'waiting') }))))
       : h('p', { class: 'rhwait' }, !v ? 'Loading…' : waiting.length ? 'Spin the wheel.' : round && round.accepting ? 'Waiting for entries.' : 'Open entries to start.'));
 
     const pending = entries.filter((e) => e.status === 'pending');
@@ -226,9 +233,10 @@ export function liveReview() {
 
   async function refresh() {
     try {
+      const n = ++asked;
       const v = await sget('/staff/review/host');
       if (offline) { offline = false; off.hidden = true; }
-      if (!spinning) apply(v);
+      if (!spinning) fresh(n, v);
     } catch (e) {
       // the layout stays: the next poll that works fills it in
       offline = true;

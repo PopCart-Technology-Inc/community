@@ -107,7 +107,8 @@ test('a round: open, one entry per device, staff check, then the draw', async ()
   assert.equal(host.body.entries[0].signature, undefined, 'the host screen is shown on stream: no signatures');
   assert.equal(host.body.entries[0].ip_hash, undefined);
   assert.equal((await staff.staff('POST', '/staff/review/spin')).status, 409, 'nothing let in yet');
-  for (const e of host.body.entries) await staff.staff('PATCH', '/staff/review/entries/' + e.id, { status: 'waiting' });
+  assert.equal((await staff.staff('PATCH', '/staff/review/entries/' + host.body.entries[0].id, { status: 'skipped' })).status, 404, 'an unchecked entry never skips the check into the queue');
+  for (const e of host.body.entries) await staff.staff('PATCH','/staff/review/entries/' + e.id, { status: 'waiting' });
   host = await staff.staff('GET', '/staff/review/host');
   assert.deepEqual(host.body.counts, { in: 2, left: 2, to_check: 0 });
 
