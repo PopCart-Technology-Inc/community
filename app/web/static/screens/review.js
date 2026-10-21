@@ -60,6 +60,7 @@ export function review() {
   let timer = 0;
   // the consent text changed while this page was open: only a reload shows the new text
   let stale = false;
+  let sending = false;
   const node = h('div', { class: 'rv' }, loading());
   const pillSlot = h('div', { class: 'rvtop-r' });
   const submit = btn('Enter the roulette', { block: true, type: 'submit', disabled: true, icon: 'send' });
@@ -70,7 +71,7 @@ export function review() {
   const ready = () => d.url.trim() && d.name.trim() && d.signature.trim().length >= 2 && CONSENTS.every(([k]) => d.consents[k]);
   const update = () => {
     const open = !!(st && st.round && st.round.accepting);
-    submit.disabled = stale || !open || !ready() || (st && st.entered);
+    submit.disabled = sending || stale || !open || !ready() || (st && st.entered);
     why.textContent = stale ? 'The consent text has changed. Reload the page and read it again.'
       : st && st.entered ? 'This browser already has an entry in this round. One entry per live.'
       : !open ? 'Entries open when the live starts. Follow ' + HANDLE + ' on TikTok to know when.'
@@ -95,6 +96,7 @@ export function review() {
       e.preventDefault();
       if (submit.disabled) return;
       msg.textContent = '';
+      sending = true;
       submit.disabled = true;
       try {
         const r = await post('/review/entries', { url: d.url, name: d.name, handle: d.handle, signature: d.signature, consents: d.consents, consent_version: CONSENT_VERSION });
@@ -104,6 +106,7 @@ export function review() {
         msg.textContent = err.message;
         if (err.code === 'consent_changed') stale = true;
         else if (err.code === 'closed' || err.code === 'already_entered') refresh();
+        sending = false;
         update();
       }
     } } },
@@ -327,7 +330,7 @@ export function reviewHost() {
       live.textContent = e ? 'Up next: ' + e.name : '';
     } catch (e) {
       spinning = false;
-      live.textContent = '';
+      live.textContent = (e && e.message) || 'Could not spin';
       fail(e);
       paint();
     }
@@ -347,7 +350,7 @@ export function reviewHost() {
       btn('Open entries', { sm: true, kind: round && round.accepting ? 'w' : 'y', disabled: !round || round.accepting, on: () => setOpen(true) }),
       btn('Close entries', { sm: true, kind: 'w', disabled: !round || !round.accepting, on: () => setOpen(false) }),
       btn('New round', { sm: true, kind: 'w', on: () => (entries.length ? confirmSheet('Start a new round?', 'The wheel empties and entries stay closed until you open them. This round\'s entries are kept until they are 90 days old.', 'New round', newRound) : newRound()) }),
-      v ? h('span', { class: 'mono rhasof' }, asOf(v.as_of)) : null);
+      ...(v ? [h('span', { class: 'mono rhasof' }, asOf(v.as_of))] : []));
     // after a draw the wheel keeps the pool it spun, with the pick marked, until that site is done
     if (!spinning) { if (picked && drawn && drawn.picked === picked.id) w.draw(drawn.pool, picked.id); else w.draw(waiting); }
     spinBtn.disabled = spinning || !!picked || !waiting.length;
@@ -403,7 +406,7 @@ export function reviewHost() {
 
   const onKey = (e) => {
     if (e.target.closest && e.target.closest('input, textarea, [contenteditable], dialog')) return;
-    if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if ((e.key === 'h' || e.key === 'H') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
       hidden = !hidden;
       node.classList.toggle('noctl', hidden);
       document.body.classList.toggle('streaming', hidden);

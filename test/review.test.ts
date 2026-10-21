@@ -42,6 +42,8 @@ test('the entry page: the button submits, and it sends the consent version of th
   assert.equal(/export const CONSENT_VERSION = '([^']+)'/.exec(js)?.[1], CONSENT_VERSION, 'the page and the server agree on the consent text');
   assert.match(js, /consent_version: CONSENT_VERSION/);
   assert.equal(Number(/export const KEEP_DAYS = (\d+)/.exec(js)?.[1]), KEEP_DAYS, 'the days in the consent text are the days kept');
+  const block = /export const CONSENTS = \[([\s\S]*?)\n\];/.exec(js)?.[1] ?? '';
+  assert.deepEqual([...block.matchAll(/^\s*\['(\w+)'/gm)].map((m) => m[1]), [...CONSENTS], 'the page asks for exactly the points the server checks');
   assert.doesNotMatch(js, /cls: 'rhspin[^']*\bctl\b/, 'Spin stays in stream mode');
 });
 

@@ -171,6 +171,8 @@ export function register(r: Router): void {
         made = await tx.one<{ id: string }>('INSERT INTO review_rounds (code, created_by) VALUES ($1, $2) ON CONFLICT (code) DO NOTHING RETURNING id', [i === 1 ? code : `${code}-${i}`, me.id]);
       }
       if (!made) return fail(409, 'busy', 'Too many rounds this minute');
+      // another round may have been made meanwhile: wait for entries on any recent round before clearing
+      await tx.query('SELECT id FROM review_rounds WHERE id <> $1 ORDER BY created_at DESC LIMIT 5 FOR UPDATE', [made.id]);
       // the hashes only hold one entry per device and cap an address within a round: drop them now
       await tx.query('UPDATE review_entries SET device_hash = NULL, ip_hash = NULL WHERE round_id <> $1 AND (device_hash IS NOT NULL OR ip_hash IS NOT NULL)', [made.id]);
     });
@@ -182,8 +184,12 @@ export function register(r: Router): void {
     limit(limits.write, me.id);
     const b = await ctx.json<Record<string, unknown>>();
     if (typeof b.accepting !== 'boolean') return bad('accepting', 'must be true or false');
-    const round = await current(ctx.db) ?? fail(409, 'no_round', 'Start a round first');
-    await ctx.db.query('UPDATE review_rounds SET accepting = $1 WHERE id = $2', [b.accepting, round.id]);
+    await ctx.db.tx(async (tx) => {
+      // the newest round, locked: a round started meanwhile is the one opened or closed
+      const round = await tx.one<{ id: string }>('SELECT id FROM review_rounds WHERE id = (SELECT id FROM review_rounds ORDER BY created_at DESC LIMIT 1) FOR UPDATE')
+        ?? fail(409, 'no_round', 'Start a round first');
+      await tx.query('UPDATE review_rounds SET accepting = $1 WHERE id = $2', [b.accepting, round.id]);
+    });
     return json(await hostView(ctx.db));
   });
 
@@ -203,7 +209,10 @@ export function register(r: Router): void {
       const pool = await tx.query<Entry>(`SELECT ${ENTRY_COLS} FROM review_entries WHERE round_id = $1 AND status = 'waiting' ORDER BY created_at, id`, [round.id]);
       if (!pool.length) return fail(409, 'empty', 'No entries left to draw');
       const pick = pool[randomInt(pool.length)] as Entry;
-      await tx.query(`UPDATE review_entries SET status = 'picked', picked_at = now() WHERE id = $1`, [pick.id]);
+      // a skip or removal that landed meanwhile wins: the pick must still be waiting
+      if (!(await tx.one(`UPDATE review_entries SET status = 'picked', picked_at = now() WHERE id = $1 AND status = 'waiting' RETURNING 1`, [pick.id]))) {
+        return fail(409, 'changed', 'The entries changed while spinning. Spin again.');
+      }
       return { pool: pool.map((e) => ({ id: e.id, name: e.name })), picked: pick.id };
     });
     return json({ ...out, ...(await hostView(ctx.db)) });
@@ -225,7 +234,8 @@ export function register(r: Router): void {
 
   /** Find entries in any round (up to 20, newest first) by name, handle or site: to honour a withdrawal after its round. */
   r.get('/review/entries', async (ctx) => {
-    requireStaff(ctx);
+    const me = requireStaff(ctx);
+    limit(limits.write, me.id);
     const q = str(ctx.query.get('q'), 'q', { min: 2, max: 100 });
     const like = '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
     const entries = await ctx.db.query<Entry & { round: string }>(
