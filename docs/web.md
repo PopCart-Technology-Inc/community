@@ -49,7 +49,7 @@ app/web/
 | `/spaces` · `/s/:slug` · `/s/:slug/c/:channel` | Your Spaces · a Space · a channel |
 | `/inbox` · `/inbox/:id` | Inbox · a conversation |
 | `/work` · `/gigs/new` · `/gigs/:id` · `/gigs/:id/apply` · `/gigs/:id/applicants` · `/gigs/:id/rate` | Work |
-| `/u/:handle` · `/me` | A profile · your own profile |
+| `/:handle` · `/me` | A profile, at `/<username>` (decision 0009; `/u/<username>` redirects there) · your own profile. Matched last |
 | `/me/settings`, `/me/data`, `/me/proof`, `/me/records`, `/me/actions`, `/me/socials` | Settings and your data |
 | `/me/invite` | Invite by email (staff) |
 | `/report?kind=&id=` · `/transparency` · `/mod` | Report · transparency report · moderator queue |

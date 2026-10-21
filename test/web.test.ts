@@ -119,22 +119,41 @@ test('router: every screen path matches, params decode, unknown paths do not', a
   assert.deepEqual(m('/places/city/1380700000'), { name: 'placesAt', params: { level: 'city', code: '1380700000' } });
   assert.deepEqual(m('/s/pasig-riders/c/abc-123'), { name: 'channel', params: { slug: 'pasig-riders', channel: 'abc-123' } });
   assert.deepEqual(m('/s/pasig-riders/'), { name: 'space', params: { slug: 'pasig-riders' } });
-  assert.deepEqual(m('/u/jun.rides'), { name: 'profile', params: { handle: 'jun.rides' } });
-  assert.deepEqual(m('/u/a%20b'), { name: 'profile', params: { handle: 'a b' } });
+  assert.deepEqual(m('/jun.rides'), { name: 'profile', params: { handle: 'jun.rides' } });
+  assert.deepEqual(m('/jun.rides/'), { name: 'profile', params: { handle: 'jun.rides' } });
+  assert.deepEqual(m('/a%20b'), { name: 'profile', params: { handle: 'a b' } });
+  assert.deepEqual(m('/u/jun.rides'), { name: 'oldProfile', params: { handle: 'jun.rides' } }, 'old profile links still match');
+  assert.equal(r.ROUTES.at(-1)[0], 'profile', 'the profile catch-all comes last');
   assert.deepEqual(m('/gigs/new'), { name: 'gigNew', params: {} });
   assert.deepEqual(m('/gigs/42/apply'), { name: 'apply', params: { id: '42' } });
   assert.deepEqual(m('/gigs/42/applicants'), { name: 'applicants', params: { id: '42' } });
   assert.deepEqual(m('/inbox/7?x=1'), { name: 'dm', params: { id: '7' } });
   assert.deepEqual(m('/me/settings'), { name: 'settings', params: {} });
   assert.equal(m('/nope/here'), null);
-  assert.equal(m('/s'), null);
-  assert.equal(m('/u/%E0%A4%A'), null, 'bad encoding is no match, not a crash');
-  for (const p of ['/join', '/login', '/p/1', '/compose', '/explore', '/activity', '/spaces', '/inbox', '/work', '/me/data', '/me/proof', '/transparency', '/mod']) assert.ok(m(p), p);
+  assert.equal(m('/s/a/b/c'), null);
+  assert.equal(m('/%E0%A4%A'), null, 'bad encoding is no match, not a crash');
+  for (const p of ['/join', '/login', '/p/1', '/compose', '/explore', '/activity', '/spaces', '/inbox', '/work', '/me/data', '/me/proof', '/transparency', '/mod']) assert.notEqual(m(p)?.name, 'profile', p);
+  const f = await load('lib/format.js');
+  assert.equal(f.profilePath('maria.santos'), '/maria.santos');
+  assert.equal(f.profilePath('a/b'), '/a%2Fb');
   assert.equal(r.build('/s/:slug/c/:channel', { slug: 'a b', channel: 'x/y' }), '/s/a%20b/c/x%2Fy');
 
   const appJs = readFileSync(join(WEB, 'static', 'app.js'), 'utf8');
   const screens = /const SCREENS = \{([\s\S]*?)\};/.exec(appJs)?.[1] ?? '';
   for (const [name] of r.ROUTES) assert.match(screens, new RegExp('\\b' + name + '\\b'), 'route ' + name + ' has a screen');
+});
+
+test('old profile links: /u/<username> is a permanent redirect to /<username>, never off the site', async () => {
+  const r = await fetch(app.base + '/u/Jun.Rides?from=share', { redirect: 'manual' });
+  assert.equal(r.status, 301);
+  assert.equal(r.headers.get('location'), '/jun.rides?from=share');
+  for (const p of ['/u//evil.example', '/u/%2F%2Fevil.example', '/u/\evil.example', '/u/a/b']) {
+    const x = await fetch(app.base + p, { redirect: 'manual' });
+    if (x.status === 301) assert.match(x.headers.get('location') || '', /^\/[a-z0-9._]+$/, p);
+  }
+  const prof = await fetch(app.base + '/jun.rides');
+  assert.equal(prof.status, 200, 'a profile path serves the app');
+  assert.match(prof.headers.get('content-type') || '', /text\/html/);
 });
 
 test('Places: the code to ask for at each zoom level', async () => {

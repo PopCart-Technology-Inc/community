@@ -2,7 +2,7 @@
 // a post with its replies, the composer, search and explore, and activity.
 import { h, icon } from '../lib/dom.js';
 import { get, post } from '../lib/api.js';
-import { asOf, fullTime, timeAgo, tradeLabel } from '../lib/format.js';
+import { asOf, fullTime, profilePath, timeAgo, tradeLabel } from '../lib/format.js';
 import { DEFAULT_LEVEL, LEVELS, codeAtLevel, isLevel, levelIndex, zoomOf } from '../lib/places.js';
 import { uploadPhoto } from '../lib/media.js';
 import { brandName } from '../lib/brand.js';
@@ -18,7 +18,7 @@ import { placeSearch, welcome } from './join.js';
 function homeBar() {
   const me = state.me;
   return h('header', { class: 'abar homebar' },
-    me ? h('a', { class: 'ib', href: '/u/' + encodeURIComponent(me.handle), aria: { label: 'Your profile' } }, avatar(me, 's')) : h('a', { class: 'btn sm w', href: '/login' }, 'Log in'),
+    me ? h('a', { class: 'ib', href: profilePath(me.handle), aria: { label: 'Your profile' } }, avatar(me, 's')) : h('a', { class: 'btn sm w', href: '/login' }, 'Log in'),
     h('div', { class: 'mid' }, h('a', { href: '/', aria: { label: 'Community home' } }, brandName('m'))),
     iconLink('search', 'Search and explore', '/explore'),
     me ? iconLink('bell', 'Activity', '/activity') : null);
@@ -405,7 +405,7 @@ function notifLink(n) {
   if (n.space_slug) return '/s/' + encodeURIComponent(n.space_slug);
   if (n.kind === 'mod_action') return '/me/actions';
   const who = n.actor || n.person;
-  return who && who.handle ? '/u/' + encodeURIComponent(who.handle) : null;
+  return who && who.handle ? profilePath(who.handle) : null;
 }
 
 export function activity() {

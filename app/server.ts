@@ -136,7 +136,11 @@ export function createApp(db: Db, config: Config): App {
         }
         throw new HttpError(404, 'not_found', 'No such file');
       }
-      page(res); // every other path is a screen of the web app
+      // Profiles moved from /u/<username> to /<username> (0.7.0). Only username-shaped values are
+      // redirected, so the Location can never point off the site.
+      const old = /^\/u\/([A-Za-z0-9._]{1,30})\/?$/.exec(path);
+      if (old) { res.statusCode = 301; res.setHeader('Location', '/' + old[1]!.toLowerCase() + url.search); res.setHeader('Cache-Control', 'public, max-age=86400'); res.end(); return; }
+      page(res); // every other path is a screen of the web app, a profile (/<username>) last
     } catch (e) {
       const he = e instanceof HttpError ? e : null;
       if (!he) console.error(JSON.stringify({ level: 'error', msg: 'request failed', path, err: String((e as Error)?.stack || e) }));

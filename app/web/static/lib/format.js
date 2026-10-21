@@ -46,6 +46,9 @@ export function count(n) {
 
 export const plural = (n, one, many) => (Number(n) === 1 ? one : many || one + 's');
 
+/** A person's profile: community.popcartph.com/<username> (decision 0009). */
+export const profilePath = (handle) => '/' + encodeURIComponent(handle);
+
 /** Same rule as the server (app/modules/accounts/handles.ts); the server also checks reserved names. */
 export const HANDLE_RE = /^(?=.{3,30}$)(?!.*\.\.)[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$/;
 
