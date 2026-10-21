@@ -76,6 +76,10 @@ test('child_safety: hidden at once, staff only', async () => {
   // staff keep it: the hide is undone
   assert.equal((await staff.call('POST', `/mod/reports/${r.body.report.id}/decide`, { action: 'keep', note: 'not a violation' })).status, 204);
   assert.equal(await deletedAt(p), null);
+  // Kept, it is still a child_safety report: never in the Space moderator's decided list either.
+  const decided = await mod.call('GET', '/mod/reports?space=cs-space&status=decided');
+  assert.equal(decided.status, 200);
+  assert.ok(!decided.body.reports.some((x: any) => x.id === r.body.report.id), 'a kept child_safety report stays with staff');
 });
 
 test('child_safety escalation does not tip off the author', async () => {
@@ -86,6 +90,15 @@ test('child_safety escalation does not tip off the author', async () => {
   const n = await app.db.one<{ n: number }>(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1`, [author.id]);
   assert.equal(n!.n, 0);
   assert.equal((await author.call('GET', '/me/mod-actions')).body.actions.length, 0);
+  // Nor through Your data: not in the count, not in the download.
+  const held = Object.fromEntries((await author.call('GET', '/me/data')).body.holds.map((h: any) => [h.key, h.count]));
+  assert.equal(held.mod_actions, 0, 'the count would give it away');
+  const exported = await (await fetch(app.base + '/api/me/export', { headers: { Cookie: author.cookie } })).json();
+  assert.equal(exported.mod_actions.length, 0);
+  // Its id answers like one that doesn't exist.
+  const sealed = await app.db.one<{ id: string }>(`SELECT id FROM mod_actions WHERE subject_id = $1 AND sealed`, [author.id]);
+  const ap = await author.call('POST', `/me/mod-actions/${sealed!.id}/appeal`, { note: 'Please look again (test fixture)' });
+  assert.equal(ap.status, 404);
   assert.notEqual(await deletedAt(p), null, 'still hidden');
 });
 

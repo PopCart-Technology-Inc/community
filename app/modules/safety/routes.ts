@@ -284,13 +284,16 @@ export function register(r: Router): void {
         `UPDATE reports SET status = $1, decided_by = $2, decided_at = now(), decision_note = $3
          WHERE id = $4 OR ($5 AND target_kind = $6 AND target_id = $7 AND status = 'open' AND reason <> 'child_safety')`,
         [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id]);
+      // Sealed: a child-safety case passed on. Looked at again here, so a child-safety report made since
+      // the first look counts too.
+      const sealed = action === 'escalate' && (csAny || await csTarget(tx, rep.target_kind, rep.target_id));
       const a = await tx.one<{ id: string }>(
         `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason, sealed)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [me.id, t?.subject_id ?? null, logged, rep.target_kind, rep.target_id, rep.id, note, csAny && action === 'escalate']);
+        [me.id, t?.subject_id ?? null, logged, rep.target_kind, rep.target_id, rep.id, note, sealed]);
       // Tell the person what was done and why. Not when a child-safety case is passed on to the
       // authorities: tipping off a suspect could put a child at risk.
-      if (t?.subject_id && !(csAny && action === 'escalate')) { // the same rule as `sealed`
+      if (t?.subject_id && !sealed) {
         await tx.query(`INSERT INTO notifications (user_id, kind, ref_kind, ref_id) VALUES ($1, 'mod_action', 'mod_action', $2)`, [t.subject_id, a!.id]);
       }
     });
@@ -316,7 +319,7 @@ export function register(r: Router): void {
     const b = await ctx.json<Record<string, unknown>>();
     const note = str(b.note, 'note', { min: 3, max: 1000 });
     const a = await ctx.db.one<{ action: string; appealed_at: string | null }>(
-      'SELECT action, appealed_at FROM mod_actions WHERE id = $1 AND subject_id = $2', [ctx.params.id, me.id]);
+      'SELECT action, appealed_at FROM mod_actions WHERE id = $1 AND subject_id = $2 AND NOT sealed', [ctx.params.id, me.id]);
     if (!a) return fail(404, 'not_found', 'No such action');
     if (!APPEALABLE.has(a.action)) return fail(400, 'not_appealable', 'Only a warning, a removal or a suspension can be appealed');
     const done = await ctx.db.one(
@@ -404,7 +407,7 @@ export function register(r: Router): void {
          (SELECT count(*)::int FROM passkeys WHERE user_id = $1) AS passkeys,
          (SELECT count(*)::int FROM notifications WHERE user_id = $1) AS notifications,
          (SELECT count(*)::int FROM reports WHERE reporter_id = $1) AS reports_made,
-         (SELECT count(*)::int FROM mod_actions WHERE subject_id = $1) AS mod_actions`, [me.id]);
+         (SELECT count(*)::int FROM mod_actions WHERE subject_id = $1 AND NOT sealed) AS mod_actions`, [me.id]);
     const n = c!;
     const holds = [
       { key: 'profile', what: 'Your profile: username, first name, trade, bio, home area, photo and settings', count: 1 },
