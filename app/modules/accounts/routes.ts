@@ -271,6 +271,12 @@ export async function inviteByEmail(db: Db, config: Config, opts: { email: strin
   const days = opts.days || INVITE_DAYS;
   const role = opts.role || 'member';
   return db.tx(async (t) => {
+    const held = await t.one<{ role: string; live: boolean }>(
+      'SELECT role, expires_at > now() AS live FROM invites WHERE email_hash = $1 AND used_at IS NULL FOR UPDATE', [eh]);
+    if (held?.role === 'staff' && role !== 'staff') {
+      if (held.live) fail(409, 'staff_invite_open', 'This address already has an open staff invite');
+      await t.query(`DELETE FROM invites WHERE email_hash = $1 AND used_at IS NULL AND role = 'staff'`, [eh]);
+    }
     const open = await t.one<{ expires_at: string; role: string }>(
       `UPDATE invites SET expires_at = now() + make_interval(days => $2), role = CASE WHEN role = 'staff' OR $3 = 'staff' THEN 'staff' ELSE 'member' END
        WHERE email_hash = $1 AND used_at IS NULL RETURNING expires_at, role`, [eh, days, role]);

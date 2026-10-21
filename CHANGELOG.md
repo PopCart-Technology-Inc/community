@@ -16,7 +16,11 @@ Staff have roles, and a role is a list of what it may do.
 ### Changed
 - Every staff account becomes an Overseer, so nobody loses anything (deleted accounts get no role). Deleting your account ends any staff role you hold. `npm run invite -- --staff` now makes an Overseer.
 - Settings shows "Moderator queue" and "Invite by email" only to people whose role has those scopes.
-- Child-safety reports need their own scope, `reports.child_safety`. Moderator has it.
+- Child-safety reports need their own scope, `reports.child_safety`. Moderator has it. Appeals of decisions on those reports need it too.
+- **Nobody suspends an Overseer through a report** (`403 overseer`): an Overseer is removed by two Overseers.
+- The last Overseer who can act can't delete their account (`409 last_overseer`) or lose the role; a suspended Overseer can be removed while another one can act.
+- A member invite never renews or changes an open staff invite for the same address (`409 staff_invite_open`); an expired staff invite is cleared instead.
+- Your data export shows your staff role as `staff_role` (role, end date and when it was given) instead of `profile.role`.
 
 ### Upgrading
 - This version removes the old staff flag from the database. Back up first, and don't run 0.7.0 against the database afterwards: it still reads that column.

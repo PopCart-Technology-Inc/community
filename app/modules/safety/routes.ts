@@ -9,7 +9,9 @@ import type { Db } from '../../db/index.ts';
 import { fail, isUuid, json, noContent, type Ctx, type Router, type SessionUser } from '../../http/router.ts';
 import { limit, limits } from '../../http/security.ts';
 import { can, endSession, requireScope, requireUser } from '../../http/session.ts';
+import { OVERSEER } from '../../http/scopes.ts';
 import { bad, oneOf, page, PERSON_COLS, str, type Person } from '../shared.ts';
+import { overseerCount } from '../staff/members.ts';
 
 const TARGET_KINDS = ['post', 'message', 'dm', 'user', 'gig', 'space'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
@@ -245,6 +247,11 @@ export function register(r: Router): void {
       if (rep.target_kind === 'space') return fail(400, 'not_supported', 'Removing a whole Space is not built yet: escalate it to staff');
       if ((rep.target_kind === 'user' || rep.target_kind === 'dm') && !can(me, 'accounts.suspend')) return fail(403, 'staff_only', 'Only staff can do that');
       if (rep.target_kind === 'user') logged = 'suspend';
+      // An Overseer is removed by two Overseers (decision 0009), never suspended through a report: that
+      // would lock them out on one person's say.
+      if (rep.target_kind === 'user' && await ctx.db.one('SELECT 1 FROM staff_members WHERE user_id = $1 AND role = $2', [rep.target_id, OVERSEER])) {
+        return fail(403, 'overseer', 'An Overseer is removed with two people, not suspended');
+      }
     }
     await ctx.db.tx(async (tx) => {
       if (action === 'remove') {
@@ -312,8 +319,10 @@ export function register(r: Router): void {
   r.get('/mod/appeals', async (ctx) => {
     const me = requireScope(ctx, 'reports.review');
     const rows = await ctx.db.query<Record<string, unknown> & { actor_id: string; subject_id: string | null }>(
-      `SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, reason, created_at, appealed_at, appeal_note
-       FROM mod_actions WHERE appealed_at IS NOT NULL AND appeal_decision IS NULL ORDER BY appealed_at LIMIT 100`);
+      `SELECT a.id, a.actor_id, a.subject_id, a.action, a.target_kind, a.target_id, a.report_id, a.reason, a.created_at, a.appealed_at, a.appeal_note
+       FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
+       WHERE a.appealed_at IS NOT NULL AND a.appeal_decision IS NULL AND (r.reason IS DISTINCT FROM 'child_safety' OR $1)
+       ORDER BY a.appealed_at LIMIT 100`, [can(me, 'reports.child_safety')]);
     const appeals = [];
     for (const { actor_id, subject_id, ...a } of rows) {
       appeals.push({ ...a, subject: await person(ctx.db, subject_id), can_decide: actor_id !== me.id && subject_id !== me.id });
@@ -331,6 +340,8 @@ export function register(r: Router): void {
     const a = await ctx.db.one<{ id: string; actor_id: string; subject_id: string | null; action: string; target_kind: string; target_id: string; report_id: string | null; appealed_at: string | null; appeal_decision: string | null }>(
       'SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, appealed_at, appeal_decision FROM mod_actions WHERE id = $1', [ctx.params.id]);
     if (!a || !a.appealed_at) return fail(404, 'not_found', 'No such appeal');
+    if (a.report_id && !can(me, 'reports.child_safety')
+      && await ctx.db.one(`SELECT 1 FROM reports WHERE id = $1 AND reason = 'child_safety'`, [a.report_id])) return fail(404, 'not_found', 'No such appeal');
     if (a.appeal_decision) return fail(409, 'decided', 'This appeal has already been decided');
     if (a.actor_id === me.id) return fail(403, 'same_moderator', 'A different staff member must decide this appeal');
     if (a.subject_id === me.id) return fail(403, 'own_content', 'You cannot decide your own appeal');
@@ -475,6 +486,9 @@ export function register(r: Router): void {
     if (b.confirm !== 'DELETE') return fail(400, 'confirm', 'Type DELETE to confirm');
     const tombstone = `deleted.${randomHex(8)}`;
     const files = await ctx.db.tx(async (tx) => {
+      if (await tx.one('SELECT 1 FROM staff_members WHERE user_id = $1 AND role = $2', [me.id, OVERSEER]) && (await overseerCount(tx, { except: me.id, lock: true })) < 1) {
+        fail(409, 'last_overseer', 'You are the last Overseer. Make someone else an Overseer first, then delete your account.');
+      }
       const media = await tx.query<{ id: string }>('DELETE FROM media WHERE owner_id = $1 RETURNING id', [me.id]);
       await tx.query('UPDATE posts SET deleted_at = now() WHERE author_id = $1 AND deleted_at IS NULL', [me.id]);
       await tx.query('UPDATE messages SET deleted_at = now() WHERE author_id = $1 AND deleted_at IS NULL', [me.id]);
