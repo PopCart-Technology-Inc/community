@@ -25,7 +25,13 @@ function mount(node) {
   root().replaceChildren(node, h('div', { id: 'toast', role: 'status', aria: { live: 'polite' } }));
 }
 
-async function boot() {
+let booting = null;
+function boot() {
+  if (!booting) booting = start().finally(() => { booting = null; });
+  return booting;
+}
+
+async function start() {
   root().replaceChildren(loading('Checking the gate'));
   try {
     S.session = await get('/staff/session');
@@ -219,6 +225,12 @@ function paintNav(current) {
 
 function render(path, replace) {
   let r = route(path);
+  // the scene window is captured for the stream: without the scope it stays empty, never another panel
+  if (!r && path === SCENE_PATH) {
+    mainEl.replaceChildren(empty('The stream scene needs the live review', 'Sign in with a role that can run the live review (scope review.host).'));
+    paintNav('');
+    return;
+  }
   if (!r) {
     const to = landing();
     if (!to) { mainEl.replaceChildren(empty('Nothing here for your role', 'Your role has no panel tools yet. An Overseer can add scopes to it.')); paintNav(''); return; }

@@ -178,6 +178,7 @@ export function liveReview({ scene = false } = {}) {
     const at = changes;
     spinning = true;
     spinBtn.disabled = true;
+    next.replaceChildren(h('h2', { class: 'mono' }, 'Up next'), h('p', { class: 'rhwait' }, 'Spinning…'));
     drawn = { pool, picked };
     seenPick = picked;
     w.draw(pool);
