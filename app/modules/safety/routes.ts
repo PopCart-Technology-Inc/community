@@ -11,7 +11,7 @@ import { limit, limits } from '../../http/security.ts';
 import { can, endSession, requireScope, requireUser } from '../../http/session.ts';
 import { OVERSEER } from '../../http/scopes.ts';
 import { bad, oneOf, page, PERSON_COLS, str, type Person } from '../shared.ts';
-import { overseerCount } from '../staff/members.ts';
+import { lockOverseers, overseerCount } from '../staff/members.ts';
 
 const TARGET_KINDS = ['post', 'message', 'dm', 'user', 'gig', 'space'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
@@ -194,14 +194,14 @@ export function register(r: Router): void {
     }
     if (staff) {
       where.push(decided ? `r.status NOT IN ('open', 'escalated')` : `r.status IN ('open', 'escalated')`);
-      if (!can(me, 'reports.child_safety')) where.push(`NOT ${CS_TARGET('r')}`);
+      if (!can(me, 'reports.child_safety')) where.push(`r.reason <> 'child_safety' AND NOT ${CS_TARGET('r')}`);
       if (spaceId) add('r.space_id = $?', spaceId);
     } else {
       const mine = await modSpaces(ctx.db, me.id);
       if (spaceId && !mine.has(spaceId)) return fail(403, 'not_moderator', 'You do not moderate this Space');
       if (!mine.size) return fail(403, 'not_moderator', 'Only staff and Space moderators can see reports');
       // child_safety goes to staff only, whatever Space it came from, with every other report on the same target.
-      where.push(`NOT ${CS_TARGET('r')}`);
+      where.push(`r.reason <> 'child_safety' AND NOT ${CS_TARGET('r')}`);
       where.push(decided ? `r.status <> 'open'` : `r.status = 'open'`);
       if (spaceId) add('r.space_id = $?', spaceId);
       else add('r.space_id = ANY ($?::uuid[])', [...mine]);
@@ -285,12 +285,12 @@ export function register(r: Router): void {
          WHERE id = $4 OR ($5 AND target_kind = $6 AND target_id = $7 AND status = 'open' AND reason <> 'child_safety')`,
         [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id]);
       const a = await tx.one<{ id: string }>(
-        `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [me.id, t?.subject_id ?? null, logged, rep.target_kind, rep.target_id, rep.id, note]);
+        `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason, sealed)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [me.id, t?.subject_id ?? null, logged, rep.target_kind, rep.target_id, rep.id, note, csAny && action === 'escalate']);
       // Tell the person what was done and why. Not when a child-safety case is passed on to the
       // authorities: tipping off a suspect could put a child at risk.
-      if (t?.subject_id && !(csAny && action === 'escalate')) {
+      if (t?.subject_id && !(csAny && action === 'escalate')) { // the same rule as `sealed`
         await tx.query(`INSERT INTO notifications (user_id, kind, ref_kind, ref_id) VALUES ($1, 'mod_action', 'mod_action', $2)`, [t.subject_id, a!.id]);
       }
     });
@@ -303,8 +303,8 @@ export function register(r: Router): void {
     const actions = await ctx.db.query<Record<string, unknown> & { action: string; appealed_at: string | null }>(
       `SELECT a.id, a.action, a.target_kind, a.target_id, a.reason, a.created_at, a.appealed_at, a.appeal_note,
          a.appeal_decision, a.appeal_decision_note, a.appeal_decided_at
-       FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
-       WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND ${CS_TARGET('a')})
+       FROM mod_actions a
+       WHERE a.subject_id = $1 AND NOT a.sealed
        ORDER BY a.created_at DESC LIMIT 200`, [me.id]);
     return json({ actions: actions.map((a) => ({ ...a, can_appeal: APPEALABLE.has(a.action) && !a.appealed_at })), as_of: now() });
   });
@@ -476,8 +476,8 @@ export function register(r: Router): void {
       notifications: await q(`SELECT id, kind, ref_kind, ref_id, created_at, read_at FROM notifications WHERE user_id = $1 ORDER BY created_at`),
       reports_made: await q(`SELECT id, target_kind, target_id, reason, note, revealed, status, decided_at, created_at FROM reports WHERE reporter_id = $1 ORDER BY created_at`),
       mod_actions: await q(`SELECT a.id, a.action, a.target_kind, a.target_id, a.reason, a.created_at, a.appealed_at, a.appeal_note, a.appeal_decision,
-        a.appeal_decision_note, a.appeal_decided_at FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
-        WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND ${CS_TARGET('a')}) ORDER BY a.created_at`),
+        a.appeal_decision_note, a.appeal_decided_at FROM mod_actions a
+        WHERE a.subject_id = $1 AND NOT a.sealed ORDER BY a.created_at`),
       sealed_vault: { held: [], note: 'The sealed identity vault is not built yet, so nothing about you is kept there.' },
     };
     const day = data.exported_at.slice(0, 10);
@@ -499,6 +499,7 @@ export function register(r: Router): void {
     if (b.confirm !== 'DELETE') return fail(400, 'confirm', 'Type DELETE to confirm');
     const tombstone = `deleted.${randomHex(8)}`;
     const files = await ctx.db.tx(async (tx) => {
+      await lockOverseers(tx);
       if (await tx.one(`SELECT 1 FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.user_id = $1 AND sm.role = $2 AND u.status = 'active'`, [me.id, OVERSEER])
         && (await overseerCount(tx, { except: me.id, lock: true })) < 1) {
         fail(409, 'last_overseer', 'You are the last Overseer. Make someone else an Overseer first, then delete your account.');

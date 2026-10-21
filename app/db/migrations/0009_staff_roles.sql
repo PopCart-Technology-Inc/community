@@ -28,4 +28,10 @@ CREATE INDEX staff_members_role ON staff_members (role);
 INSERT INTO staff_members (user_id, role) SELECT id, 'Overseer' FROM users WHERE role = 'staff' AND status <> 'deleted';
 CREATE INDEX reports_target ON reports (target_kind, target_id, reason);
 
+-- A child-safety case passed on to the authorities is sealed from the person when it is written, and
+-- stays sealed whatever happens to the reports later (no tip-off). Earlier escalations of child-safety
+-- reports are sealed here.
+ALTER TABLE mod_actions ADD COLUMN sealed boolean NOT NULL DEFAULT false;
+UPDATE mod_actions a SET sealed = true FROM reports r WHERE r.id = a.report_id AND a.action = 'escalate' AND r.reason = 'child_safety';
+
 ALTER TABLE users DROP COLUMN role;
