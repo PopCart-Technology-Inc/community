@@ -3,7 +3,7 @@ import { h, icon } from './lib/dom.js';
 import { del, get, post as apiPost } from './lib/api.js';
 import { asOf, count, fullTime, profilePath, timeAgo, tradeLabel } from './lib/format.js';
 import { LEVELS, levelIndex } from './lib/places.js';
-import { can, isMe, nav, state } from './core.js';
+import { isMe, nav, state } from './core.js';
 
 /* ---------- small pieces ---------- */
 
@@ -217,7 +217,7 @@ function postMenu(p, opts, art) {
       try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { toast(url); }
     } } }, icon('link'), 'Copy link'),
     !isMe(a.id) ? h('a', { href: '/report?kind=post&id=' + encodeURIComponent(p.id) + '&name=' + encodeURIComponent(a.first_name || ''), class: 'danger', on: { click: close } }, icon('flag'), 'Report post') : null,
-    (isMe(a.id) || can('reports.review')) ? h('button', { type: 'button', class: 'danger', on: { click: async () => {
+    isMe(a.id) ? h('button', { type: 'button', class: 'danger', on: { click: async () => {
       close();
       if (!confirm('Delete this post? This cannot be undone.')) return;
       try { await del('/posts/' + p.id); art.remove(); toast('Post deleted'); if (opts.onRemoved) opts.onRemoved(); } catch (e) { fail(e); }

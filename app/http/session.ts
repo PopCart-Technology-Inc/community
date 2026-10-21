@@ -4,7 +4,7 @@ import type { IncomingMessage } from 'node:http';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { HttpError, type Ctx, type SessionUser } from './router.ts';
-import { scopesOf, type Scope } from './scopes.ts';
+import type { Scope } from './scopes.ts';
 
 export const COOKIE = 'cs';
 const hash = (v: string) => createHash('sha256').update(v).digest();
@@ -21,13 +21,17 @@ export function readCookie(req: IncomingMessage, name: string): string | null {
 export const STAFF_JOIN = `LEFT JOIN staff_members sm ON sm.user_id = u.id AND (sm.ends_at IS NULL OR sm.ends_at > now())
   LEFT JOIN staff_roles sr ON sr.name = sm.role`;
 
+/**
+ * The member signed in on the public host. Staff powers never come with it: a staff role's scopes work
+ * only in a staff session on the staff host (decision 0009), so `staffRole` and `scopes` are empty here.
+ */
 export async function loadSession(db: Db, req: IncomingMessage): Promise<SessionUser | null> {
   const v = readCookie(req, COOKIE);
   if (!v || !/^[A-Za-z0-9_-]{43}$/.test(v)) return null;
-  const row = await db.one<{ id: string; handle: string; status: SessionUser['status']; staff_role: string | null; scopes: string[] | null }>(
-    `SELECT u.id, u.handle, u.status, sm.role AS staff_role, sr.scopes FROM sessions s JOIN users u ON u.id = s.user_id ${STAFF_JOIN}
+  const row = await db.one<{ id: string; handle: string; status: SessionUser['status'] }>(
+    `SELECT u.id, u.handle, u.status FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.id_hash = $1 AND s.expires_at > now() AND u.status <> 'deleted'`, [hash(v)]);
-  return row && { id: row.id, handle: row.handle, status: row.status, staffRole: row.staff_role, scopes: scopesOf(row.staff_role, row.scopes) };
+  return row && { id: row.id, handle: row.handle, status: row.status, staffRole: null, scopes: [] };
 }
 
 /** Create a session and return the Set-Cookie header value. */

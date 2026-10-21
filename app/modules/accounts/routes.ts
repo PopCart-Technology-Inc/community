@@ -156,7 +156,8 @@ export function register(r: Router): void {
     const cred = v.registrationInfo.credential;
     const user = await ctx.db.tx(async (t) => {
       // A staff invite's address is the one on the staff host's gate list (decision 0009): keep its hash there.
-      const staffGate = p.role === 'staff' ? (await t.one<{ email_hash: Buffer | null }>('SELECT email_hash FROM invites WHERE code_hash = $1', [Buffer.from(p.code_hash, 'hex')]))?.email_hash ?? null : null;
+      const inv = p.role === 'staff' ? await t.one<{ email_hash: Buffer | null; staff_role: string | null; staff_days: number | null }>(
+        'SELECT email_hash, staff_role, staff_days FROM invites WHERE code_hash = $1', [Buffer.from(p.code_hash, 'hex')]) : null;
       // Used: the address hash and the ticket are cleared, so nothing ties the account to an email.
       const used = await t.one(`UPDATE invites SET used_at = now(), email_hash = NULL, ticket_hash = NULL, ticket_expires_at = NULL
         WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING 1`, [Buffer.from(p.code_hash, 'hex')]);
@@ -169,8 +170,13 @@ export function register(r: Router): void {
         `INSERT INTO users (handle, first_name, trade, home_area, terms_version, terms_accepted_at, improve_usage, improve_surveys)
          VALUES ($1, $2, $3, $4, $5, now(), $6, $7) RETURNING id`,
         [p.handle, p.first_name, p.trade, p.home_area, TERMS_VERSION, p.improve_usage, p.improve_surveys]);
-      // A staff invite comes only from the server's command line (npm run invite -- --staff): it makes an Overseer.
-      if (p.role === 'staff') await t.query('INSERT INTO staff_members (user_id, role, email_hash) VALUES ($1, $2, $3)', [u!.id, OVERSEER, staffGate]);
+      // A staff invite gives the role it names, for its days. With no role it came from the server's
+      // command line (npm run invite -- --staff) and makes an Overseer, who has no end date.
+      if (inv) {
+        const role = inv.staff_role || OVERSEER;
+        await t.query(`INSERT INTO staff_members (user_id, role, ends_at, email_hash) VALUES ($1, $2, CASE WHEN $2 = $3 THEN NULL ELSE now() + make_interval(days => $4) END, $5)`,
+          [u!.id, role, OVERSEER, inv.staff_days || 90, inv.email_hash]);
+      }
       await t.query('UPDATE invites SET used_by = $1 WHERE code_hash = $2', [u!.id, Buffer.from(p.code_hash, 'hex')]);
       await t.query('INSERT INTO passkeys (id, user_id, public_key, counter, transports) VALUES ($1, $2, $3, $4, $5)',
         [cred.id, u!.id, Buffer.from(cred.publicKey), cred.counter, cred.transports || []]);
@@ -206,16 +212,6 @@ export function register(r: Router): void {
     await ctx.db.query('UPDATE passkeys SET counter = $1, last_used_at = now() WHERE id = $2', [v.authenticationInfo.newCounter, pk.id]);
     const cookie = await startSession(ctx.db, ctx.config, pk.user_id);
     return json({ user: await myself(ctx.db, pk.user_id) }, 200, { 'Set-Cookie': cookie });
-  });
-
-  // Staff invite people by email while joining is invite-only.
-  r.post('/accounts/invites', async (ctx) => {
-    const me = requireScope(ctx, 'invites.send');
-    limit(limits.write, me.id);
-    const b = await ctx.json<Record<string, unknown>>();
-    const email = emailOf(b.email);
-    const { expiresAt } = await inviteByEmail(ctx.db, ctx.config, { email, createdBy: me.id, note: str(b.note, 'note', { max: 80, optional: true }), days: INVITE_DAYS });
-    return json({ sent: true, expires_at: expiresAt, expires_in_days: INVITE_DAYS }, 201);
   });
 
   r.post('/accounts/logout', async (ctx) => noContent2(await endSession(ctx.db, ctx.config, ctx.req)));
@@ -268,7 +264,11 @@ export const INVITE_DAYS = 7;
  * higher role kept) rather than doubled. The row and the email go together: if the email cannot be
  * sent, no invite is left behind. Used by staff in the app and by the CLI.
  */
-export async function inviteByEmail(db: Db, config: Config, opts: { email: string; createdBy?: string | null; note?: string; days?: number; role?: 'member' | 'staff' }): Promise<{ expiresAt: string; renewed: boolean }> {
+/**
+ * Email an invite. `role: 'staff'` with `staffRole` gives that role for `staffDays` on joining; with no
+ * `staffRole` (the server's command line only) it makes an Overseer.
+ */
+export async function inviteByEmail(db: Db, config: Config, opts: { email: string; createdBy?: string | null; note?: string; days?: number; role?: 'member' | 'staff'; staffRole?: string; staffDays?: number }): Promise<{ expiresAt: string; renewed: boolean }> {
   const eh = emailHash(config, opts.email);
   const days = opts.days || INVITE_DAYS;
   const role = opts.role || 'member';
@@ -280,11 +280,13 @@ export async function inviteByEmail(db: Db, config: Config, opts: { email: strin
       await t.query(`DELETE FROM invites WHERE email_hash = $1 AND used_at IS NULL AND role = 'staff'`, [eh]);
     }
     const open = await t.one<{ expires_at: string; role: string }>(
-      `UPDATE invites SET expires_at = now() + make_interval(days => $2), role = CASE WHEN role = 'staff' OR $3 = 'staff' THEN 'staff' ELSE 'member' END
-       WHERE email_hash = $1 AND used_at IS NULL RETURNING expires_at, role`, [eh, days, role]);
+      `UPDATE invites SET expires_at = now() + make_interval(days => $2), role = CASE WHEN role = 'staff' OR $3 = 'staff' THEN 'staff' ELSE 'member' END,
+         staff_role = CASE WHEN $3 = 'staff' THEN $4 ELSE staff_role END, staff_days = CASE WHEN $3 = 'staff' THEN $5 ELSE staff_days END
+       WHERE email_hash = $1 AND used_at IS NULL RETURNING expires_at, role`, [eh, days, role, opts.staffRole ?? null, opts.staffDays ?? null]);
     const row = open ?? await t.one<{ expires_at: string; role: string }>(
-      `INSERT INTO invites (code_hash, email_hash, created_by, note, role, expires_at) VALUES ($1, $2, $3, $4, $5, now() + make_interval(days => $6))
-       RETURNING expires_at, role`, [randomBytes(32), eh, opts.createdBy || null, (opts.note || '').slice(0, 80), role, days]);
+      `INSERT INTO invites (code_hash, email_hash, created_by, note, role, expires_at, staff_role, staff_days) VALUES ($1, $2, $3, $4, $5, now() + make_interval(days => $6), $7, $8)
+       RETURNING expires_at, role`, [randomBytes(32), eh, opts.createdBy || null, (opts.note || '').slice(0, 80), role, days,
+         role === 'staff' ? opts.staffRole ?? null : null, role === 'staff' ? opts.staffDays ?? null : null]);
     const expiresAt = new Date(row!.expires_at).toISOString();
     await sendMail(config, opts.email, inviteEmail(config, { expiresAt, staff: row!.role === 'staff' }));
     return { expiresAt, renewed: !!open };

@@ -337,7 +337,8 @@ test('posts: media must be your own upload; delete by author or staff only', asy
   assert.equal((await a.call('GET', `/posts/${p.id}`)).status, 404);
   assert.equal((await a.call('DELETE', `/posts/${p.id}`)).status, 404);
   const q = (await a.call('POST', '/posts', { body: 'staff removes' })).body.post;
-  assert.equal((await staff.call('DELETE', `/posts/${q.id}`)).status, 204);
+  assert.equal((await staff.call('DELETE', `/posts/${q.id}`)).status, 403, 'staff powers are not on the public host');
+  assert.equal((await staff.staff('DELETE', `/staff/posts/${q.id}`)).status, 204);
 });
 
 test('posts: posting in a Space needs membership; private Space posts stay inside', async () => {

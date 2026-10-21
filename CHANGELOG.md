@@ -4,6 +4,33 @@ Every change people will notice is listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-21
+
+The Overseer and Admin panels, on the staff host. Staff powers no longer work on the public site.
+
+### Added
+- **The Overseer panel** (decision [0009](docs/decisions/0009-staff-panels-and-usernames.md)): an overview of what needs you, approvals, staff (give, renew and take roles, staff invites), roles and scopes, the audit log with a CSV download, platform switches and vault requests.
+- **The Admin panel**: reports (Keep, Warn, Remove, Escalate, also with the K W R E keys), appeals, people (look up, suspend for 1 to 7 days, lift), member invites, feature switches and health.
+- **Two-person approvals.** Making or removing an Overseer, marking Community launched, and turning a feature on in production need a second Overseer within 72 hours. Nobody approves their own request, and when time runs out nothing happens.
+- **Read-only mode** for emergencies: members can still read, sign in, report, appeal and delete their account; nothing else is saved.
+- **Feature switches** with a staging and a production column. `COMMUNITY_STAGE` says which one a server reads.
+- **Staff invites** give a role for a number of days when the person joins.
+- **Your record log shows what staff did with your account**: each look-up and action, with its time.
+- Suspensions lift on their own when their time is up.
+
+### Changed
+- **Staff powers work only on the staff host.** A staff member's session on Community has no scopes: reviewing reports, deciding appeals, deleting others' posts and sending invites moved to `/staff/*` on the staff host, where each action is logged. Space moderators keep their Space's reports on Community.
+- `/mod/appeals` moved to `/staff/appeals`.
+- Every staff panel control is a branded one: dropdowns, checkboxes, confirmations and toasts.
+
+### Removed
+- `POST /accounts/invites`: use `POST /staff/member-invites` on the staff host.
+
+### Not built yet
+- Screens for resetting a lost passkey (`passkeys.reset`) and API apps (`apps.manage`).
+- The sealed vault: vault requests stay empty.
+- Open joining: "Invite only" stays on.
+
 ## [0.9.0] - 2026-10-21
 
 Staff get their own door: a separate address behind a gate, opened with a staff passkey.
@@ -169,7 +196,8 @@ The foundations: the decisions, the leak checks and the review flow. No app code
 ### Security
 - Leakcheck never prints a private name it finds, because CI logs are public.
 
-[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/PopCart-Technology-Inc/community/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.10.0
 [0.9.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.9.0
 [0.8.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.8.0
 [0.7.0]: https://github.com/PopCart-Technology-Inc/community/releases/tag/v0.7.0

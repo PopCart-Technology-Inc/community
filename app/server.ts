@@ -11,6 +11,8 @@ import { AccessVerifier } from './http/access.ts';
 import { loadStaffSession } from './http/staff-session.ts';
 import { emailHash } from './modules/accounts/routes.ts';
 import { registerHost as registerStaffHost } from './modules/staff/routes.ts';
+import { liftSuspensions, registerPanel } from './modules/staff/panel.ts';
+import { allowedWhenReadOnly, switchOn } from './modules/staff/switches.ts';
 import type { Db } from './db/index.ts';
 import { HttpError, Router, type Ctx, type Reply } from './http/router.ts';
 import { baseHeaders, checkCsrf, newNonce, pageCsp } from './http/security.ts';
@@ -110,7 +112,7 @@ export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
   const staffOn = !!config.staffOrigin && staffConfigProblem(config) === null;
   const staffHost = staffOn ? new URL(config.staffOrigin!).host.toLowerCase() : null;
   const staffRouter = new Router();
-  if (staffOn) registerStaffHost(staffRouter);
+  if (staffOn) { registerStaffHost(staffRouter); registerPanel(staffRouter, router); }
   const access = staffOn && config.accessTeam ? (deps.access ?? new AccessVerifier(config.accessTeam, config.accessAud!)) : null;
   const staffPage = staffOn ? shell(config, 'staff.html') : null;
 
@@ -172,6 +174,11 @@ export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
         checkCsrf(req, config);
         const m = router.match(req.method || 'GET', path.slice(4));
         if (!m) throw new HttpError(404, 'not_found', 'No such endpoint');
+        // Read-only mode (a platform switch, decision 0009): members can read, sign in, report and use their data rights.
+        const method = req.method || 'GET';
+        if (method !== 'GET' && method !== 'HEAD' && !allowedWhenReadOnly(method, path.slice(4)) && (await switchOn(db, 'read_only'))) {
+          throw new HttpError(503, 'read_only', 'Community is read-only for a short while. Reading still works; try posting again later.');
+        }
         send(res, await m.handler(ctxFor(req, res, url, m.params, await loadSession(db, req))));
         return;
       }
@@ -205,5 +212,9 @@ export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
       fail500(res, path, e);
     }
   });
+  // Suspensions with an end date lift themselves.
+  const sweep = setInterval(() => { liftSuspensions(db).catch(() => { /* tried again next minute */ }); }, 60_000);
+  sweep.unref();
+  server.on('close', () => clearInterval(sweep));
   return { server, router, staffRouter };
 }

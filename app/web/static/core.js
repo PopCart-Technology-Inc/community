@@ -12,9 +12,6 @@ export const nav = (path, opts) => navigator_(path, opts);
 
 export const isMe = (id) => !!state.me && state.me.id === id;
 
-/** Does the signed-in person hold this staff scope (decision 0009)? The server checks again. */
-export const can = (scope) => !!(state.me && state.me.staff && (state.me.staff.scopes || []).includes(scope));
-
 /** localStorage that never throws (private mode, blocked storage). Used for small per-device choices only. */
 export const local = {
   get(k, fallback = null) { try { const v = localStorage.getItem('cm.' + k); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
