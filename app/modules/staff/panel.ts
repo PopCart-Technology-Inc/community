@@ -188,8 +188,8 @@ export function registerPanel(r: Router, pub: Router): void {
       const a = await approvals.ask(ctx.db, me, { kind: 'overseer_remove', key: 'overseer:' + u.id, title: `Remove @${u.handle} as an Overseer`, payload: { user_id: u.id } });
       return json({ approval: a }, 202);
     }
-    await revokeRole(ctx.db, u.handle);
-    await logStaff(ctx.db, me, 'role', `took away the ${current.role} role`, u);
+    const gone = await revokeRole(ctx.db, u.handle, { keepOverseers: true }); // made an Overseer since we looked: still two people
+    await logStaff(ctx.db, me, 'role', `took away the ${gone.role} role`, u);
     return noContent();
   });
 

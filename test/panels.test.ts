@@ -3,6 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { limits, RateLimiter } from '../app/http/security.ts';
+import { grantRole, revokeRole } from '../app/modules/staff/members.ts';
 import { liftSuspensions } from '../app/modules/staff/panel.ts';
 import { startApp, type Person, type TestApp } from './helpers.ts';
 
@@ -350,4 +351,14 @@ test('a member invite never changes an open staff invite for the same address (r
   assert.equal(m.body.error.code, 'staff_invite_open');
   const rows = await app.db.query<{ role: string; staff_role: string }>(`SELECT role, staff_role FROM invites WHERE staff_role = 'Support' AND used_at IS NULL`);
   assert.deepEqual(rows.map((r) => [r.role, r.staff_role]), [['staff', 'Support']], 'the staff invite is untouched');
+});
+
+test('the panel never changes or removes the role of an Overseer in one step (409 is_overseer) (fourth review of #26)', async () => {
+  const [a, b] = await overseers();
+  const g = await a.staff('POST', '/staff/members', { handle: b.handle, role: 'Moderator', days: 30 });
+  assert.equal(g.status, 409);
+  assert.equal(g.body.error.code, 'is_overseer');
+  await assert.rejects(revokeRole(app.db, b.handle, { keepOverseers: true }), /second Overseer/);
+  await assert.rejects(grantRole(app.db, { handle: b.handle, role: 'Moderator', keepOverseers: true }), /second Overseer/);
+  assert.equal((await app.db.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1', [b.id]))!.role, 'Overseer');
 });

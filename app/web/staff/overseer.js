@@ -118,11 +118,11 @@ export function staff() {
       actions.append(btn('Remove', { sm: true, kind: 'w', icon: 'x', on: async () => {
         if (s.role === 'Overseer') {
           if ((await confirmBox({ title: `Remove @${s.handle} as an Overseer?`, text: 'A second Overseer must approve within 72 hours.', confirm: 'Ask', danger: true })) === null) return;
-          try { await sdel(`/staff/members/${enc(s.handle)}`); toast('Asked a second Overseer'); go('/overseer/approvals'); } catch (e) { fail(e); }
+          try { await sdel(`/staff/members/${enc(s.handle)}`); toast('Asked a second Overseer'); go('/overseer/approvals'); } catch (e) { fail(e); load(); }
           return;
         }
         if (!(await undoToast(`Removing @${s.handle} as ${s.role}…`))) return;
-        try { await sdel(`/staff/members/${enc(s.handle)}`); toast(`@${s.handle} is no longer ${s.role}`); load(); } catch (e) { fail(e); }
+        try { await sdel(`/staff/members/${enc(s.handle)}`); toast(`@${s.handle} is no longer ${s.role}`); load(); } catch (e) { fail(e); load(); }
       } }));
       return h('div', { class: 'srow' }, h('div', { class: 'grow' }, h('b', null, '@' + s.handle), h('div', { class: 'row wrap' }, h('span', { class: 'tag ' + (s.role === 'Overseer' ? 'k' : '') }, s.role), ends,
         s.granted_by ? h('span', { class: 'mute' }, 'by @' + s.granted_by) : null)), actions);

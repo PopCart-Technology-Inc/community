@@ -23,11 +23,14 @@ export interface Approval {
  * demoted, suspended or deleted, by any route) are withdrawn. Run before reading or deciding.
  */
 export async function expireOld(db: Db): Promise<void> {
-  await db.query(`UPDATE staff_approvals SET status = 'expired' WHERE status = 'waiting' AND expires_at <= now()`);
+  // One statement, so two of these at once lock the rows in one order.
   await db.query(
-    `UPDATE staff_approvals a SET status = 'withdrawn', decided_at = now(), reason = 'The Overseer who asked can no longer act'
-     WHERE a.status = 'waiting' AND NOT EXISTS (SELECT 1 FROM staff_members sm JOIN users u ON u.id = sm.user_id
-       WHERE sm.user_id = a.asked_by AND sm.role = $1 AND u.status = 'active')`, [OVERSEER]);
+    `UPDATE staff_approvals a SET
+       status = CASE WHEN a.expires_at <= now() THEN 'expired' ELSE 'withdrawn' END,
+       decided_at = CASE WHEN a.expires_at <= now() THEN a.decided_at ELSE now() END,
+       reason = CASE WHEN a.expires_at <= now() THEN a.reason ELSE 'The Overseer who asked can no longer act' END
+     WHERE a.status = 'waiting' AND (a.expires_at <= now() OR NOT EXISTS (SELECT 1 FROM staff_members sm JOIN users u ON u.id = sm.user_id
+       WHERE sm.user_id = a.asked_by AND sm.role = $1 AND u.status = 'active'))`, [OVERSEER]);
 }
 
 export { overseerCount } from './members.ts';
@@ -68,7 +71,7 @@ export async function decide(db: Db, me: Actor & { id: string }, id: string, dec
     await t.query('SELECT user_id FROM staff_members WHERE role = $1 FOR UPDATE', [OVERSEER]);
     const a = await t.one<Approval>('SELECT * FROM staff_approvals WHERE id = $1 FOR UPDATE', [id]);
     if (!a) return fail(404, 'not_found', 'No such request');
-    if (a.status !== 'waiting') return fail(409, 'decided', a.status === 'expired' ? 'This request expired. Ask again.' : 'This request has already been decided');
+    if (a.status !== 'waiting') return fail(409, 'decided', a.status === 'expired' ? 'This request expired. Ask again.' : a.status === 'withdrawn' ? `This request was withdrawn${a.reason ? `: ${a.reason}` : ''}` : 'This request has already been decided');
     if (a.asked_by === me.id) return fail(403, 'same_person', 'A second Overseer must decide this');
     if (about(a, me.id)) return fail(403, 'about_you', 'This request is about you: another Overseer decides it');
     // A request from someone who is no longer an Overseer (removed, or their account suspended) is not decided.

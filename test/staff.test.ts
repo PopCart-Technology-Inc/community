@@ -264,14 +264,14 @@ test('a kept child-safety report is still only for the scope; an escalation is s
   const author = await app.person(), r1 = await app.person(), r2 = await app.person();
   const id = (await author.call('POST', '/posts', { body: 'Escalated, then kept (test fixture)' })).body.post.id;
   const cs = await r1.call('POST', '/reports', { target_kind: 'post', target_id: id, reason: 'child_safety' });
-  assert.equal((await mod.call('POST', `/mod/reports/${cs.body.report.id}/decide`, { action: 'escalate', note: 'Passed to the authorities (test fixture)' })).status, 204);
-  assert.equal((await mod2.call('POST', `/mod/reports/${cs.body.report.id}/decide`, { action: 'keep', note: 'Not a child-safety case after all' })).status, 204);
-  assert.ok(!(await reviewer.call('GET', '/mod/reports?status=decided')).body.reports.some((x: any) => x.id === cs.body.report.id), 'the kept child-safety report stays with the scope');
+  assert.equal((await mod.staff('POST', `/staff/reports/${cs.body.report.id}/decide`, { action: 'escalate', note: 'Passed to the authorities (test fixture)' })).status, 204);
+  assert.equal((await mod2.staff('POST', `/staff/reports/${cs.body.report.id}/decide`, { action: 'keep', note: 'Not a child-safety case after all' })).status, 204);
+  assert.ok(!(await reviewer.staff('GET', '/staff/reports?status=decided')).body.reports.some((x: any) => x.id === cs.body.report.id), 'the kept child-safety report stays with the scope');
   assert.ok(!(await author.call('GET', '/me/mod-actions')).body.actions.some((a: any) => a.action === 'escalate'), 'still sealed after the keep');
   // The other way: an ordinary escalation the author was told about doesn't vanish when a child-safety report comes later.
   const id2 = (await author.call('POST', '/posts', { body: 'Escalated for a scam first (test fixture)' })).body.post.id;
   const scam = await r1.call('POST', '/reports', { target_kind: 'post', target_id: id2, reason: 'scam' });
-  assert.equal((await mod.call('POST', `/mod/reports/${scam.body.report.id}/decide`, { action: 'escalate', note: 'Looks like a scam ring' })).status, 204);
+  assert.equal((await mod.staff('POST', `/staff/reports/${scam.body.report.id}/decide`, { action: 'escalate', note: 'Looks like a scam ring' })).status, 204);
   const seen = async () => (await author.call('GET', '/me/mod-actions')).body.actions.filter((a: any) => a.action === 'escalate' && a.target_id === id2).length;
   assert.equal(await seen(), 1);
   assert.equal((await r2.call('POST', '/reports', { target_kind: 'post', target_id: id2, reason: 'child_safety' })).status, 201);

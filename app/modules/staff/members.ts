@@ -81,12 +81,14 @@ export async function renewRole(db: Db, opts: { handle: string; days?: number })
 }
 
 /** Take someone's role away. The last Overseer can't be removed. */
-export async function revokeRole(db: Db, handle: string): Promise<{ role: string }> {
+/** `keepOverseers`: refuse if they are an Overseer (the panel; removing one is a two-person request). */
+export async function revokeRole(db: Db, handle: string, opts: { keepOverseers?: boolean } = {}): Promise<{ role: string }> {
   const id = await userId(db, handle);
   return db.tx(async (t) => {
     await lockOverseers(t);
     const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1 FOR UPDATE', [id]);
     if (!current) return fail(404, 'not_found', 'That person holds no staff role');
+    if (opts.keepOverseers && current.role === OVERSEER) fail(409, 'is_overseer', 'Removing an Overseer needs a second Overseer');
     if (current.role === OVERSEER && (await overseerCount(t, { except: id, lock: true })) < 1) fail(409, 'last_overseer', LAST);
     await t.query('DELETE FROM staff_members WHERE user_id = $1', [id]);
     // Their staff passkeys and sessions go with the role.
