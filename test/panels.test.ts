@@ -126,9 +126,10 @@ test('a request whose asker can no longer act is not decided (review of #26)', a
   const ask = await a.staff('POST', '/staff/members', { handle: target.handle, role: 'Overseer' });
   assert.equal(ask.status, 202);
   await app.db.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [a.id]);
+  assert.ok(!(await b.staff('GET', '/staff/overview')).body.needs.some((n: any) => n.kind === 'approvals'), 'nothing for b to decide');
   const d = await b.staff('POST', `/staff/approvals/${ask.body.approval.id}/approve`);
   assert.equal(d.status, 409);
-  assert.equal(d.body.error.code, 'asker_gone');
+  assert.equal((await app.db.one<{ status: string }>('SELECT status FROM staff_approvals WHERE id = $1', [ask.body.approval.id]))!.status, 'withdrawn');
   await app.db.query(`UPDATE users SET status = 'active' WHERE id = $1`, [a.id]);
 });
 

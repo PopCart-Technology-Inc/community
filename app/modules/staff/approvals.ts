@@ -18,8 +18,17 @@ export interface Approval {
   decided_by: string | null; decided_at: string | null; reason: string;
 }
 
-/** Waiting requests past their 72 hours become `expired`. Run before reading or deciding. */
-export const expireOld = (db: Db) => db.query(`UPDATE staff_approvals SET status = 'expired' WHERE status = 'waiting' AND expires_at <= now()`);
+/**
+ * Waiting requests past their 72 hours become `expired`, and those whose asker can no longer act (removed,
+ * demoted, suspended or deleted, by any route) are withdrawn. Run before reading or deciding.
+ */
+export async function expireOld(db: Db): Promise<void> {
+  await db.query(`UPDATE staff_approvals SET status = 'expired' WHERE status = 'waiting' AND expires_at <= now()`);
+  await db.query(
+    `UPDATE staff_approvals a SET status = 'withdrawn', decided_at = now(), reason = 'The Overseer who asked can no longer act'
+     WHERE a.status = 'waiting' AND NOT EXISTS (SELECT 1 FROM staff_members sm JOIN users u ON u.id = sm.user_id
+       WHERE sm.user_id = a.asked_by AND sm.role = $1 AND u.status = 'active')`, [OVERSEER]);
+}
 
 export { overseerCount } from './members.ts';
 
@@ -55,6 +64,8 @@ export async function list(db: Db, meId: string, status: 'waiting' | 'done'): Pr
 export async function decide(db: Db, me: Actor & { id: string }, id: string, decision: 'approve' | 'decline', reason: string): Promise<void> {
   await expireOld(db);
   await db.tx(async (t) => {
+    // Overseer rows first, then the request: the same order as everything else that locks them.
+    await t.query('SELECT user_id FROM staff_members WHERE role = $1 FOR UPDATE', [OVERSEER]);
     const a = await t.one<Approval>('SELECT * FROM staff_approvals WHERE id = $1 FOR UPDATE', [id]);
     if (!a) return fail(404, 'not_found', 'No such request');
     if (a.status !== 'waiting') return fail(409, 'decided', a.status === 'expired' ? 'This request expired. Ask again.' : 'This request has already been decided');

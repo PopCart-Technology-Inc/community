@@ -23,7 +23,7 @@ The Overseer and Admin panels, on the staff host. Staff powers no longer work on
 - `/mod/appeals` moved to `/staff/appeals`.
 - The staff panel's role controls never change an Overseer's role (`409 is_overseer`): removing one is a two-person request.
 - **Nobody decides a request about themselves.** The Overseer a removal is about can't approve or decline it. With only two Overseers the panel can't remove one (`409 no_second`): that is done with `npm run staff` on the server (decision 0009, point 14). Asking to step down yourself works with two.
-- A request from an Overseer who has since been removed or suspended can't be decided (`409 asker_gone`), and removing an Overseer withdraws their waiting requests.
+- A request whose asker can no longer act (removed, demoted, suspended or deleted, by any route) is withdrawn, so it never waits for a decision that can't come (`409 asker_gone` if it is caught mid-decision).
 - A suspension from a report has no end date and replaces a timed one, so the clock never lifts it. Overturning it on appeal clears the date too.
 - Asking for something that already waits for a second Overseer gets `409 already_asked`, also when two asks arrive at once (the database settles it).
 - Every staff panel control is a branded one: dropdowns, checkboxes, confirmations and toasts.
