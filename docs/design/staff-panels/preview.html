@@ -1,0 +1,1753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff Panels Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --volt: #FFE500; --blue: #1B34FF; --ink: #14110F; --cream: #FFF6E3; --white: #FFFFFF;
+  --kiwi: #6EDC5F; --ember: #FF4F1F; --sky: #7CC8FF; --gum: #FF8AD8;
+  --ink8: #211D1A; --ink7: #3A3430; --ink5: #6E665C; --ink3: #A39A8B; --cream2: #F3EAD6; --cream3: #FBF4E4;
+  --ok: #0A7D3E; --warn: #F5A300; --err: #C4161C; --dis: #E9DFC9; --dis-edge: #C9BEA8; --blue3: #8F9CFF;
+  --f: 'Archivo', 'Noto Sans', system-ui, sans-serif;
+  --m: 'IBM Plex Mono', 'Noto Sans Mono', ui-monospace, monospace;
+  --e-press: cubic-bezier(.4, 0, .2, 1); --e-pop: cubic-bezier(.3, 1.6, .6, 1); --e-settle: cubic-bezier(.4, 0, .2, 1);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--white); color: var(--ink); font: 400 16px/1.5 var(--f); -webkit-font-smoothing: antialiased; overflow-x: clip; }
+a { color: var(--blue); }
+h1, h2, h3, h4, p { margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 10px; }
+[tabindex="-1"]:focus { outline: none; }
+.sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: 0; padding: 0; border: 0; opacity: 0; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* ---------- type ---------- */
+.eyebrow { font: 500 12px/1.3 var(--m); letter-spacing: .1em; text-transform: uppercase; color: var(--ink5); }
+.disp { font-weight: 900; font-stretch: 125%; letter-spacing: -.035em; line-height: .94; }
+.fig { font-family: var(--f); font-stretch: 88%; font-weight: 740; font-feature-settings: 'tnum' 1, 'lnum' 1; letter-spacing: -.02em; line-height: 1; }
+.mono { font-family: var(--m); }
+.mute { color: var(--ink5); }
+code { font: 500 .88em var(--m); background: var(--cream); padding: .1em .4em; border-radius: 6px; overflow-wrap: anywhere; }
+kbd { font: 600 11px/1 var(--m); padding: 3px 6px; border-radius: 6px; background: var(--cream2); color: var(--ink7); border: 1px solid var(--dis-edge); white-space: nowrap; }
+
+/* ---------- icons ---------- */
+.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.i.f { fill: currentColor; stroke: none; }
+.i.lg { width: 24px; height: 24px; }
+
+/* ---------- buttons (pressables keep the ink edge and a hard lift) ---------- */
+.b { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px; border: 2.5px solid var(--ink); background: var(--white); color: var(--ink);
+  font: 800 14px/1 var(--f); font-stretch: 112.5%; white-space: nowrap; cursor: pointer; box-shadow: 3px 3px 0 var(--ink);
+  transition: transform 80ms var(--e-press), box-shadow 80ms var(--e-press), background-color 120ms; user-select: none; }
+.b:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.b:active { transform: translate(3px, 3px) scale(1.04, .94); box-shadow: 0 0 0 var(--ink); }
+.b.p { background: var(--blue); color: var(--volt); }
+.b.y { background: var(--volt); }
+.b.d { background: var(--err); color: var(--white); }
+.b.g { border-color: transparent; background: transparent; box-shadow: none; }
+.b.g:hover { background: var(--cream); transform: none; }
+.b.g:active { transform: scale(.96); }
+.b.sm { height: 32px; padding: 0 12px; font-size: 13px; box-shadow: 2px 2px 0 var(--ink); border-width: 2px; }
+.b.sm:hover { box-shadow: 3px 3px 0 var(--ink); }
+.b.g.sm { box-shadow: none; }
+.b.io { width: 40px; padding: 0; }
+.b.sm.io { width: 32px; }
+.b:disabled, .b[aria-disabled="true"] { background: var(--dis); color: var(--ink3); border-color: var(--dis-edge); box-shadow: none; cursor: not-allowed; transform: none; }
+.b kbd { background: rgba(255,255,255,.18); border-color: transparent; color: inherit; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ---------- fields ---------- */
+.fld { display: grid; gap: 7px; min-width: 0; }
+.fld > span:first-child, .lbl { font: 700 13px/1.2 var(--f); color: var(--ink7); }
+.inp { height: 46px; width: 100%; border: 2px solid var(--dis-edge); border-radius: 14px; padding: 0 14px; background: var(--white); font: 500 15px/1 var(--f); color: var(--ink); transition: border-color 120ms, box-shadow 120ms; }
+.inp::placeholder { color: var(--ink3); }
+.inp:hover { border-color: var(--ink5); }
+.inp:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 4px rgba(27, 52, 255, .14); }
+textarea.inp { height: auto; min-height: 96px; padding: 12px 14px; line-height: 1.45; resize: vertical; }
+.inp.bad { border-color: var(--err); }
+.ferr { font: 600 12.5px/1.3 var(--f); color: var(--err); display: flex; gap: 6px; align-items: center; }
+.ferr .i { width: 15px; height: 15px; }
+.ferr:empty { display: none; }
+.hint { font-size: 12.5px; color: var(--ink5); }
+.inwrap { position: relative; }
+.inwrap > .i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--ink5); pointer-events: none; }
+.inwrap .inp { padding-left: 42px; }
+
+/* custom dropdown */
+.dd { display: inline-flex; align-items: center; gap: 8px; height: 46px; min-width: 0; padding: 0 12px 0 14px; border: 2px solid var(--dis-edge); border-radius: 14px; background: var(--white); cursor: pointer; font: 600 15px/1 var(--f); text-align: left; transition: border-color 120ms, box-shadow 120ms; }
+.dd:hover { border-color: var(--ink5); }
+.dd[aria-expanded="true"] { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(27, 52, 255, .14); }
+.dd .dv { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd .pre { color: var(--ink5); font-weight: 500; }
+.dd .cv { transition: transform 160ms var(--e-settle); color: var(--ink5); }
+.dd[aria-expanded="true"] .cv { transform: rotate(180deg); }
+.dd.sm { height: 34px; border-radius: 999px; font-size: 13px; padding: 0 10px 0 12px; }
+.dd.full { width: 100%; }
+
+/* popover (dropdown lists, menus, confirms) */
+.pop { position: fixed; z-index: 1000; background: var(--white); border: 2.5px solid var(--ink); border-radius: 16px; box-shadow: 5px 5px 0 var(--ink); padding: 6px; max-height: 320px; overflow: auto; max-width: min(360px, calc(100vw - 16px));
+  transform-origin: top left; animation: popin 160ms var(--e-pop); }
+.pop[hidden] { display: none; }
+@keyframes popin { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+.pop ul { list-style: none; margin: 0; padding: 0; outline: none; }
+.opt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font: 600 14px/1.25 var(--f); }
+.opt .ol { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.opt small { font: 500 12px/1.3 var(--f); color: var(--ink5); }
+.opt.act { background: var(--cream); }
+.opt[aria-selected="true"] { color: var(--blue); }
+.opt[aria-selected="true"] small { color: var(--ink5); }
+.opt.danger { color: var(--err); }
+.opt .demo-tag { margin-left: auto; }
+.cf { padding: 10px 10px 8px; max-width: 300px; }
+.cf b { display: block; font-size: 15px; margin-bottom: 4px; }
+.cf p { font-size: 13.5px; color: var(--ink7); margin-bottom: 12px; }
+.cf .acts { justify-content: flex-end; }
+
+/* custom checkbox */
+.cb { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 12px; border-radius: 14px; transition: background-color 120ms; position: relative; }
+.cb:hover { background: var(--cream3); }
+.cbx { width: 24px; height: 24px; border: 2.5px solid var(--ink); border-radius: 8px; background: var(--white); display: grid; place-items: center; flex: none; margin-top: 1px; transition: background-color 120ms; }
+.cbx .i { width: 15px; height: 15px; stroke-width: 3.2; color: var(--volt); transform: scale(0); transition: transform 200ms var(--e-pop); }
+.cb input:checked + .cbx { background: var(--blue); }
+.cb input:checked + .cbx .i { transform: scale(1); }
+.cb input:focus-visible + .cbx { outline: 3px solid var(--blue); outline-offset: 3px; }
+.cb input:disabled + .cbx { background: var(--dis); border-color: var(--dis-edge); }
+.cbl { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.cbl b { font: 700 14.5px/1.3 var(--f); }
+.cbl small { font-size: 13px; color: var(--ink5); line-height: 1.4; }
+.cbl code { font-size: 11.5px; }
+
+/* custom switch */
+.sw { display: inline-flex; align-items: center; gap: 10px; background: none; border: 0; padding: 4px; cursor: pointer; font: 700 13px/1 var(--f); color: var(--ink); border-radius: 999px; }
+.sw .tr { width: 48px; height: 28px; border-radius: 999px; border: 2.5px solid var(--ink); background: var(--cream2); position: relative; flex: none; transition: background-color 160ms; }
+.sw .tr::after { content: ''; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: var(--ink); transition: transform 220ms var(--e-pop), background-color 160ms; }
+.sw[aria-checked="true"] .tr { background: var(--blue); }
+.sw[aria-checked="true"] .tr::after { transform: translateX(20px); background: var(--volt); box-shadow: 0 0 0 2px var(--ink); }
+.sw .sl { min-width: 24px; }
+
+/* segmented control */
+.seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--cream2); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg button { height: 34px; padding: 0 14px; border-radius: 999px; border: 2px solid transparent; background: none; cursor: pointer; font: 700 13.5px/1 var(--f); color: var(--ink7); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; transition: background-color 120ms; }
+.seg button:hover { background: rgba(255,255,255,.6); }
+.seg button[aria-selected="true"] { background: var(--white); border-color: var(--ink); color: var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+.seg .sn { font: 700 11px/1 var(--m); background: var(--ink); color: var(--volt); border-radius: 999px; padding: 3px 6px; }
+
+/* drop zone */
+.drop { display: block; position: relative; cursor: pointer; }
+.drop[hidden] { display: none; }
+.dz { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 26px 16px; border: 2.5px dashed var(--ink3); border-radius: 18px; background: var(--cream3); transition: border-color 120ms, background-color 120ms; }
+.dz .i { width: 28px; height: 28px; color: var(--blue); }
+.dz b { font-size: 15px; }
+.dz small { color: var(--ink5); font-size: 12.5px; }
+.drop:hover .dz, .drop.over .dz { border-color: var(--blue); background: #EEF0FF; }
+.drop input:focus-visible ~ .dz { outline: 3px solid var(--blue); outline-offset: 3px; }
+.drop.bad .dz { border-color: var(--err); }
+.dfile { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border: 2px solid var(--ink); border-radius: 14px; background: var(--white); }
+.dfile[hidden] { display: none; }
+.dfile > .i { color: var(--blue); }
+.dfile b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dfile small { color: var(--ink5); font-size: 12px; }
+.dfile > span { flex: 1; min-width: 0; }
+
+/* pills, chips, badges */
+.pl { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--cream); font: 600 12.5px/1 var(--f); color: var(--ink7); white-space: nowrap; }
+.pl i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink3); flex: none; }
+.pl.ok i { background: var(--ok); } .pl.warn i { background: var(--warn); } .pl.err i { background: var(--err); } .pl.info i { background: var(--blue); }
+.pl.err { background: #FDE8E6; color: #8E1014; }
+.pl.info { background: #E8EBFF; color: #1424B8; }
+.pl.ink { background: var(--ink); color: var(--volt); } .pl.ink i { background: var(--volt); }
+.pl .i { width: 13px; height: 13px; }
+.cnt { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--ember); color: var(--white); font: 800 11px/20px var(--f); text-align: center; font-feature-settings: 'tnum' 1; }
+.rl { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 8px; font: 700 12.5px/1 var(--f); border: 1.5px solid rgba(20, 17, 15, .14); white-space: nowrap; }
+.rl.Overseer { background: var(--ink); color: var(--volt); border-color: var(--ink); }
+.rl.Moderator { background: #FFE3F5; } .rl.Support { background: #E2F2FF; } .rl.Developer { background: #E4F8E0; } .rl.other { background: var(--cream); }
+.kc { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex: none; border: 2px solid var(--ink); }
+.kc .i { width: 17px; height: 17px; }
+.kc.sm { width: 28px; height: 28px; border-radius: 9px; border-width: 1.5px; } .kc.sm .i { width: 14px; height: 14px; }
+.c-gum { background: var(--gum); } .c-sky { background: var(--sky); } .c-volt { background: var(--volt); } .c-kiwi { background: var(--kiwi); } .c-cream { background: var(--cream); } .c-ember { background: var(--ember); color: var(--white); }
+.av { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--ink); display: inline-grid; place-items: center; font: 800 13px/1 var(--f); flex: none; color: var(--ink); }
+.av.sm { width: 26px; height: 26px; font-size: 11px; border-width: 1.5px; }
+.av.lg { width: 44px; height: 44px; font-size: 16px; }
+.avs { display: inline-flex; }
+.avs .av { margin-left: -8px; } .avs .av:first-child { margin-left: 0; }
+.demo-tag { font: 600 10px/1 var(--m); letter-spacing: .08em; text-transform: uppercase; padding: 4px 6px; border-radius: 6px; border: 1.5px dashed var(--ink5); color: var(--ink5); white-space: nowrap; }
+
+/* ring + spark + meter */
+.ring { position: relative; width: 48px; height: 48px; display: inline-grid; place-items: center; flex: none; }
+.ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.ring .rt { fill: none; stroke: var(--cream2); stroke-width: 4; }
+.ring .ra { fill: none; stroke: var(--blue); stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 400ms var(--e-settle); }
+.ring.low .ra { stroke: var(--err); }
+.ring > span { font: 700 10.5px/1 var(--f); font-stretch: 88%; font-feature-settings: 'tnum' 1; text-align: center; position: relative; }
+.ring.lg { width: 72px; height: 72px; } .ring.lg > span { font-size: 13px; }
+.spark { width: 100%; height: 40px; display: block; overflow: visible; }
+.spark .sl { fill: none; stroke: var(--blue); stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.spark .sa { fill: rgba(27, 52, 255, .08); }
+.spark.warn .sl { stroke: var(--warn); } .spark.warn .sa { fill: rgba(245, 163, 0, .12); }
+.meter { height: 6px; border-radius: 999px; background: var(--cream2); overflow: hidden; width: 100%; }
+.meter > i { display: block; height: 100%; border-radius: 999px; background: var(--ink); }
+.meter.warn > i { background: var(--warn); }
+
+/* ================= Overseer prototype ================= */
+.devwrap { display: grid; justify-items: center; }
+.dev { width: 100%; max-width: 1240px; height: 800px; border: 3px solid var(--ink); border-radius: 26px; box-shadow: 8px 8px 0 var(--ink); background: var(--cream); overflow: hidden; overflow: clip; position: relative;
+  display: grid; grid-template-rows: 60px minmax(0, 1fr); container-type: inline-size; container-name: ov; transition: max-width 360ms var(--e-settle), border-radius 360ms; }
+.dev.phone { max-width: 400px; height: 820px; border-radius: 44px; }
+.tb { display: flex; align-items: center; gap: 10px; padding: 0 14px 0 16px; background: var(--white); border-bottom: 1px solid var(--cream2); min-width: 0; }
+.hamb { display: none !important; }
+.crumb { font: 500 13px/1 var(--m); color: var(--ink5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.crumb b { color: var(--ink); font-weight: 600; }
+.tbsp { flex: 1; }
+.kbtn { display: inline-flex; align-items: center; gap: 10px; height: 38px; padding: 0 8px 0 12px; border-radius: 999px; border: 2px solid var(--cream2); background: var(--cream3); cursor: pointer; color: var(--ink5); font: 500 13.5px/1 var(--f); min-width: 220px; transition: border-color 120ms; }
+.kbtn:hover { border-color: var(--ink3); }
+.kbtn .t { flex: 1; text-align: left; }
+.sess { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border-radius: 999px; border: 2px solid var(--cream2); background: var(--white); cursor: pointer; font: 700 13px/1 var(--f); font-stretch: 88%; font-feature-settings: 'tnum' 1; }
+.sess:hover { border-color: var(--ink3); }
+.sess .i { width: 15px; height: 15px; color: var(--ok); }
+.sess.soon .i { color: var(--warn); }
+.demo { display: inline-flex; align-items: center; gap: 6px; padding: 3px 3px 3px 10px; border: 2px dashed var(--ink3); border-radius: 999px; }
+.demo .dd { border: 0; height: 32px; padding: 0 8px; border-radius: 999px; background: var(--cream); font-size: 13px; }
+
+.ob { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 0; }
+.sd { background: var(--white); border-right: 1px solid var(--cream2); padding: 18px 12px 14px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; z-index: 31; }
+.brandrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 10px 18px; }
+.wm { font: 900 19px/1 var(--f); font-stretch: 125%; letter-spacing: -.03em; background: none; border: 0; padding: 0; cursor: pointer; }
+.ni { display: flex; align-items: center; gap: 12px; height: 42px; padding: 0 12px; border-radius: 12px; border: 0; background: none; width: 100%; cursor: pointer; font: 600 14.5px/1 var(--f); color: var(--ink7); text-decoration: none; text-align: left; transition: background-color 120ms; flex: none; }
+.ni:hover { background: var(--cream); color: var(--ink); }
+.ni .i { color: var(--ink5); }
+.ni.on { background: var(--ink); color: var(--white); }
+.ni.on .i { color: var(--volt); }
+.ni .nl { flex: 1; }
+.ni .cnt { margin-left: auto; }
+.brandrow .pl { height: 22px; padding: 0 8px; font-size: 11px; flex: none; }
+.sdsep { height: 1px; background: var(--cream2); margin: 10px 8px; flex: none; }
+.sdh { font: 500 11px/1 var(--m); letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); padding: 6px 12px 8px; }
+.mecard { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 16px; background: var(--cream3); border: 1px solid var(--cream2); flex: none; }
+.mecard b { display: block; font-size: 14px; } .mecard small { font-size: 12px; color: var(--ink5); }
+
+.mn { overflow-y: auto; padding: 28px 32px 96px; min-width: 0; }
+.ph { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.ph h1 { font: 900 34px/1 var(--f); font-stretch: 112.5%; letter-spacing: -.03em; margin-top: 6px; }
+.ph .sub { color: var(--ink5); margin-top: 8px; font-size: 15px; }
+.phr { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.asof { font: 500 12px/1 var(--m); color: var(--ink5); letter-spacing: .03em; }
+.asof.stale { color: var(--err); }
+.h2 { font: 800 17px/1.2 var(--f); font-stretch: 112.5%; display: flex; align-items: center; gap: 8px; margin: 28px 0 12px; }
+.h2:first-child { margin-top: 0; }
+.h2 .sp { flex: 1; }
+
+.card { background: var(--white); border: 1px solid var(--cream2); border-radius: 20px; }
+.cpad { padding: 18px 20px; }
+.grid { display: grid; gap: 14px; }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.g2 { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.gfill { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+
+.nd { display: flex; align-items: center; gap: 14px; text-align: left; padding: 16px; background: var(--white); border: 2.5px solid var(--ink); border-radius: 20px; box-shadow: 3px 3px 0 var(--ink); cursor: pointer; width: 100%; transition: transform 80ms var(--e-press), box-shadow 80ms; }
+.nd:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.nd:active { transform: translate(3px, 3px); box-shadow: none; }
+.nd .ndt { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.nd b { font-size: 15px; line-height: 1.25; }
+.nd small { font-size: 12.5px; color: var(--ink5); line-height: 1.35; }
+.allclear { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: 20px; background: #E9F7E6; border: 1px solid #CBEBC4; }
+.allclear .i { color: var(--ok); }
+
+.kp { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 18px 18px 14px; background: var(--white); border: 1px solid var(--cream2); border-radius: 20px; cursor: pointer; transition: border-color 120ms, transform 120ms var(--e-settle); min-width: 0; }
+.kp:hover { border-color: var(--ink); transform: translateY(-2px); }
+.kp .kl { display: flex; align-items: center; justify-content: space-between; font: 600 13.5px/1 var(--f); color: var(--ink5); }
+.kp .kl .i { width: 16px; height: 16px; opacity: 0; transition: opacity 120ms, transform 120ms; }
+.kp:hover .kl .i { opacity: 1; transform: translateX(2px); }
+.kp .fig { font-size: 44px; }
+.kp .fig.word { font-size: 28px; font-stretch: 100%; font-weight: 800; letter-spacing: -.02em; padding: 8px 0 7px; }
+.kp .kf { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink5); min-height: 26px; flex-wrap: wrap; }
+.kp .kf .pl { white-space: normal; height: auto; min-height: 26px; padding: 4px 10px; line-height: 1.2; text-align: left; }
+.kp.alert { border-color: var(--ember); box-shadow: inset 0 0 0 1px var(--ember); }
+.kbars { display: flex; gap: 3px; height: 40px; align-items: flex-end; }
+.kbars i { flex: 1; border-radius: 4px 4px 2px 2px; background: var(--cream2); }
+.kbars i.on { background: var(--ink); }
+
+.rows { background: var(--white); border: 1px solid var(--cream2); border-radius: 20px; overflow: hidden; }
+.row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--cream2); min-width: 0; width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; }
+.row:last-child { border-bottom: 0; }
+button.row { cursor: pointer; transition: background-color 120ms; }
+button.row:hover, .row.hov:hover { background: var(--cream3); }
+.row .rt { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.row .rt b { font-size: 14.5px; line-height: 1.3; overflow-wrap: anywhere; }
+.row .rt small { font-size: 12.5px; color: var(--ink5); line-height: 1.35; }
+.row .rr { display: flex; align-items: center; gap: 10px; flex: none; }
+.row .meta { width: 170px; flex: none; display: grid; gap: 6px; font-size: 12.5px; color: var(--ink5); }
+.sechead { padding: 12px 18px; background: var(--cream3); border-bottom: 1px solid var(--cream2); font: 500 11.5px/1 var(--m); letter-spacing: .08em; text-transform: uppercase; color: var(--ink5); display: flex; gap: 8px; align-items: center; }
+.sechead .i { width: 14px; height: 14px; }
+
+.tl { list-style: none; margin: 0; padding: 4px 0; }
+.tl li { display: flex; gap: 12px; padding: 12px 18px; position: relative; align-items: flex-start; }
+.tl .tt { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; }
+.tl .tt small { display: block; font: 500 11.5px/1.3 var(--m); color: var(--ink5); margin-top: 3px; letter-spacing: .02em; }
+.dayh { font: 500 11.5px/1 var(--m); letter-spacing: .08em; text-transform: uppercase; color: var(--ink5); padding: 16px 18px 6px; }
+
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.toolbar .inwrap { flex: 1; min-width: 200px; }
+.toolbar .inp, .toolbar .dd { height: 42px; }
+
+.banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 16px; background: #EEF0FF; border: 1px solid #D5DAFF; font-size: 14px; color: var(--ink8); margin-bottom: 20px; line-height: 1.45; }
+.banner > .i { color: var(--blue); margin-top: 1px; }
+.banner.warm { background: var(--cream); border-color: var(--cream2); }
+.banner.warm > .i { color: var(--ink7); }
+
+.two { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.rlist { display: grid; gap: 6px; }
+.rbtn { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; border: 2px solid transparent; background: var(--white); cursor: pointer; text-align: left; width: 100%; transition: border-color 120ms; }
+.rbtn:hover { border-color: var(--cream2); }
+.rbtn.on { border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.rbtn .rt { flex: 1; display: grid; gap: 2px; } .rbtn small { font-size: 12px; color: var(--ink5); }
+.sgrp { padding: 6px 8px 8px; }
+.sgrp + .sgrp { border-top: 1px solid var(--cream2); }
+.sgrp h4 { font: 500 11.5px/1 var(--m); letter-spacing: .08em; text-transform: uppercase; color: var(--ink5); padding: 14px 12px 4px; }
+.risk { font: 600 11px/1 var(--m); letter-spacing: .04em; padding: 4px 7px; border-radius: 6px; flex: none; margin-top: 2px; }
+.risk.High { background: #FDE8E6; color: #8E1014; } .risk.Med { background: #FFF1CF; color: #6B4600; } .risk.Low { background: var(--cream); color: var(--ink5); }
+.savebar { position: sticky; bottom: 16px; margin-top: 16px; display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 18px; background: var(--ink); color: var(--white); border-radius: 999px; box-shadow: 0 10px 30px rgba(20,17,15,.25); animation: rise 260ms var(--e-pop); }
+.savebar .grow { flex: 1; font-weight: 700; font-size: 14px; }
+.savebar .b.g { color: var(--white); } .savebar .b.g:hover { background: rgba(255,255,255,.12); }
+@keyframes rise { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.swrow { display: flex; gap: 14px; align-items: flex-start; padding: 18px 20px; border-bottom: 1px solid var(--cream2); }
+.swrow:last-child { border-bottom: 0; }
+.swrow .rt { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.swrow .rt b { font-size: 15px; }
+.swrow .rt p { font-size: 13.5px; color: var(--ink5); line-height: 1.45; }
+.fsw { display: flex; gap: 18px; flex-wrap: wrap; }
+.fsw > div { display: grid; gap: 4px; justify-items: start; }
+.fsw small { font: 500 11px/1 var(--m); letter-spacing: .06em; text-transform: uppercase; color: var(--ink5); }
+
+.vcard { padding: 18px 20px; }
+.vcard + .vcard { border-top: 1px solid var(--cream2); }
+.dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 14px; font-size: 14px; margin: 12px 0 0; }
+.dl dt { color: var(--ink5); } .dl dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.dl dd .i { width: 15px; height: 15px; vertical-align: -3px; }
+.reveal { margin-top: 14px; padding: 16px; border-radius: 18px; background: var(--ink); color: var(--white); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.reveal .rv { flex: 1; min-width: 180px; display: grid; gap: 10px; }
+.reveal small { font: 500 11px/1 var(--m); letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
+.reveal .val { font: 600 17px/1.2 var(--m); color: var(--volt); margin-top: 4px; }
+.reveal .ring .rt { stroke: #3A3430; } .reveal .ring .ra { stroke: var(--volt); } .reveal .ring > span { color: var(--white); }
+.reveal .b { box-shadow: 3px 3px 0 var(--volt); }
+
+.rep { padding: 16px 18px; display: grid; gap: 10px; outline: none; border-bottom: 1px solid var(--cream2); transition: background-color 120ms; }
+.rep:last-child { border-bottom: 0; }
+.rep:focus-visible, .rep:hover { background: var(--cream3); }
+.rep:focus-visible { box-shadow: inset 4px 0 0 var(--blue); }
+.rep .rh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rep b { font-size: 15px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { height: 32px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--cream2); background: var(--white); cursor: pointer; font: 600 13px/1 var(--m); color: var(--ink7); transition: border-color 120ms; }
+.chip:hover { border-color: var(--ink); }
+.scope { display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 8px; background: #E8EBFF; color: #1424B8; font: 500 12px/1 var(--m); }
+
+.empty { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 48px 16px; color: var(--ink5); }
+.empty .kc { width: 56px; height: 56px; border-radius: 18px; } .empty .kc .i { width: 24px; height: 24px; }
+.empty b { color: var(--ink); font-size: 16px; }
+
+/* drawer, scrim, palette, toast, lock */
+.scr { position: absolute; inset: 60px 0 0 0; background: rgba(20, 17, 15, .32); opacity: 0; pointer-events: none; transition: opacity 220ms; z-index: 30; }
+.scr.on { opacity: 1; pointer-events: auto; }
+.dw { position: absolute; top: 60px; right: 0; bottom: 0; width: min(480px, 100%); background: var(--white); border-left: 3px solid var(--ink); z-index: 40; display: flex; flex-direction: column;
+  transform: translateX(104%); transition: transform 260ms var(--e-settle), visibility 260ms; visibility: hidden; }
+.dw.on { transform: none; visibility: visible; }
+.dwh { display: flex; align-items: flex-start; gap: 12px; padding: 20px 20px 16px; border-bottom: 1px solid var(--cream2); }
+.dwh h2 { font: 900 22px/1.1 var(--f); font-stretch: 112.5%; letter-spacing: -.02em; margin-top: 4px; }
+.dwh .grow { flex: 1; min-width: 0; }
+.dwb { flex: 1; overflow-y: auto; padding: 20px; display: grid; gap: 18px; align-content: start; }
+.dwf { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--cream2); background: var(--white); flex-wrap: wrap; }
+.dwf .note { flex: 1; font-size: 13px; color: var(--ink5); align-self: center; min-width: 160px; }
+.steps { list-style: none; padding: 0; margin: 0; display: grid; }
+.steps li { display: flex; gap: 12px; position: relative; padding-bottom: 18px; }
+.steps li:last-child { padding-bottom: 0; }
+.steps li::before { content: ''; position: absolute; left: 13px; top: 28px; bottom: 2px; width: 2px; background: var(--cream2); }
+.steps li:last-child::before { display: none; }
+.steps .sd2 { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ink3); background: var(--white); display: grid; place-items: center; flex: none; z-index: 1; }
+.steps .sd2 .i { width: 14px; height: 14px; stroke-width: 3; }
+.steps li.done .sd2 { background: var(--ok); border-color: var(--ok); color: var(--white); }
+.steps li.now .sd2 { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(27,52,255,.14); }
+.steps li.now .sd2::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); animation: pulse 1.4s infinite; }
+.steps li.bad .sd2 { background: var(--err); border-color: var(--err); color: var(--white); }
+.steps b { font-size: 14px; display: block; } .steps small { font-size: 12.5px; color: var(--ink5); }
+@keyframes pulse { 50% { transform: scale(.6); opacity: .5; } }
+.fsec { display: grid; gap: 14px; }
+.fsec h3 { font: 800 14px/1 var(--f); display: flex; gap: 8px; align-items: center; }
+.fsec h3 .n { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--volt); display: grid; place-items: center; font: 700 11px/1 var(--m); }
+.fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cbl-list { display: grid; gap: 2px; margin: -6px -12px; }
+
+.pal { position: absolute; top: 84px; left: 50%; transform: translateX(-50%); width: min(580px, calc(100% - 24px)); background: var(--white); border: 3px solid var(--ink); border-radius: 22px; box-shadow: 8px 8px 0 var(--ink); z-index: 50; overflow: hidden; }
+.pal[hidden] { display: none; }
+.palin { display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--cream2); }
+.palin input { flex: 1; height: 60px; border: 0; outline: none; font: 600 17px/1 var(--f); background: none; color: var(--ink); min-width: 0; }
+.pall { list-style: none; margin: 0; padding: 8px; max-height: 340px; overflow-y: auto; }
+.pall li { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14.5px; }
+.pall li.act { background: var(--cream); }
+.pall li small { margin-left: auto; font: 500 11.5px/1 var(--m); color: var(--ink5); }
+.pall .ph2 { font: 500 11px/1 var(--m); letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); padding: 12px 12px 6px; cursor: default; }
+.palf { display: flex; gap: 14px; padding: 10px 18px; border-top: 1px solid var(--cream2); background: var(--cream3); font-size: 12px; color: var(--ink5); flex-wrap: wrap; }
+
+.tst { position: absolute; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; transition: opacity 200ms, transform 260ms var(--e-pop); z-index: 70;
+  display: flex; align-items: center; gap: 14px; padding: 12px 12px 12px 18px; background: var(--ink); color: var(--cream); border-radius: 16px; font: 600 14px/1.3 var(--f); max-width: calc(100% - 32px); width: max-content; box-shadow: 0 12px 30px rgba(20,17,15,.3); }
+.tst.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.tst > .i { color: var(--kiwi); }
+.tst button { background: none; border: 0; color: var(--volt); font: 800 14px/1 var(--f); cursor: pointer; padding: 8px 10px; border-radius: 10px; }
+.tst button:hover { background: rgba(255,255,255,.1); }
+.lockv { position: absolute; inset: 0; z-index: 80; background: var(--cream); display: grid; place-items: center; padding: 20px; }
+.lockv[hidden] { display: none; }
+.lockc { text-align: center; max-width: 340px; display: grid; justify-items: center; gap: 12px; }
+.lockc .kbig { width: 96px; height: 96px; border-radius: 50%; background: var(--volt); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); display: grid; place-items: center; margin-bottom: 8px; }
+.lockc .kbig .i { width: 40px; height: 40px; stroke-width: 2.4; }
+.lockc h2 { font: 900 26px/1.1 var(--f); font-stretch: 112.5%; }
+
+/* prototype: narrow (phone) */
+@container ov (max-width: 900px) {
+  .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .g2, .two { grid-template-columns: 1fr; }
+  .row .meta { display: none; }
+}
+@container ov (max-width: 760px) {
+  .ob { grid-template-columns: 1fr; }
+  .sd { position: absolute; top: 60px; left: 0; bottom: 0; width: 284px; transform: translateX(-104%); transition: transform 260ms var(--e-settle), visibility 260ms; box-shadow: 6px 0 0 var(--ink); border-right: 3px solid var(--ink); visibility: hidden; }
+  .dev.navopen .sd { transform: none; visibility: visible; }
+  .hamb { display: inline-flex !important; }
+  .crumb .host, .kbtn .t, .kbtn kbd, .demo .dtag { display: none; }
+  .kbtn { min-width: 0; width: 38px; padding: 0; justify-content: center; }
+  .mn { padding: 20px 16px 96px; }
+  .ph h1 { font-size: 28px; }
+  .kp .fig { font-size: 36px; }
+  .fgrid { grid-template-columns: 1fr; }
+  .dl { grid-template-columns: 1fr; gap: 2px; } .dl dd { margin-bottom: 8px; }
+  .row { padding: 14px; }
+  .rep .acts .b kbd { display: none; }
+}
+@container ov (max-width: 480px) {
+  .g4 { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kp { padding: 14px 14px 12px; } .kp .fig { font-size: 30px; } .kp .fig.word { font-size: 20px; }
+  .kp .spark, .kp .kbars { display: none; }
+  .sess .t { display: none; }
+  .tb { gap: 6px; padding: 0 10px; }
+  .demo { padding-left: 3px; }
+  .crumb { display: none; }
+  .row .rr .rl { display: none; }
+  .gfill { grid-template-columns: 1fr; }
+}
+
+/* ================= document ================= */
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+.top { position: sticky; top: 0; z-index: 90; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--cream2); }
+.top .wrap { display: flex; align-items: center; gap: 14px; height: 64px; }
+.top .wm { font-size: 22px; cursor: default; }
+.top nav { margin-left: auto; display: flex; gap: 4px; }
+.top nav a { color: var(--ink7); text-decoration: none; font: 600 14px/1 var(--f); padding: 10px 12px; border-radius: 999px; }
+.top nav a:hover { background: var(--cream); color: var(--ink); }
+@media (max-width: 900px) { .top nav { display: none; } }
+@media (max-width: 520px) { .top .demo-tag { display: none; } }
+.sec { padding: 96px 0; }
+.sec.cream { background: var(--cream); }
+.sec.ink { background: var(--ink); color: var(--white); }
+.sec.ink .eyebrow, .sec.ink .lede { color: var(--ink3); }
+.sh { max-width: 780px; margin-bottom: 44px; }
+.sh h2 { font-size: clamp(34px, 5vw, 56px); margin: 12px 0 16px; }
+.lede { font-size: 18px; line-height: 1.55; color: var(--ink7); max-width: 720px; }
+.hero { padding: 88px 0 72px; }
+.hero h1 { font-size: clamp(46px, 8.4vw, 112px); margin: 18px 0 24px; }
+.hero h1 .hl { background: var(--volt); padding: 0 .1em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.hero .lede { font-size: 20px; }
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+.fact { padding: 22px; border-radius: 24px; border: 1px solid var(--cream2); background: var(--white); display: grid; gap: 10px; align-content: start; }
+.fact .kc { width: 44px; height: 44px; border-radius: 14px; }
+.fact b { font: 800 18px/1.25 var(--f); font-stretch: 112.5%; }
+.fact p { font-size: 14.5px; color: var(--ink5); line-height: 1.5; }
+@media (max-width: 860px) { .facts { grid-template-columns: 1fr; } .sec { padding: 72px 0; } }
+
+.tryrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.tips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px 8px 8px; border-radius: 999px; background: var(--white); border: 1px solid var(--cream2); font-size: 13.5px; font-weight: 600; }
+.tip .n { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--volt); display: grid; place-items: center; font: 700 11px/1 var(--m); }
+.footnote { text-align: center; color: var(--ink5); font-size: 13.5px; margin-top: 22px; }
+
+.urls { display: grid; gap: 0; border-radius: 24px; overflow: hidden; border: 1px solid var(--cream2); background: var(--white); }
+.url { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 8px 24px; padding: 20px 24px; border-bottom: 1px solid var(--cream2); align-items: center; }
+.url:last-child { border-bottom: 0; }
+.url .u { font: 500 15px/1.5 var(--m); color: var(--ink5); overflow-wrap: anywhere; }
+.url .u b { color: var(--ink); font-weight: 600; padding: 3px 7px; border-radius: 7px; }
+.url .u b.y { background: var(--volt); } .url .u b.s { background: var(--sky); } .url .u b.k { background: var(--ink); color: var(--volt); } .url .u b.x { background: var(--cream2); text-decoration: line-through; text-decoration-thickness: 2px; }
+.url .w { display: grid; gap: 4px; } .url .w b { font-size: 15.5px; } .url .w span { font-size: 14px; color: var(--ink5); line-height: 1.45; }
+@media (max-width: 760px) { .url { grid-template-columns: 1fr; padding: 18px; } }
+
+.checker { margin-top: 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; border-radius: 24px; overflow: hidden; border: 2.5px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); background: var(--white); }
+.checker .cin { padding: 26px; display: grid; gap: 14px; align-content: start; border-right: 1px solid var(--cream2); }
+.checker .cin h3 { font: 900 24px/1.1 var(--f); font-stretch: 112.5%; }
+.urlfield { display: flex; align-items: center; border: 2px solid var(--dis-edge); border-radius: 14px; overflow: hidden; background: var(--white); transition: border-color 120ms, box-shadow 120ms; }
+.urlfield:focus-within { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(27,52,255,.14); }
+.urlfield span { padding: 0 4px 0 14px; font: 500 14px/1 var(--m); color: var(--ink5); white-space: nowrap; }
+.urlfield input { flex: 1; min-width: 0; height: 50px; border: 0; outline: none; font: 600 16px/1 var(--m); color: var(--ink); background: none; padding-right: 14px; }
+@media (max-width: 520px) { .urlfield span { font-size: 11px; padding-left: 10px; } }
+.verdict { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 16px; font-weight: 700; font-size: 15px; }
+.verdict.ok { background: #E9F7E6; color: #0A5A2D; } .verdict.no { background: #FDE8E6; color: #8E1014; } .verdict.idle { background: var(--cream); color: var(--ink5); }
+.checker .crules { padding: 22px 26px; background: var(--cream3); display: grid; gap: 4px; align-content: start; }
+.crule { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; font-size: 14.5px; }
+.crule .dot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--cream2); color: var(--ink3); transition: background-color 160ms; }
+.crule .dot .i { width: 13px; height: 13px; stroke-width: 3.2; }
+.crule.ok .dot { background: var(--ok); color: var(--white); } .crule.no .dot { background: var(--err); color: var(--white); }
+.crule small { display: block; color: var(--ink5); font-size: 12.5px; margin-top: 2px; }
+@media (max-width: 860px) { .checker { grid-template-columns: 1fr; } .checker .cin { border-right: 0; border-bottom: 1px solid var(--cream2); } }
+
+.locks { display: grid; gap: 0; }
+.lock { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 18px; padding: 24px 0; border-top: 1px solid #3A3430; align-items: start; }
+.lock:last-child { border-bottom: 1px solid #3A3430; }
+.lock .n { font: 900 40px/1 var(--f); font-stretch: 125%; color: var(--volt); }
+.lock b { font: 800 19px/1.3 var(--f); font-stretch: 112.5%; display: block; margin-bottom: 6px; }
+.lock p { color: #CFC6B6; font-size: 15px; line-height: 1.55; max-width: 720px; }
+.lock p code, .fbc p code, .q p code { background: #2A2522; color: var(--cream); }
+.lock .pl { background: #2A2522; color: var(--cream); } .lock .pl.ink { background: var(--volt); color: var(--ink); } .lock .pl.ink i { background: var(--ink); }
+@media (max-width: 700px) { .lock { grid-template-columns: 44px 1fr; } .lock .n { font-size: 30px; } .lock .pl { grid-column: 2; justify-self: start; } }
+.fb { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 48px; }
+.fbc { padding: 24px; border-radius: 24px; background: #211D1A; border: 1px solid #3A3430; display: grid; gap: 10px; align-content: start; }
+.fbc h3 { font: 800 19px/1.2 var(--f); font-stretch: 112.5%; color: var(--white); }
+.fbc p { color: #CFC6B6; font-size: 14.5px; line-height: 1.55; }
+.fbc .take { color: var(--volt); font-weight: 700; font-size: 14px; }
+.conf { display: inline-flex; gap: 6px; align-items: center; font: 500 11px/1.3 var(--m); letter-spacing: .06em; text-transform: uppercase; }
+.conf.y { color: var(--kiwi); } .conf.n { color: var(--warn); }
+@media (max-width: 860px) { .fb { grid-template-columns: 1fr; } }
+
+.ladder { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: end; }
+.lv { border-radius: 24px; padding: 20px; display: grid; gap: 8px; align-content: start; border: 1px solid var(--cream2); background: var(--white); }
+.lv .eyebrow { font-size: 11px; }
+.lv b { font: 900 22px/1.1 var(--f); font-stretch: 112.5%; }
+.lv p { font-size: 14px; color: var(--ink5); line-height: 1.5; }
+.lv .at { font: 500 12.5px/1.3 var(--m); color: var(--ink7); margin-top: 6px; }
+.lv:nth-child(1) { min-height: 210px; } .lv:nth-child(2) { min-height: 240px; background: var(--cream3); } .lv:nth-child(3) { min-height: 270px; background: #E8EBFF; border-color: #D5DAFF; }
+.lv:nth-child(4) { min-height: 300px; background: var(--ink); border-color: var(--ink); color: var(--white); } .lv:nth-child(4) p { color: #CFC6B6; } .lv:nth-child(4) .at { color: var(--volt); } .lv:nth-child(4) .eyebrow { color: var(--ink3); }
+@media (max-width: 900px) { .ladder { grid-template-columns: 1fr 1fr; } .lv { min-height: 0 !important; } }
+@media (max-width: 520px) { .ladder { grid-template-columns: 1fr; } }
+.matrix { margin-top: 28px; border-radius: 24px; border: 1px solid var(--cream2); background: var(--white); overflow-x: auto; }
+.matrix table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 14.5px; }
+.matrix th, .matrix td { padding: 14px 16px; border-bottom: 1px solid var(--cream2); text-align: center; }
+.matrix th:first-child, .matrix td:first-child { text-align: left; font-weight: 600; }
+.matrix thead th { font: 500 11.5px/1.2 var(--m); letter-spacing: .08em; text-transform: uppercase; color: var(--ink5); background: var(--cream3); }
+.matrix thead th.ov { background: var(--ink); color: var(--volt); }
+.matrix tbody tr:last-child td { border-bottom: 0; }
+.matrix tbody tr:hover td { background: var(--cream3); }
+.yes, .no2, .two2 { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; }
+.yes { background: var(--ok); color: var(--white); } .yes .i { width: 14px; height: 14px; stroke-width: 3.2; }
+.no2 { color: var(--ink3); font-weight: 700; }
+.two2 { width: auto; padding: 0 10px; height: 26px; border-radius: 999px; background: var(--blue); color: var(--volt); font: 800 12px/1 var(--f); white-space: nowrap; }
+.own { font: 600 12.5px/1 var(--f); color: var(--ink7); background: var(--cream); padding: 6px 9px; border-radius: 8px; white-space: nowrap; }
+.never { font: 700 12.5px/1 var(--f); color: var(--err); }
+.legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 14px; font-size: 13.5px; color: var(--ink5); align-items: center; }
+.legend > span { display: inline-flex; gap: 8px; align-items: center; }
+
+.acc { border-radius: 24px; border: 1px solid var(--cream2); background: var(--white); overflow: hidden; }
+.acc + .acc { margin-top: 12px; }
+.acch { width: 100%; display: flex; align-items: center; gap: 14px; padding: 20px 22px; background: none; border: 0; cursor: pointer; text-align: left; font: 800 18px/1.2 var(--f); font-stretch: 112.5%; }
+.acch:hover { background: var(--cream3); }
+.acch .cnt2 { font: 500 12px/1 var(--m); color: var(--ink5); margin-left: auto; }
+.acch .i { transition: transform 200ms var(--e-settle); }
+.acch[aria-expanded="true"] .i { transform: rotate(180deg); }
+.accb { display: none; border-top: 1px solid var(--cream2); }
+.acch[aria-expanded="true"] + .accb { display: block; }
+.def { display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr); gap: 6px 24px; padding: 18px 22px; border-bottom: 1px solid var(--cream2); font-size: 14.5px; line-height: 1.5; }
+.def:last-child { border-bottom: 0; }
+.def .t { font-weight: 800; }
+.def .w { color: var(--ink7); }
+.def .s { color: var(--ink5); font-size: 13.5px; }
+.def .s code { font-size: 12px; }
+.def .lb { display: block; font: 500 10.5px/1 var(--m); letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); margin-bottom: 5px; }
+@media (max-width: 860px) { .def { grid-template-columns: 1fr; } }
+
+.plan { display: grid; gap: 12px; }
+.pstep { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 18px; padding: 22px; border-radius: 24px; background: var(--white); border: 1px solid var(--cream2); align-items: start; }
+.pstep .n { font: 900 40px/1 var(--f); font-stretch: 125%; color: var(--blue); }
+.pstep b { font: 800 18px/1.3 var(--f); font-stretch: 112.5%; display: block; margin-bottom: 6px; }
+.pstep p { font-size: 14.5px; color: var(--ink5); line-height: 1.55; }
+.pstep.you { background: var(--volt); border-color: var(--ink); border-width: 2.5px; box-shadow: 5px 5px 0 var(--ink); }
+.pstep.you p { color: var(--ink7); } .pstep.you .n { color: var(--ink); }
+@media (max-width: 700px) { .pstep { grid-template-columns: 44px 1fr; } .pstep .n { font-size: 28px; } .pstep .pl { grid-column: 2; justify-self: start; } }
+.qs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.q { padding: 24px; border-radius: 24px; background: #211D1A; border: 1px solid #3A3430; display: grid; gap: 10px; align-content: start; }
+.q h3 { font: 800 19px/1.2 var(--f); font-stretch: 112.5%; }
+.q .rec { color: var(--volt); font-weight: 800; }
+.q p { color: #CFC6B6; font-size: 14.5px; line-height: 1.55; }
+@media (max-width: 860px) { .qs { grid-template-columns: 1fr; } }
+footer { padding: 36px 0 60px; color: var(--ink5); font-size: 13.5px; border-top: 1px solid var(--cream2); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <span class="wm">Community</span>
+    <span class="pl ink"><i></i>Staff panels</span>
+    <span class="demo-tag">Design preview · example data</span>
+    <nav aria-label="Sections">
+      <a href="#try">Try it</a><a href="#urls">Usernames</a><a href="#locks">Security</a><a href="#roles">Roles</a><a href="#defs">Definitions</a><a href="#plan">Plan</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Community · staff panels · accepted 2026-10-21 · decision 0009</p>
+    <h1 class="disp">Run Community<br>without <span class="hl">taking a single username.</span></h1>
+    <p class="lede">Two panels for running Community. <b>Overseer</b> is the superadmin. <b>Admin</b> is for the people an Overseer invites: moderators, support and developers. Neither panel is on the public site, so <code>community.popcartph.com/&lt;username&gt;</code> always belongs to a person.</p>
+    <div class="facts">
+      <div class="fact"><span class="kc c-volt"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><b>Usernames stay at the top</b><p>Profiles live at <code>/&lt;username&gt;</code>. Names like <code>admin</code>, <code>overseer</code> and their look-alikes are reserved, so nobody can pose as staff.</p></div>
+      <div class="fact"><span class="kc c-sky"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><b>Panels sit behind a gate</b><p>They run on a separate staff host that's hard to guess. Cloudflare Access turns strangers away before a request reaches our server, and a staff passkey is still needed after that.</p></div>
+      <div class="fact"><span class="kc c-gum"><svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><b>Two people for the big ones</b><p>Opening a sealed record, making an Overseer or opening joining to everyone needs a second Overseer. Every action leaves a trail.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec cream" id="try">
+  <div class="wrap">
+    <div class="sh">
+      <p class="eyebrow">01 · Try it</p>
+      <h2 class="disp">The Overseer panel, working.</h2>
+      <p class="lede">Every section, button, dropdown and switch works on example data. Nothing leaves this page. Whatever you do appears in the Audit log, just as it will in the real panel.</p>
+    </div>
+    <div class="tryrow">
+      <div class="tips">
+        <span class="tip"><span class="n">1</span>Review the court order</span>
+        <span class="tip"><span class="n">2</span>Switch the demo viewer to @jo.cruz</span>
+        <span class="tip"><span class="n">3</span>Press <kbd>Ctrl K</kbd> to jump anywhere</span>
+      </div>
+      <div class="seg" role="tablist" aria-label="Preview size" id="devseg">
+        <button type="button" role="tab" aria-selected="true" data-dev="desk">Desktop</button>
+        <button type="button" role="tab" aria-selected="false" data-dev="phone">Phone</button>
+      </div>
+    </div>
+
+    <div class="devwrap">
+      <div class="dev" id="ov">
+        <header class="tb">
+          <button type="button" class="b g io hamb" data-act="nav" aria-label="Open the menu"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+          <div class="crumb"><span class="host">‹staff host›</span><b id="ov-path">/overseer</b></div>
+          <span class="tbsp"></span>
+          <div id="ov-tbr" style="display:flex;align-items:center;gap:8px;min-width:0"></div>
+        </header>
+        <div class="ob">
+          <aside class="sd" id="ov-nav" aria-label="Overseer sections"></aside>
+          <main class="mn" id="ov-main"></main>
+        </div>
+        <div class="scr" id="ov-scr"></div>
+        <aside class="dw" id="ov-dw" role="dialog" aria-modal="true" aria-labelledby="ov-dwt"></aside>
+        <div class="pal" id="ov-pal" role="dialog" aria-label="Jump to" hidden></div>
+        <div class="lockv" id="ov-lock" hidden>
+          <div class="lockc">
+            <div class="kbig"><svg class="i" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/></svg></div>
+            <h2>Panel locked</h2>
+            <p class="mute">It locks after 15 idle minutes, or when you lock it yourself. Your passkey opens it again.</p>
+            <button type="button" class="b p" data-act="unlock">Use passkey</button>
+          </div>
+        </div>
+        <div class="tst" id="ov-tst" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+    <p class="footnote">Every name, number and post in this preview is an example. The real panel shows live values with the time they were read.</p>
+  </div>
+</section>
+
+<section class="sec" id="urls">
+  <div class="wrap">
+    <div class="sh">
+      <p class="eyebrow">02 · Usernames</p>
+      <h2 class="disp">The public site has no admin door.</h2>
+      <p class="lede">Anyone can guess <code>/admin</code>. A guessable path can't be what protects a panel, so the public host simply has none. Staff words are reserved names, and they show the same page as a name nobody has.</p>
+    </div>
+    <div class="urls">
+      <div class="url"><div class="u">community.popcartph.com/<b class="y">maria.santos</b></div><div class="w"><b>Maria's profile</b><span>The canonical URL: short, hers, and unchanged by any staff role. (Example name.)</span></div></div>
+      <div class="url"><div class="u">community.popcartph.com/<b class="x">u/maria.santos</b></div><div class="w"><b>Permanent redirect to /maria.santos</b><span>Today's profile path keeps working, so links already shared don't break.</span></div></div>
+      <div class="url"><div class="u">community.popcartph.com/<b class="x">admin</b> · <b class="x">overseer</b></div><div class="w"><b>"No one has this username"</b><span>Byte for byte the same 404 as an unused name, so a scanner learns nothing.</span></div></div>
+      <div class="url"><div class="u">‹staff host›/<b class="s">admin</b></div><div class="w"><b>Admin panel</b><span>For invited staff, after the gate and their passkey. They see only the tabs their scopes allow.</span></div></div>
+      <div class="url"><div class="u">‹staff host›/<b class="k">overseer</b></div><div class="w"><b>Overseer panel</b><span>Asks for the passkey again every time. The real host name lives only in the server's private config, never in this repository.</span></div></div>
+    </div>
+
+    <div class="checker">
+      <div class="cin">
+        <p class="eyebrow">Try the username rule</p>
+        <h3>Could someone take this name?</h3>
+        <label class="urlfield"><span>community.popcartph.com/</span><input id="uc-in" autocomplete="off" spellcheck="false" placeholder="type a username" aria-describedby="uc-v"></label>
+        <div class="chips" aria-label="Examples">
+          <button type="button" class="chip" data-uc="maria.santos">maria.santos</button>
+          <button type="button" class="chip" data-uc="adm1n">adm1n</button>
+          <button type="button" class="chip" data-uc="0verseer">0verseer</button>
+          <button type="button" class="chip" data-uc="sw.js">sw.js</button>
+          <button type="button" class="chip" data-uc="a..b">a..b</button>
+        </div>
+        <div class="verdict idle" id="uc-v" aria-live="polite">Type a name to check it against the rules.</div>
+      </div>
+      <div class="crules" id="uc-rules"></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec ink" id="locks">
+  <div class="wrap">
+    <div class="sh">
+      <p class="eyebrow">03 · Security</p>
+      <h2 class="disp">Hidden is a curtain.<br>These are the locks.</h2>
+      <p class="lede">Each lock still holds if the one before it fails.</p>
+    </div>
+    <div class="locks">
+      <div class="lock"><span class="n">1</span><div><b>A host name nobody can guess</b><p>A random first-level name such as <code>‹12 random letters›.popcartph.com</code>, never <code>admin.</code> or <code>staff.</code>. It sits under the existing wildcard certificate, so it never shows up in the public certificate logs scanners read to find new hosts.</p></div><span class="pl"><i></i>Curtain</span></div>
+      <div class="lock"><span class="n">2</span><div><b>A gate before our server: Cloudflare Access</b><p>The tunnel already runs through Cloudflare. Access lets in only staff email addresses on a list, after a one-time code. Everyone else stops at Cloudflare. The free Zero Trust plan should cover a team this size; confirm the user limit at setup.</p></div><span class="pl ink"><i></i>Lock</span></div>
+      <div class="lock"><span class="n">3</span><div><b>The server checks the gate's signed token</b><p>Every staff request must carry Cloudflare's signed token (<code>Cf-Access-Jwt-Assertion</code>) and the staff host name. Anything else gets a 404. The public host has no staff API at all.</p></div><span class="pl ink"><i></i>Lock</span></div>
+      <div class="lock"><span class="n">4</span><div><b>A staff passkey tied to that host</b><p>Passkeys are bound to the host they're made on. The staff host has its own passkey and its own <code>__Host-</code> cookie, so a member session or a phishing site can't get in.</p></div><span class="pl ink"><i></i>Lock</span></div>
+      <div class="lock"><span class="n">5</span><div><b>Scopes, a log and alarms</b><p>A role can do only what its scopes allow. Every action is logged, append-only. Repeated failures at the gate or the passkey step alert the Overseers.</p></div><span class="pl ink"><i></i>Lock</span></div>
+    </div>
+    <div class="fb">
+      <div class="fbc"><span class="conf n">● Secondhand: third-party guides, not Facebook's help pages</span><h3>How Facebook handles usernames</h3><p>Guides say Facebook usernames need at least 5 characters, may use letters, digits and periods, and that periods and capital letters don't make a name different: <code>john.smith55</code> and <code>JohnSmith55</code> count as one name. Generic words are refused. I found no public list of the exact reserved words.</p><p class="take">We copy this: dots, underscores and look-alike digits don't make a name different.</p></div>
+      <div class="fbc"><span class="conf y">● Confirmed for the user tools; staff tools unconfirmed</span><h3>How Facebook separates admin tools</h3><p>The tools users run Pages and ads with live on their own subdomain, <code>business.facebook.com</code>, not under anyone's profile path. Staff-only tools aren't publicly documented. They're widely reported to sit on an internal domain that only company devices can reach, but I couldn't confirm that from a public source.</p><p class="take">We copy this: a separate host that only invited staff can reach.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="roles">
+  <div class="wrap">
+    <div class="sh">
+      <p class="eyebrow">04 · Roles</p>
+      <h2 class="disp">Four levels.<br>Roles are lists of scopes.</h2>
+      <p class="lede">Space owners and moderators stay inside their own Space (decision 0003). Platform staff are new. The server checks scopes such as <code>reports.review</code>, never a role name, so adding a role needs no new code.</p>
+    </div>
+    <div class="ladder">
+      <div class="lv"><span class="eyebrow">Level 0</span><b>Member</b><p>Everyone. Posts, joins Spaces, takes gigs. Can report anything and see who opened their records.</p><span class="at">/&lt;username&gt; · /me</span></div>
+      <div class="lv"><span class="eyebrow">Level 1 · per Space</span><b>Space owner &amp; moderator</b><p>Runs one Space: its rules, members and report queue. Reports about the Space itself skip them and go to staff.</p><span class="at">/s/&lt;slug&gt; · /mod</span></div>
+      <div class="lv"><span class="eyebrow">Level 2 · invited</span><b>Admin staff</b><p>Invited by email by an Overseer, with a role and an end date. The first roles are Moderator, Support and Developer.</p><span class="at">‹staff host›/admin</span></div>
+      <div class="lv"><span class="eyebrow">Level 3 · superadmin</span><b>Overseer</b><p>Runs the platform: staff, roles, switches and the audit log. Two Overseers are needed for anything that opens sealed data.</p><span class="at">‹staff host›/overseer</span></div>
+    </div>
+    <div class="matrix" id="matrix"></div>
+    <div class="legend"><span><span class="yes"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>Allowed</span><span><span class="two2">2 people</span>A second Overseer must approve</span><span><span class="never">Never</span>Impossible by design: end-to-end encrypted</span></div>
+  </div>
+</section>
+
+<section class="sec cream" id="defs">
+  <div class="wrap">
+    <div class="sh">
+      <p class="eyebrow">05 · Definitions</p>
+      <h2 class="disp">Every word on the screen, defined.</h2>
+      <p class="lede">What each item is, where its value comes from, and what it lets you do. Every endpoint is on the staff host, behind the gate. "Today" says what already exists in the app (v0.6.0).</p>
+    </div>
+    <div id="defs-list"></div>
+  </div>
+</section>
+
+<section class="sec" id="plan">
+  <div class="wrap">
+    <div class="sh">
+      <p class="eyebrow">06 · Build plan</p>
+      <h2 class="disp">Usernames first.<br>Panels second.</h2>
+      <p class="lede">Each step ships as its own release with a changelog entry. The username fix comes first because the hole it closes exists today.</p>
+    </div>
+    <div class="plan">
+      <div class="pstep"><span class="n">1</span><div><b>Reserved names and the new username rule</b><p><code>reserved.ts</code> plus one <code>checkHandle()</code> used at join and rename. A migration lists existing accounts that break the rule. Tests cover every route word and file name.</p></div><span class="pl"><i></i>0.6.1 · fix</span></div>
+      <div class="pstep"><span class="n">2</span><div><b>Profiles at /&lt;username&gt;</b><p>The router's profile catch-all comes last. <code>/u/:handle</code> becomes a 301 redirect, and share links and emails use the new URL.</p></div><span class="pl info"><i></i>0.7.0 · new</span></div>
+      <div class="pstep"><span class="n">3</span><div><b>Scopes and staff roles</b><p>A <code>staff_roles</code> table (user, role, scopes, ends_at, granted_by), with <code>requireScope()</code> replacing <code>requireStaff()</code>. Today's staff accounts become Overseers.</p></div><span class="pl info"><i></i>0.8.0 · new</span></div>
+      <div class="pstep"><span class="n">4</span><div><b>Staff host, gate check, audit log</b><p><code>STAFF_ORIGIN</code> and a separate passkey host in private config. Every staff request is checked for the Access token, and staff paths on the public host return 404. Adds a <code>__Host-</code> staff cookie and an append-only <code>staff_actions</code> table that feeds "Who opened my records".</p></div><span class="pl info"><i></i>0.9.0 · new</span></div>
+      <div class="pstep"><span class="n">5</span><div><b>The Admin and Overseer panels</b><p><code>screens/staff.js</code> built from the custom component kit in this preview: dropdowns, checkboxes, switches, drawers, the command palette and confirm popovers. No native controls anywhere.</p></div><span class="pl info"><i></i>0.10.0 · new</span></div>
+      <div class="pstep you"><span class="n">★</span><div><b>Your part: the gate (about 15 minutes, ₱0)</b><p>In Cloudflare, pick the random host name, add it to the tunnel, and create an Access app that allows only the staff email list with a one-time code. You'll get the exact steps at step 4.</p></div><span class="pl ink"><i></i>Owner</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec ink">
+  <div class="wrap">
+    <div class="sh">
+      <p class="eyebrow">07 · Decided</p>
+      <h2 class="disp">Three decisions, made.</h2>
+    </div>
+    <div class="qs">
+      <div class="q"><h3>How many Overseers?</h3><p><span class="rec">Two:</span> you and one person you trust. The two-person rule needs a second Overseer. Until there is one, those actions go through the server command line.</p></div>
+      <div class="q"><h3>Which roles to start with?</h3><p><span class="rec">Moderator, Support, Developer.</span> Trust &amp; Safety and Space verification can come later as new scope lists, with no code change.</p></div>
+      <div class="q"><h3>A public staff badge?</h3><p><span class="rec">No.</span> Staff keep plain profiles, and official notices come from the reserved <code>@community</code> account. Nobody can be targeted as staff, and there's no badge to fake.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">Design preview of decision 0009. Every name, number and post is an example. The real panels show live values with the time they were read. No brand art: plain-name mode, with the brand typefaces loaded from Google Fonts.</div>
+</footer>
+
+<script>
+// ---------- document: username checker, matrix, definitions, device switch ----------
+(() => {
+  const ic = (p, c = '') => `<svg class="i ${c}" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
+  const CHECK = '<path d="M20 6 9 17l-5-5"/>', X = '<path d="M18 6 6 18M6 6l12 12"/>';
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  window.PREVIEW_RESERVED = ['admin', 'overseer', 'staff', 'mod', 'moderator', 'support', 'help', 'security', 'official', 'community', 'popcart', 'root', 'system',
+    'places', 'trade', 'picks', 'join', 'login', 'p', 'compose', 'explore', 'activity', 'spaces', 's', 'inbox', 'work', 'gigs', 'u', 'me', 'report', 'transparency',
+    'api', 'static', 'brand', 'media', 'sw.js', 'manifest.webmanifest', 'robots.txt', 'favicon.ico', '.well-known'];
+  window.PREVIEW_NORM = (h) => h.toLowerCase().replace(/[._]/g, '').replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
+  const norm = window.PREVIEW_NORM;
+  const RULES = [
+    ['3 to 30 characters', (s) => s.length >= 3 && s.length <= 30],
+    ['Only a–z, 0–9, dot and underscore', (s) => /^[a-z0-9._]*$/.test(s), 'No hyphens, so the name can never look like a system path'],
+    ['Starts and ends with a letter or digit', (s) => /^[a-z0-9]/.test(s) && /[a-z0-9]$/.test(s)],
+    ['No two dots in a row', (s) => !s.includes('..')],
+    ['Not a reserved name or a look-alike', (s) => !window.PREVIEW_RESERVED.some((r) => norm(r) === norm(s)), 'Route words, file names and staff words. 0→o, 1→i, 3→e, 4→a, 5→s and 7→t count as the same letter'],
+  ];
+  const inp = document.getElementById('uc-in'), v = document.getElementById('uc-v'), box = document.getElementById('uc-rules');
+  const draw = () => {
+    const s = inp.value.trim();
+    const res = RULES.map(([l, f, h]) => ({ l, h, ok: s ? f(s) : null }));
+    box.innerHTML = '<p class="eyebrow" style="margin-bottom:6px">The rule</p>' + res.map((r) => `<div class="crule ${r.ok === null ? '' : r.ok ? 'ok' : 'no'}"><span class="dot">${ic(r.ok === false ? X : CHECK)}</span><span>${esc(r.l)}${r.h ? `<small>${esc(r.h)}</small>` : ''}</span></div>`).join('');
+    if (!s) { v.className = 'verdict idle'; v.textContent = 'Type a name to check it against the rules.'; return; }
+    const bad = res.find((r) => !r.ok);
+    v.className = `verdict ${bad ? 'no' : 'ok'}`;
+    v.innerHTML = bad ? `${ic(X)}<span>“${esc(s)}” can't be a username: ${esc(bad.l.toLowerCase())}.</span>` : `${ic(CHECK)}<span>“${esc(s)}” passes every rule. Whether it's already taken is checked on the server.</span>`;
+  };
+  inp.addEventListener('input', draw);
+  document.querySelectorAll('[data-uc]').forEach((b) => b.addEventListener('click', () => { inp.value = b.dataset.uc; draw(); inp.focus(); }));
+  draw();
+
+  const Y = `<span class="yes">${ic(CHECK)}</span>`, N = '<span class="no2">—</span>', T = '<span class="two2">2 people</span>';
+  const own = (t) => `<span class="own">${t}</span>`;
+  const MX = [
+    ['Review reports and Keep · Warn · Remove', own('own Space'), Y, N, N, Y],
+    ['Child-safety reports (hidden at once)', N, Y, N, N, Y],
+    ['Suspend an account', N, own('up to 7 days'), N, N, Y],
+    ['Look up a person (public profile + status)', N, Y, Y, N, Y],
+    ['Resend an invite · reset a lost passkey', N, N, Y, N, Y],
+    ['Health, errors (no personal data), migrations', N, N, N, Y, Y],
+    ['Feature switches · API apps · webhooks', N, N, N, own('staging'), Y],
+    ['Invite, change or remove staff', N, N, N, N, Y],
+    ['Platform switches: invite-only, launched, terms', N, N, N, N, Y],
+    ['Open the sealed identity vault (court order)', N, N, N, N, T],
+    ['Make someone an Overseer', N, N, N, N, T],
+    ['Read direct messages or private Spaces', N, N, N, N, '<span class="never">Never</span>'],
+  ];
+  document.getElementById('matrix').innerHTML = `<table><thead><tr><th>Can…</th><th>Space mod</th><th>Moderator</th><th>Support</th><th>Developer</th><th class="ov">Overseer</th></tr></thead><tbody>${MX.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+
+  const DEFS = [
+    ['Top bar', [
+      ['‹staff host› /overseer', 'Where you are. The host name is a placeholder: the real one is secret.', 'The page path.', 'Nothing. It is a label.'],
+      ['Jump to… Ctrl K', 'The command palette: go to any section or start any action from the keyboard.', 'The list of sections and actions you have scopes for.', 'Type to filter, arrows to move, Enter to run, Esc to close.'],
+      ['Session timer (14:59)', 'Time left before the panel locks for being idle. It turns amber in the last 2 minutes.', 'The <code>__Host-</code> staff cookie: 15 minutes, renewed by any activity.', 'Click it to lock the panel now. Your passkey opens it again. Both are logged.'],
+      ['Demo · viewing as', 'Preview only, not part of the product. It switches between two example Overseers so you can see the two-person rule.', '—', 'Pick @ana.reyes or @jo.cruz.'],
+    ]],
+    ['Side navigation', [
+      ['Community', 'The product name in plain-name mode (no brand art in this repository).', 'Fixed text. With the brand pack it becomes the wordmark.', 'Click to go back to Overview.'],
+      ['Overseer', 'Which panel you are in. Only people with the Overseer role (every scope) get here.', 'Your <code>staff_roles</code> row with role Overseer.', 'Nothing. It is a label.'],
+      ['Overview', 'The home page: what needs your decision, four numbers about Community, the latest actions.', '<code>GET /api/staff/overview</code>', 'Open any card or tile, or refresh.'],
+      ['Approvals + count', 'Requests that need a second Overseer. The count shows the ones <b>you</b> can approve: waiting, and not asked by you.', '<code>GET /api/staff/approvals?status=waiting</code>', 'Approve. Decline with a reason the asker sees. Withdraw your own. A request expires after 72 hours and nothing happens.'],
+      ['Staff', 'Everyone with a staff role, their role and when it ends, plus invites not yet accepted.', "<code>GET /api/staff/staff</code>, <code>/invites</code>. Today: <code>users.role = 'staff'</code> and the v0.6.0 email invites.", 'Invite with a role and an end date, renew for 90 days, change role, or remove (with undo). Adding or removing an Overseer goes to Approvals.'],
+      ['Roles & scopes', 'Each role is a named list of scopes. The server checks scopes, never role names.', '<code>GET /api/staff/roles</code>. The scope list is fixed in code.', 'Tick scopes and save from the save bar, add a role, or delete one nobody holds. The Overseer role is locked.'],
+      ['Audit log', 'Every staff action: who did what, and when. Append-only: nobody can edit or delete an entry.', '<code>GET /api/staff/audit?who=&amp;kind=&amp;q=</code>, table <code>staff_actions</code>.', 'Search, filter by person or kind, export CSV. Entries about a person also appear in their "Who opened my records".'],
+      ['Platform switches', 'The switches that change Community for everyone.', '<code>GET /api/staff/switches</code>. Today: <code>launched</code> is fixed to false in code, and invite-only is always on.', 'Invite-only, Launched, Read-only mode, terms version, and feature switches for staging and production. Some need two people.'],
+      ['Vault requests', 'Court-order requests to open a sealed identity record (decision 0001).', "<code>GET /api/staff/vault</code>. Today: the vault isn't built, so this list stays empty.", "Make a request → a second Overseer approves → the record shows to the two of you for 30 minutes → it closes, it's logged, and the person is told."],
+      ['Admin panel', 'The panel invited staff use. As an Overseer you see every tab.', 'Same staff host, path <code>/admin</code>.', 'Reports (Keep, Warn or Remove, with K / W / R keys and undo), look up a person, suspend for 7 days, health.'],
+      ['Back to Community', 'Opens the public site in a new tab.', 'A plain link to <code>community.popcartph.com</code>.', 'Your staff session stays on the staff host. The public site never sees it.'],
+      ['You (bottom card)', 'Who is signed in and how.', 'Your staff session.', 'Nothing. It is a label.'],
+    ]],
+    ['Overview', [
+      ['Needs you', "Cards for what is waiting on you: approvals you can decide, the report queue, roles ending soon. \"All clear\" when there's nothing.", 'Approvals, reports and staff_roles, read together.', 'Click a card to open it straight away.'],
+      ['as of 9:41', 'When the server read the numbers on this page. It turns red after 5 minutes.', 'The server clock at <code>GET /api/staff/overview</code>.', 'The refresh button reads them again.'],
+      ['People + chart', 'Accounts that can use Community, and the trend over 8 weeks.', "<code>users WHERE status = 'active'</code>, weekly counts.", 'Click to look someone up in the Admin panel.'],
+      ['Open reports + bars', 'Reports nobody has decided yet, from every Space and the staff-only queue. The bars show the last 7 days.', "<code>reports WHERE status = 'open'</code>. This table exists today.", 'Click to open the queue. The card turns orange while any report is open.'],
+      ['Staff + faces', 'People holding any staff role, Overseers included, and how many roles end within 14 days.', '<code>staff_roles</code> rows still in force.', 'Click to manage staff.'],
+      ['Joining', 'Whether people can join without an emailed invite, with the reason saved alongside the switch.', 'The <code>invite_only</code> switch and its note.', 'Click to open Platform switches.'],
+      ['Latest activity', 'The six newest audit entries.', '<code>staff_actions</code>, newest first.', '"View all" opens the Audit log.'],
+    ]],
+    ['Approval details (the drawer)', [
+      ['Ring with time left', 'What remains of the 72-hour window. It turns red under 10%.', '<code>expires_at</code>', 'When time runs out nothing happens. The asker has to ask again.'],
+      ['Steps', 'Asked → second Overseer → carried out. Shows where the request is now.', "The approval's status history.", 'Nothing. It shows progress.'],
+      ['The person is told', 'The promise attached to every vault opening (decision 0001).', 'Sent automatically when the record opens, and listed in their "Who opened my records".', 'Nobody can turn it off.'],
+    ]],
+  ];
+  const list = document.getElementById('defs-list');
+  list.innerHTML = DEFS.map(([g, rows], i) => `<div class="acc"><button type="button" class="acch" aria-expanded="${i === 0 ? 'true' : 'false'}" aria-controls="dg${i}">${esc(g)}<span class="cnt2">${rows.length} items</span>${ic('<path d="m6 9 6 6 6-6"/>')}</button>
+    <div class="accb" id="dg${i}">${rows.map(([t, w, s, d]) => `<div class="def"><div class="t">${esc(t)}</div><div class="w"><span class="lb">What it is</span>${w}</div><div class="s"><span class="lb">Where it comes from · what you can do</span>${s}<br><span style="color:var(--ink7)">${d}</span></div></div>`).join('')}</div></div>`).join('');
+  list.addEventListener('click', (e) => { const b = e.target.closest('.acch'); if (b) b.setAttribute('aria-expanded', b.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); });
+
+  const seg = document.getElementById('devseg');
+  seg.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dev]'); if (!b) return;
+    seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    document.getElementById('ov').classList.toggle('phone', b.dataset.dev === 'phone');
+    document.dispatchEvent(new CustomEvent('ov-resize'));
+  });
+})();
+</script>
+
+<script>
+// ---------- Overseer prototype: example data in this page only; nothing is saved or sent ----------
+(() => {
+  const root = document.getElementById('ov');
+  if (!root) return;
+  const M = 60e3, H = 60 * M, D = 24 * H;
+  const WINDOW = 72 * H, IDLE = 15 * M, VAULT_OPEN = 30 * M;
+  const t0 = Date.now();
+  const $ = (s, r = root) => r.querySelector(s);
+  const $$ = (s, r = root) => [...r.querySelectorAll(s)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const pad = (n) => String(n).padStart(2, '0');
+  const clock = (t) => { const d = new Date(t); return `${d.getHours()}:${pad(d.getMinutes())}`; };
+  const day = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const dayLabel = (t) => { const a = new Date(t); a.setHours(0, 0, 0, 0); const b = new Date(); b.setHours(0, 0, 0, 0); const n = Math.round((b - a) / D); return n === 0 ? 'Today' : n === 1 ? 'Yesterday' : day(t); };
+  const ago = (t) => { const s = Date.now() - t; if (s < M) return 'just now'; if (s < H) return `${Math.floor(s / M)} min ago`; if (s < D) return `${Math.floor(s / H)} h ago`; return `${Math.floor(s / D)} d ago`; };
+  const mmss = (ms) => `${Math.floor(ms / M)}:${pad(Math.floor((ms % M) / 1000))}`;
+  const left = (t) => { const s = t - Date.now(); if (s <= 0) return 'ended'; if (s < H) return mmss(s); if (s < 2 * D) return `${Math.ceil(s / H)} h`; return `${Math.ceil(s / D)} d`; };
+  const mask = (email) => `an address ending in @${email.split('@')[1]}`;
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  let uid = 10;
+  const nid = (p) => `${p}${++uid}`;
+
+  const I = {
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    approvals: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
+    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+    toggle: '<rect x="1" y="6" width="22" height="12" rx="6"/><circle cx="16" cy="12" r="3"/>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    tool: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+    ext: '<path d="M7 17 17 7M8 7h9v9"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    chev: '<path d="m6 9 6 6 6-6"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    more: '<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+    flag: '<path d="M4 22V4a1 1 0 0 1 1-1h12l-2 4 2 4H5"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/>',
+    arrow: '<path d="M5 12h14M13 5l7 7-7 7"/>',
+    send: '<path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>',
+    trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  };
+  const ic = (n, c = '') => `<svg class="i ${n === 'more' ? 'f' : ''} ${c}" viewBox="0 0 24 24" aria-hidden="true">${I[n] || ''}</svg>`;
+
+  const S = {
+    me: 'ana.reyes', view: 'overview', adminTab: 'reports', apTab: 'waiting', role: 'Moderator', draft: null, declining: null, found: null,
+    asOf: t0, locked: false, drawer: null, palette: false, palIdx: 0, palQ: '',
+    filter: { who: '', kind: '', q: '' }, staffQ: '', staffRole: '',
+    people: { total: 1284, week: 38, series: [1061, 1090, 1118, 1150, 1179, 1210, 1246, 1284] },
+    reportSeries: [4, 6, 3, 8, 5, 9, 7],
+    accounts: { 'maria.santos': 'active', 'example.person': 'active' },
+    reports: [
+      { id: 'r1', kind: 'Child safety', what: 'Post, hidden at once', where: 'Staff only', at: t0 - 12 * M },
+      { id: 'r2', kind: 'Spam', what: 'Post in the Space "Cebu Welders"', where: 'Escalated by the Space', at: t0 - 1 * H },
+      { id: 'r3', kind: 'Space', what: 'Report about a Space itself', where: "Its own moderators can't see this", at: t0 - 3 * H },
+      { id: 'r4', kind: 'Message', what: 'Direct message, the reporter revealed 2 lines', where: 'The rest is end-to-end encrypted', at: t0 - 50 * M },
+      { id: 'r5', kind: 'Scam', what: 'Gig asking for payment up front', where: 'Work', at: t0 - 95 * M },
+      { id: 'r6', kind: 'Harassment', what: 'Reply on a post', where: 'Escalated by the Space', at: t0 - 2 * H },
+      { id: 'r7', kind: 'Impersonation', what: 'Profile using a business name', where: 'Staff only', at: t0 - 25 * M },
+    ],
+    staff: [
+      { h: 'ana.reyes', role: 'Overseer', ends: null, since: t0 - 40 * D },
+      { h: 'jo.cruz', role: 'Overseer', ends: null, since: t0 - 30 * D },
+      { h: 'lia.moderates', role: 'Moderator', ends: t0 + 73 * D, since: t0 - 17 * D },
+      { h: 'ben.helps', role: 'Support', ends: t0 + 6 * D, since: t0 - 84 * D },
+      { h: 'kim.dev', role: 'Developer', ends: t0 + 70 * D, since: t0 - 20 * D },
+    ],
+    invites: [],
+    scopeGroups: [
+      ['Safety', [['reports.review', 'Review reports', 'See reports and decide Keep, Warn or Remove', 'Med'], ['reports.child_safety', 'Child-safety reports', 'See child-safety reports, which are hidden at once', 'High'], ['accounts.suspend_7d', 'Suspend accounts', 'Suspend an account for up to 7 days', 'High']]],
+      ['People', [['people.lookup', 'Look people up', 'Public profile and account status only', 'Low'], ['invites.resend', 'Resend invites', 'Send a member invite again', 'Low'], ['passkeys.reset', 'Reset lost passkeys', 'Start a reset that the person confirms by email', 'High']]],
+      ['Engineering', [['ops.health', 'Health', 'Status, error messages (never personal data), jobs, migrations', 'Low'], ['switches.staging', 'Staging switches', 'Turn feature switches on or off in staging', 'Med'], ['apps.manage', 'API apps', 'API apps and webhooks', 'Med']]],
+    ],
+    roles: {
+      Moderator: ['reports.review', 'reports.child_safety', 'people.lookup', 'accounts.suspend_7d'],
+      Support: ['people.lookup', 'invites.resend', 'passkeys.reset'],
+      Developer: ['ops.health', 'switches.staging', 'apps.manage'],
+    },
+    switches: { inviteOnly: true, inviteNote: 'until the privacy review', launched: false, readOnly: false, terms: 3 },
+    features: [
+      { id: 'places.world', name: 'Places: World', staging: true, prod: false },
+      { id: 'work.ratings', name: 'Work: ratings on criteria', staging: true, prod: true },
+      { id: 'socials.post', name: 'Post to connected socials', staging: false, prod: false },
+    ],
+    vault: [{ id: 'v1', person: 'example.person', court: 'Regional Trial Court, Branch 00 (example)', caseNo: 'Civil Case No. 0000 (example)', fields: ['Phone number'], file: 'court-order-example.pdf', by: 'jo.cruz', at: t0 - 2 * H, status: 'waiting' }],
+    approvals: [],
+    audit: [],
+  };
+  const SCOPES = S.scopeGroups.flatMap(([, list]) => list);
+  S.approvals.push(
+    { id: 'a1', key: 'vault:v1', kind: 'vault', title: 'Court order: open one sealed record', by: 'jo.cruz', at: t0 - 2 * H, status: 'waiting',
+      facts: [['Person', '@example.person'], ['Court', 'Regional Trial Court, Branch 00 (example)'], ['Case', 'Civil Case No. 0000 (example)'], ['To open', 'Phone number'], ['Order', 'court-order-example.pdf']],
+      note: "The person is told when it's opened (decision 0001).", apply: () => openVault('v1') },
+    { id: 'a0', key: 'feature:work.ratings', kind: 'feature', title: 'Turn on "Work: ratings on criteria" in production', by: 'ana.reyes', at: t0 - 26 * H, status: 'approved', decidedBy: 'jo.cruz', decidedAt: t0 - 25 * H, facts: [['Staging', 'On for 5 days, no errors']] },
+  );
+  S.audit.push(
+    { at: t0 - 26 * H, who: 'ana.reyes', kind: 'approval', text: 'asked: Turn on "Work: ratings on criteria" in production' },
+    { at: t0 - 25 * H, who: 'jo.cruz', kind: 'approval', text: 'approved: Turn on "Work: ratings on criteria" in production' },
+    { at: t0 - 2 * H, who: 'jo.cruz', kind: 'vault', text: 'asked to open a sealed record (Civil Case No. 0000, example)' },
+    { at: t0 - 54 * M, who: 'ana.reyes', kind: 'invite', text: 'invited an address ending in @example.org as Moderator' },
+    { at: t0 - 39 * M, who: 'kim.dev', kind: 'switch', text: 'switched on "Places: World" in staging' },
+    { at: t0 - 31 * M, who: 'ben.helps', kind: 'invite', text: 'resent a member invite to an address ending in @example.org' },
+    { at: t0 - 9 * M, who: 'lia.moderates', kind: 'report', text: 'removed a post (reason: spam link)' },
+  );
+
+  const KIND = {
+    vault: ['lock', 'Sealed record', 'gum'], overseer: ['shield', 'Overseer change', 'sky'], switch: ['toggle', 'Platform switch', 'volt'], feature: ['flag', 'Production feature', 'kiwi'],
+    approval: ['approvals', 'Approval', 'cream'], staff: ['users', 'Staff', 'sky'], invite: ['send', 'Invite', 'cream'], role: ['shield', 'Role', 'cream'], report: ['flag', 'Report', 'gum'],
+    account: ['user', 'Account', 'cream'], session: ['key', 'Session', 'cream'], audit: ['list', 'Audit', 'cream'],
+  };
+  const kc = (k, sm = '') => { const [i, , c] = KIND[k] || KIND.audit; return `<span class="kc ${sm} c-${c}">${ic(i)}</span>`; };
+
+  const status = (a) => (a.status === 'waiting' && Date.now() > a.at + WINDOW ? 'expired' : a.status);
+  const waiting = () => S.approvals.filter((a) => status(a) === 'waiting');
+  const forMe = () => waiting().filter((a) => a.by !== S.me);
+  const pendingKey = (k) => waiting().find((a) => a.key === k);
+  const overseers = () => S.staff.filter((s) => s.role === 'Overseer');
+  const log = (kind, text, who = S.me) => S.audit.push({ at: Date.now(), who, kind, text });
+  const ask = (key, kind, title, facts, apply, note) => {
+    if (pendingKey(key)) { toast('That request is already waiting for a second Overseer.'); return false; }
+    S.approvals.push({ id: nid('a'), key, kind, title, by: S.me, at: Date.now(), status: 'waiting', facts, apply, note });
+    log('approval', `asked: ${title}`);
+    toast('Sent. Another Overseer has 72 hours to approve it.');
+    return true;
+  };
+
+  // ---------- component kit (no native controls) ----------
+  const REG = {}; let rid = 0;
+  const reg = (o) => { const k = `k${++rid}`; REG[k] = o; return k; };
+  const da = (d) => Object.entries(d || {}).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
+  const btn = (label, o = {}) => `<button type="${o.submit ? 'submit' : 'button'}" class="b ${o.k || ''} ${o.sm ? 'sm' : ''} ${label ? '' : 'io'}" ${o.act ? `data-act="${o.act}"` : ''} ${o.pop ? `data-pop="${o.pop}" aria-haspopup="dialog" aria-expanded="false"` : ''} ${da(o.d)} ${o.dis ? 'disabled' : ''} ${o.form ? `form="${o.form}"` : ''} ${!label && o.tip ? `aria-label="${esc(o.tip)}"` : ''} ${o.tip ? `title="${esc(o.tip)}"` : ''}>${o.i ? ic(o.i) : ''}${label ? `<span>${esc(label)}</span>` : ''}${o.kbd ? `<kbd>${o.kbd}</kbd>` : ''}</button>`;
+  const dd = (act, value, opts, o = {}) => {
+    const k = reg({ type: 'list', act, value, opts, d: o.d || {}, name: o.name });
+    const cur = opts.find((x) => x.v === value) || { l: o.ph || 'Choose' };
+    return `<button type="button" class="dd ${o.cls || ''}" data-pop="${k}" aria-haspopup="listbox" aria-expanded="false" ${o.label ? `aria-label="${esc(o.label)}"` : ''}>${o.pre ? `<span class="pre">${esc(o.pre)}</span>` : ''}<span class="dv">${esc(cur.l)}</span>${ic('chev', 'cv')}</button>${o.name ? `<input type="hidden" name="${o.name}" value="${esc(value)}">` : ''}`;
+  };
+  const more = (items, label) => `<button type="button" class="b g sm io" data-pop="${reg({ type: 'menu', items })}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(label || 'More actions')}">${ic('more')}</button>`;
+  const confirmBtn = (label, o, c) => btn(label, { ...o, pop: reg({ type: 'confirm', ...c }) });
+  const cb = (o) => `<label class="cb"><input type="checkbox" class="sr" ${o.name ? `name="${o.name}" value="${esc(o.v)}"` : ''} ${o.act ? `data-act="${o.act}"` : ''} ${da(o.d)} ${o.on ? 'checked' : ''} ${o.dis ? 'disabled' : ''}><span class="cbx">${ic('check')}</span><span class="cbl"><b>${esc(o.l)}</b>${o.h ? `<small>${o.h}</small>` : ''}</span>${o.tail || ''}</label>`;
+  const sw = (act, on, d = {}, label = '') => `<button type="button" class="sw" role="switch" aria-checked="${!!on}" data-act="${act}" ${da(d)} ${label ? `aria-label="${esc(label)}"` : ''}><span class="tr"></span><span class="sl">${on ? 'On' : 'Off'}</span></button>`;
+  const seg = (act, value, opts, o = {}) => `<div class="seg" role="tablist" ${o.label ? `aria-label="${esc(o.label)}"` : ''}>${opts.map((x) => `<button type="button" role="tab" aria-selected="${x.v === value}" data-act="${act}" data-v="${esc(x.v)}" ${o.name ? `data-name="${o.name}"` : ''}>${esc(x.l)}${x.n != null ? ` <span class="sn">${x.n}</span>` : ''}</button>`).join('')}</div>${o.name ? `<input type="hidden" name="${o.name}" value="${esc(value)}">` : ''}`;
+  const pl = (t, tone = '') => `<span class="pl ${tone}"><i></i>${esc(t)}</span>`;
+  const AVC = ['#7CC8FF', '#6EDC5F', '#FF8AD8', '#FFE500', '#FFF6E3'];
+  const av = (h, sz = '') => `<span class="av ${sz}" style="background:${AVC[[...h].reduce((a, c) => a + c.charCodeAt(0), 0) % AVC.length]}" aria-hidden="true">${esc(h[0].toUpperCase())}</span>`;
+  const rl = (r) => `<span class="rl ${['Overseer', 'Moderator', 'Support', 'Developer'].includes(r) ? r : 'other'}">${esc(r)}</span>`;
+  const ring = (from, until, sz = '') => {
+    const frac = Math.max(0, Math.min(1, (until - Date.now()) / (until - from)));
+    const r = 16, c = 2 * Math.PI * r;
+    return `<span class="ring ${sz} ${frac < 0.1 ? 'low' : ''}" data-from="${from}" data-until="${until}" role="img" aria-label="${left(until)} left"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="${r}" class="rt"/><circle cx="20" cy="20" r="${r}" class="ra" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - frac)).toFixed(2)}"/></svg><span class="rtx">${left(until)}</span></span>`;
+  };
+  const spark = (pts, tone = '') => {
+    const w = 120, h = 40, mn = Math.min(...pts), mx = Math.max(...pts), sx = w / (pts.length - 1);
+    const y = (v) => h - 4 - ((v - mn) / ((mx - mn) || 1)) * (h - 10);
+    const d = pts.map((v, i) => `${i ? 'L' : 'M'}${(i * sx).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+    return `<svg class="spark ${tone}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path class="sa" d="${d} L${w} ${h} L0 ${h}Z"/><path class="sl" d="${d}"/></svg>`;
+  };
+  const asOf = () => `<span class="asof ${Date.now() - S.asOf > 5 * M ? 'stale' : ''}">as of ${clock(S.asOf)}</span>`;
+  const head = (eyebrow, title, sub, right = '') => `<div class="ph"><div><p class="eyebrow">${esc(eyebrow)}</p><h1 tabindex="-1">${esc(title)}</h1>${sub ? `<p class="sub">${sub}</p>` : ''}</div><div class="phr">${right}</div></div>`;
+  const refresh = () => `${asOf()}${btn('', { i: 'refresh', act: 'refresh', tip: 'Read the numbers again', sm: 1, k: 'g' })}`;
+  const empty = (i, t, s, extra = '') => `<div class="empty"><span class="kc c-cream">${ic(i)}</span><b>${esc(t)}</b><span>${esc(s)}</span>${extra}</div>`;
+
+  // ---------- popover controller ----------
+  const pop = document.createElement('div');
+  pop.className = 'pop'; pop.hidden = true;
+  document.body.appendChild(pop);
+  let popFor = null, popIdx = 0, popE = null;
+  function openPop(trig, key = trig.dataset.pop) {
+    const e = REG[key]; if (!e) return;
+    const same = popFor === trig && !pop.hidden && popE === e;
+    closePop(); if (same) return;
+    popFor = trig; popE = e; trig.setAttribute('aria-expanded', 'true');
+    if (e.type === 'list') {
+      pop.innerHTML = `<ul role="listbox" tabindex="-1">${e.opts.map((o, i) => `<li role="option" id="po${i}" data-i="${i}" aria-selected="${o.v === e.value}" class="opt"><span class="ol">${esc(o.l)}${o.h ? `<small>${esc(o.h)}</small>` : ''}</span>${o.v === e.value ? ic('check') : ''}</li>`).join('')}</ul>`;
+      popIdx = Math.max(0, e.opts.findIndex((o) => o.v === e.value));
+    } else if (e.type === 'menu') {
+      pop.innerHTML = `<ul role="menu" tabindex="-1">${e.items.map((it, i) => `<li role="menuitem" id="po${i}" data-i="${i}" class="opt ${it.danger ? 'danger' : ''}">${it.i ? ic(it.i) : ''}<span class="ol">${esc(it.l)}${it.h ? `<small>${esc(it.h)}</small>` : ''}</span>${it.demo ? '<span class="demo-tag">demo</span>' : ''}</li>`).join('')}</ul>`;
+      popIdx = 0;
+    } else {
+      pop.innerHTML = `<div class="cf" role="alertdialog" aria-label="${esc(e.t)}"><b>${esc(e.t)}</b><p>${esc(e.b)}</p><div class="acts"><button type="button" class="b sm" data-pc="no">Cancel</button><button type="button" class="b sm ${e.danger ? 'd' : 'p'}" data-pc="yes">${esc(e.ok)}</button></div></div>`;
+    }
+    pop.hidden = false; place(trig); hl();
+    (pop.querySelector('[data-pc="yes"]') || pop.querySelector('ul')).focus({ preventScroll: true });
+  }
+  function place(t) {
+    const r = t.getBoundingClientRect();
+    pop.style.minWidth = `${Math.max(r.width, popE?.type === 'confirm' ? 260 : 200)}px`;
+    pop.style.top = '0px'; pop.style.left = '0px';
+    const ph = pop.offsetHeight, pw = pop.offsetWidth;
+    let top = r.bottom + 6; if (top + ph > innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+    let lft = r.left; if (lft + pw > innerWidth - 8) lft = Math.max(8, r.right - pw);
+    pop.style.top = `${top}px`; pop.style.left = `${lft}px`;
+  }
+  function closePop(focus) {
+    if (popFor) { popFor.setAttribute('aria-expanded', 'false'); if (focus && document.contains(popFor)) popFor.focus({ preventScroll: true }); }
+    popFor = null; popE = null; pop.hidden = true;
+  }
+  function hl() {
+    $$('.opt', pop).forEach((li, i) => li.classList.toggle('act', i === popIdx));
+    const ul = pop.querySelector('ul'); if (ul) ul.setAttribute('aria-activedescendant', `po${popIdx}`);
+    const a = pop.querySelector('.opt.act');
+    if (a) { const top = a.offsetTop, bot = top + a.offsetHeight; if (top < pop.scrollTop) pop.scrollTop = top; else if (bot > pop.scrollTop + pop.clientHeight) pop.scrollTop = bot - pop.clientHeight; }
+  }
+  function choose(i) {
+    const e = popE, t = popFor; if (!e) return;
+    if (e.type === 'list') {
+      const o = e.opts[i]; closePop(true);
+      if (e.name) {
+        e.value = o.v; t.querySelector('.dv').textContent = o.l;
+        const hid = t.nextElementSibling;
+        if (hid && hid.name === e.name) { hid.value = o.v; hid.dispatchEvent(new Event('change', { bubbles: true })); }
+      } else A[e.act]?.({ ...e.d, v: o.v }, t);
+    } else if (e.type === 'menu') {
+      const it = e.items[i];
+      if (it.confirm) { const k = reg({ type: 'confirm', ...it.confirm, act: it.act, d: it.d, danger: it.danger }); closePop(); openPop(t, k); }
+      else { closePop(true); A[it.act]?.(it.d || {}, t); }
+    }
+  }
+  pop.addEventListener('click', (ev) => {
+    const li = ev.target.closest('.opt'); if (li) return choose(Number(li.dataset.i));
+    const pc = ev.target.closest('[data-pc]');
+    if (pc) { const e = popE, t = popFor; closePop(true); if (pc.dataset.pc === 'yes') A[e.act]?.(e.d || {}, t); }
+  });
+  pop.addEventListener('mousemove', (ev) => { const li = ev.target.closest('.opt'); if (li && Number(li.dataset.i) !== popIdx) { popIdx = Number(li.dataset.i); hl(); } });
+  pop.addEventListener('keydown', (ev) => {
+    const n = $$('.opt', pop).length;
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closePop(true); }
+    else if (ev.key === 'Tab') closePop();
+    else if (n && ev.key === 'ArrowDown') { ev.preventDefault(); popIdx = (popIdx + 1) % n; hl(); }
+    else if (n && ev.key === 'ArrowUp') { ev.preventDefault(); popIdx = (popIdx - 1 + n) % n; hl(); }
+    else if (n && ev.key === 'Home') { ev.preventDefault(); popIdx = 0; hl(); }
+    else if (n && ev.key === 'End') { ev.preventDefault(); popIdx = n - 1; hl(); }
+    else if (n && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); choose(popIdx); }
+  });
+  document.addEventListener('mousedown', (ev) => { if (!pop.hidden && !pop.contains(ev.target) && !(popFor && popFor.contains(ev.target))) closePop(); });
+  addEventListener('resize', () => closePop());
+  addEventListener('scroll', (ev) => {
+    if (pop.hidden || !popFor || pop.contains(ev.target)) return;
+    const r = popFor.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight || !document.contains(popFor)) closePop(); else place(popFor);
+  }, true);
+  document.addEventListener('ov-resize', () => { closePop(); root.classList.remove('navopen'); syncScrim(); });
+
+  // ---------- toast ----------
+  let tt, undoFn = null;
+  function toast(msg, undo) {
+    const el = $('#ov-tst');
+    undoFn = undo || null;
+    el.innerHTML = `${ic('check')}<span>${esc(msg)}</span>${undo ? '<button type="button" data-act="undo">Undo</button>' : ''}`;
+    el.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => { el.classList.remove('on'); undoFn = null; }, undo ? 6000 : 3400);
+  }
+
+  function openVault(vid) {
+    const v = S.vault.find((x) => x.id === vid); if (!v) return;
+    v.status = 'open'; v.openedAt = Date.now(); v.closesAt = Date.now() + VAULT_OPEN;
+    log('vault', `opened the sealed record of @${v.person}: ${v.fields.join(', ').toLowerCase()} (${v.caseNo})`);
+    log('vault', `told @${v.person} that their record was opened, by whom and why`, 'system');
+  }
+  function closeVault(v, why) { v.status = 'closed'; v.closedAt = Date.now(); log('vault', `closed the sealed record of @${v.person} (${why})`); }
+
+  // ---------- views ----------
+  const NAV = [['overview', 'Overview', 'home'], ['approvals', 'Approvals', 'approvals'], ['staff', 'Staff', 'users'], ['roles', 'Roles & scopes', 'shield'], ['audit', 'Audit log', 'list'], ['switches', 'Platform switches', 'toggle'], ['vault', 'Vault requests', 'lock']];
+  const PATHS = { overview: '/overseer', approvals: '/overseer/approvals', staff: '/overseer/staff', roles: '/overseer/roles', audit: '/overseer/audit', switches: '/overseer/switches', vault: '/overseer/vault', admin: '/admin' };
+  let last = Date.now();
+
+  function topbar() {
+    const rem = Math.max(0, IDLE - (Date.now() - last));
+    return `<button type="button" class="kbtn" data-act="palette" aria-label="Jump to (Ctrl K)">${ic('search')}<span class="t">Jump to…</span><kbd>Ctrl K</kbd></button>
+      <button type="button" class="sess ${rem < 2 * M ? 'soon' : ''}" data-pop="${reg({ type: 'menu', items: [{ l: 'Lock the panel now', h: 'Your passkey opens it again', i: 'lock', act: 'lock' }] })}" aria-haspopup="menu" aria-expanded="false" aria-label="Session: locks when idle">${ic('clock')}<span class="t" id="ov-idle">${mmss(rem)}</span></button>
+      <span class="demo"><span class="demo-tag dtag">Demo</span>${dd('setMe', S.me, [{ v: 'ana.reyes', l: '@ana.reyes', h: 'Overseer' }, { v: 'jo.cruz', l: '@jo.cruz', h: 'Overseer' }], { label: 'Demo: viewing as', cls: 'sm' })}</span>`;
+  }
+
+  function nav() {
+    const n = forMe().length;
+    return `<div class="brandrow"><button type="button" class="wm" data-act="go" data-v="overview">Community</button><span class="pl ink"><i></i>Overseer</span></div>`
+      + NAV.map(([k, l, i]) => `<button type="button" class="ni ${S.view === k ? 'on' : ''}" data-act="go" data-v="${k}"${S.view === k ? ' aria-current="page"' : ''}>${ic(i)}<span class="nl">${esc(l)}</span>${k === 'approvals' && n ? `<span class="cnt" aria-label="${n} waiting for you">${n}</span>` : ''}</button>`).join('')
+      + `<div class="sdsep"></div><p class="sdh">Elsewhere</p>`
+      + `<button type="button" class="ni ${S.view === 'admin' ? 'on' : ''}" data-act="go" data-v="admin">${ic('tool')}<span class="nl">Admin panel</span></button>`
+      + `<a class="ni" href="https://community.popcartph.com" target="_blank" rel="noopener">${ic('ext')}<span class="nl">Back to Community</span></a>`
+      + `<div class="mecard">${av(S.me)}<div><b>@${esc(S.me)}</b><small>Overseer · signed in with a passkey</small></div></div>`;
+  }
+
+  function apRow(a) {
+    const st = status(a), mine = a.by === S.me;
+    const right = st === 'waiting' ? `${mine ? pl('Waiting for another Overseer') : pl('Needs you', 'info')}${ring(a.at, a.at + WINDOW)}`
+      : pl(cap(st), st === 'approved' ? 'ok' : st === 'declined' ? 'err' : '');
+    return `<button type="button" class="row" data-act="openAp" data-id="${a.id}">${kc(a.kind)}<span class="rt"><b>${esc(a.title)}</b><small>@${esc(a.by)} asked ${ago(a.at)}${st !== 'waiting' && a.decidedBy ? ` · ${st} by @${esc(a.decidedBy)}` : ''}</small></span><span class="rr">${right}</span></button>`;
+  }
+
+  const V = {};
+  V.overview = () => {
+    const hr = new Date().getHours();
+    const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+    const open = S.reports.length;
+    const oldest = open ? Math.max(...S.reports.map((r) => Date.now() - r.at)) : 0;
+    const ending = S.staff.filter((s) => s.ends && s.ends - Date.now() < 14 * D);
+    const needs = [
+      ...forMe().map((a) => `<button type="button" class="nd" data-act="openAp" data-id="${a.id}">${kc(a.kind)}<span class="ndt"><b>${esc(a.title)}</b><small>@${esc(a.by)} asked ${ago(a.at)} · needs your approval</small></span>${ring(a.at, a.at + WINDOW)}</button>`),
+      open ? `<button type="button" class="nd" data-act="go" data-v="admin" data-tab="reports">${kc('report')}<span class="ndt"><b>${open} report${open > 1 ? 's' : ''} waiting</b><small>Oldest ${Math.max(1, Math.floor(oldest / H))} h${S.reports.some((r) => r.kind === 'Child safety') ? ' · child safety first' : ''}</small></span>${ic('arrow')}</button>` : '',
+      ...ending.map((s) => `<button type="button" class="nd" data-act="go" data-v="staff">${av(s.h)}<span class="ndt"><b>@${esc(s.h)}'s role ends in ${left(s.ends)}</b><small>${esc(s.role)} · renew it or let it end</small></span>${ic('arrow')}</button>`),
+    ].filter(Boolean);
+    const kinds = S.reports.reduce((m, r) => (m[r.kind] = (m[r.kind] || 0) + 1, m), {});
+    const mx = Math.max(...S.reportSeries);
+    return head('Overseer', `${greet}, ${cap(S.me.split('.')[0])}`, needs.length ? `${needs.length} thing${needs.length > 1 ? 's need' : ' needs'} you today.` : 'Nothing needs you right now.', refresh())
+      + `<h2 class="h2">Needs you</h2>`
+      + (needs.length ? `<div class="grid gfill">${needs.join('')}</div>` : `<div class="allclear">${ic('check', 'lg')}<div><b>All clear</b><div class="mute" style="font-size:14px">No approvals, reports or ending roles are waiting on you.</div></div></div>`)
+      + `<h2 class="h2">Community</h2><div class="grid g4">
+        <button type="button" class="kp" data-act="go" data-v="admin" data-tab="people"><span class="kl">People${ic('arrow')}</span><span class="fig">${S.people.total.toLocaleString('en')}</span>${spark(S.people.series)}<span class="kf">${pl(`+${S.people.week} this week`, 'ok')}</span></button>
+        <button type="button" class="kp ${open ? 'alert' : ''}" data-act="go" data-v="admin" data-tab="reports"><span class="kl">Open reports${ic('arrow')}</span><span class="fig">${open}</span><span class="kbars" aria-hidden="true">${S.reportSeries.map((v, i) => `<i class="${i === S.reportSeries.length - 1 ? 'on' : ''}" style="height:${Math.round((v / mx) * 100)}%"></i>`).join('')}</span><span class="kf">${open ? `oldest ${Math.max(1, Math.floor(oldest / H))} h · ${Object.keys(kinds).length} kinds` : 'none open'}</span></button>
+        <button type="button" class="kp" data-act="go" data-v="staff"><span class="kl">Staff${ic('arrow')}</span><span class="fig">${S.staff.length}</span><span class="avs" style="padding:7px 0">${S.staff.slice(0, 5).map((s) => av(s.h, 'sm')).join('')}</span><span class="kf">${ending.length ? pl(`${ending.length} ending within 14 days`, 'warn') : pl('none ending soon', 'ok')}</span></button>
+        <button type="button" class="kp" data-act="go" data-v="switches"><span class="kl">Joining${ic('arrow')}</span><span class="fig word">${S.switches.inviteOnly ? 'Invite-only' : 'Open to all'}</span><span class="kf">${S.switches.inviteOnly ? pl(S.switches.inviteNote, 'info') : pl('anyone can join', 'ok')}${S.switches.readOnly ? pl('read-only on', 'err') : ''}</span></button>
+      </div>`
+      + `<h2 class="h2">Latest activity<span class="sp"></span>${btn('View all', { act: 'go', d: { v: 'audit' }, sm: 1, k: 'g', i: 'arrow' })}</h2>
+        <div class="rows"><ul class="tl">${S.audit.slice(-6).reverse().map((e) => `<li>${e.who === 'system' ? kc('session', 'sm') : av(e.who, 'sm')}<span class="tt"><b>@${esc(e.who)}</b> ${esc(e.text)}<small>${clock(e.at)} · ${esc((KIND[e.kind] || KIND.audit)[1])}</small></span></li>`).join('')}</ul></div>`;
+  };
+
+  V.approvals = () => {
+    const list = S.approvals.filter((a) => (S.apTab === 'waiting' ? status(a) === 'waiting' : status(a) !== 'waiting')).sort((a, b) => b.at - a.at);
+    return head('Two-person rule', 'Approvals', 'Anything that opens sealed data or changes Community for everyone needs a second Overseer.', asOf())
+      + `<div class="toolbar">${seg('apTab', S.apTab, [{ v: 'waiting', l: 'Waiting', n: waiting().length }, { v: 'done', l: 'Decided and expired' }], { label: 'Show' })}</div>`
+      + (list.length ? `<div class="rows">${list.map(apRow).join('')}</div>` : `<div class="rows">${empty('check', S.apTab === 'waiting' ? 'Nothing is waiting' : 'Nothing decided yet', S.apTab === 'waiting' ? 'Requests that need two Overseers show up here.' : 'Approved, declined, withdrawn and expired requests show up here.')}</div>`)
+      + `<h2 class="h2">What needs two people</h2><div class="grid gfill">${[['lock', 'gum', 'Opening a sealed record', 'Court order only. Shown for 30 minutes, and the person is told.'], ['shield', 'sky', 'Adding or removing an Overseer', 'There must always be at least one.'], ['toggle', 'volt', 'Opening joining, or launching', 'Turning these back off takes one Overseer and is instant.'], ['flag', 'kiwi', 'A feature in production', 'Switching it off is instant.']].map(([i, c, t, s]) => `<div class="card cpad" style="display:flex;gap:14px;align-items:flex-start"><span class="kc c-${c}">${ic(i)}</span><div><b style="font-size:14.5px">${t}</b><div class="mute" style="font-size:13px;margin-top:3px">${s}</div></div></div>`).join('')}</div>`;
+  };
+
+  function staffList() {
+    const q = S.staffQ.trim().toLowerCase();
+    const rows = S.staff.filter((s) => (!q || s.h.includes(q)) && (!S.staffRole || s.role === S.staffRole));
+    if (!rows.length) return empty('search', 'No staff match', 'Try another name or role.');
+    return rows.map((s) => {
+      const span = s.ends ? Math.max(0, Math.min(1, (s.ends - Date.now()) / (90 * D))) : 1;
+      const soon = s.ends && s.ends - Date.now() < 14 * D;
+      const roleItems = [...Object.keys(S.roles), 'Overseer'].filter((r) => r !== s.role).map((r) => ({ l: `Make ${r}`, h: r === 'Overseer' || s.role === 'Overseer' ? 'Needs a second Overseer' : `${(S.roles[r] || []).length} scopes`, i: 'shield', act: 'role', d: { h: s.h, v: r } }));
+      const items = [...(s.ends ? [{ l: 'Renew 90 days', h: `Until ${day(Math.max(s.ends, Date.now()) + 90 * D)}`, i: 'refresh', act: 'renew', d: { h: s.h } }] : []), ...roleItems,
+        { l: 'Remove from staff', i: 'trash', act: 'remove', d: { h: s.h }, danger: true, confirm: { t: `Remove @${s.h}?`, b: s.role === 'Overseer' ? 'Removing an Overseer needs a second Overseer to approve.' : 'Their staff access ends now and they come off the gate list. You can undo this for a few seconds.', ok: s.role === 'Overseer' ? 'Ask to remove' : 'Remove' } }];
+      return `<div class="row hov">${av(s.h)}<span class="rt"><b>@${esc(s.h)}${s.h === S.me ? ' <span class="mute" style="font-weight:500">(you)</span>' : ''}</b><small>Staff since ${day(s.since || t0)} · on the gate list</small></span>
+        <span class="meta"><span>${s.ends ? `${soon ? '<b style="color:#8a5a00">' : ''}Ends in ${left(s.ends)}${soon ? '</b>' : ''} · ${day(s.ends)}` : 'No end date'}</span><span class="meter ${soon ? 'warn' : ''}"><i style="width:${Math.round(span * 100)}%"></i></span></span>
+        <span class="rr">${rl(s.role)}${more(items, `Actions for @${s.h}`)}</span></div>`;
+    }).join('');
+  }
+  V.staff = () => {
+    const inv = S.invites.map((i) => `<div class="row hov"><span class="kc c-cream">${ic('send')}</span><span class="rt"><b>${esc(mask(i.email))}</b><small>Sent ${ago(i.sent)} · link works for ${left(i.expires)} · role ends ${i.days} days after they join</small></span><span class="rr">${rl(i.role)}${more([
+      { l: 'Resend invite', h: 'The link works for 7 more days', i: 'send', act: 'resend', d: { id: i.id } },
+      { l: 'Simulate: they accept', h: 'See what happens next', i: 'check', act: 'accept', d: { id: i.id }, demo: true },
+      { l: 'Cancel invite', i: 'x', act: 'cancelInvite', d: { id: i.id }, danger: true, confirm: { t: 'Cancel this invite?', b: 'The link stops working and the address comes off the gate list.', ok: 'Cancel invite' } },
+    ], 'Invite actions')}</span></div>`).join('');
+    return head('People who run Community', 'Staff', `${S.staff.length} people · every address is on the Cloudflare Access list`, btn('Invite staff', { k: 'p', i: 'plus', act: 'openInvite' }))
+      + (inv ? `<div class="rows" style="margin-bottom:20px"><div class="sechead">${ic('send')}Waiting to accept · ${S.invites.length}</div>${inv}</div>` : '')
+      + `<div class="toolbar"><label class="inwrap">${ic('search')}<span class="sr">Search staff</span><input class="inp" data-live="staff" value="${esc(S.staffQ)}" placeholder="Search by username" autocomplete="off"></label>${dd('staffRole', S.staffRole, [{ v: '', l: 'All roles' }, ...[...Object.keys(S.roles), 'Overseer'].map((r) => ({ v: r, l: r }))], { label: 'Filter by role', pre: 'Role:' })}</div>`
+      + `<div class="rows" id="ov-slist">${staffList()}</div>`;
+  };
+
+  V.roles = () => {
+    const names = Object.keys(S.roles);
+    const r = S.role, isOver = r === 'Overseer';
+    const cur = isOver ? null : (S.draft ?? S.roles[r]);
+    const holders = S.staff.filter((s) => s.role === r);
+    const list = [...names, 'Overseer'].map((n) => `<button type="button" class="rbtn ${n === r ? 'on' : ''}" data-act="pickRole" data-v="${esc(n)}">${rl(n)}<span class="rt"><small>${S.staff.filter((s) => s.role === n).length} people · ${n === 'Overseer' ? 'every scope' : `${S.roles[n].length} scopes`}</small></span></button>`).join('');
+    let body;
+    if (isOver) {
+      body = `<div class="cpad"><div class="banner warm" style="margin:0 0 14px">${ic('lock')}<span>The Overseer role has every scope and can't be edited. Who holds it changes only through the two-person rule.</span></div>
+        <p class="lbl" style="margin-bottom:10px">Only Overseers can</p><div class="chips">${['staff.manage', 'roles.manage', 'switches.platform', 'approvals.decide', 'vault.request', 'audit.export'].map((s) => `<span class="scope">${s}</span>`).join('')}</div>
+        <p class="lbl" style="margin:16px 0 10px">Plus every staff scope</p><div class="chips">${SCOPES.map(([id]) => `<span class="scope">${id}</span>`).join('')}</div></div>`;
+    } else {
+      const delItem = holders.length ? { l: 'Delete role', h: 'Move its people to another role first', i: 'trash', act: 'deleteRoleBlocked' } : { l: 'Delete role', i: 'trash', act: 'deleteRole', danger: true, confirm: { t: `Delete ${r}?`, b: 'Nobody holds it. This removes it from the list.', ok: 'Delete' } };
+      body = S.scopeGroups.map(([g, list2]) => `<div class="sgrp"><h4>${esc(g)}</h4><div class="cbl-list" style="margin:0">${list2.map(([id, l, h, risk]) => cb({ l, h: `${esc(h)} · <code>${id}</code>`, act: 'scope', d: { v: id }, on: cur.includes(id), tail: `<span class="risk ${risk}">${risk}</span>` })).join('')}</div></div>`).join('');
+      body = `<div style="display:flex;justify-content:flex-end;padding:8px 8px 0">${more([delItem], 'Role actions')}</div>${body}`;
+    }
+    const diff = S.draft ? S.draft.filter((x) => !S.roles[r].includes(x)).length + S.roles[r].filter((x) => !S.draft.includes(x)).length : 0;
+    return head('What each role can do', 'Roles & scopes', 'The server checks scopes, never role names. Changes apply right away to everyone with the role.', '')
+      + `<div class="two"><div class="rlist">${list}<form data-form="newRole" novalidate style="display:grid;gap:8px;margin-top:8px"><label class="fld"><span class="sr">New role name</span><input class="inp" name="name" placeholder="New role, e.g. Trust & Safety" maxlength="30" autocomplete="off"></label><span class="ferr" data-err="name"></span>${btn('Add role', { submit: 1, i: 'plus', sm: 1 })}</form></div>
+        <div><div class="card"><div class="cpad" style="display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--cream2);flex-wrap:wrap">${rl(r)}<span class="mute" style="font-size:14px;flex:1;min-width:140px">${holders.length ? `Held by ${holders.map((h) => `@${esc(h.h)}`).join(', ')}` : 'Nobody holds this role yet'}</span><span class="avs">${holders.map((h) => av(h.h, 'sm')).join('')}</span></div>${body}</div>
+        ${diff ? `<div class="savebar" role="region" aria-label="Unsaved changes"><span class="grow">${diff} unsaved change${diff > 1 ? 's' : ''} to ${esc(r)}</span>${btn('Undo', { act: 'resetRole', k: 'g', sm: 1 })}${btn('Save changes', { act: 'saveRole', k: 'y', sm: 1 })}</div>` : ''}</div></div>`;
+  };
+
+  function auditList() {
+    const f = S.filter;
+    const rows = S.audit.filter((e) => (!f.who || e.who === f.who) && (!f.kind || e.kind === f.kind) && (!f.q || `${e.who} ${e.text}`.toLowerCase().includes(f.q.toLowerCase()))).slice().reverse();
+    if (!rows.length) return `<li style="display:block">${empty('search', 'No entries match', 'Try other words, or clear the filters.', btn('Clear filters', { act: 'clearAudit', sm: 1 }))}</li>`;
+    let lastDay = '';
+    return `<li class="dayh" style="display:block;padding:12px 18px 0;color:var(--ink3)">Showing ${rows.length} of ${S.audit.length}</li>` + rows.map((e) => {
+      const dl = dayLabel(e.at); const h = dl !== lastDay ? `<li class="dayh" style="display:block;padding:14px 18px 4px">${dl}</li>` : ''; lastDay = dl;
+      return `${h}<li>${e.who === 'system' ? kc('session', 'sm') : av(e.who, 'sm')}<span class="tt"><b>@${esc(e.who)}</b> ${esc(e.text)}<small>${clock(e.at)} · ${esc((KIND[e.kind] || KIND.audit)[1])}</small></span>${kc(e.kind, 'sm')}</li>`;
+    }).join('');
+  }
+  V.audit = () => {
+    const whos = [...new Set(S.audit.map((e) => e.who))].sort();
+    const kinds = [...new Set(S.audit.map((e) => e.kind))].sort();
+    const any = S.filter.q || S.filter.who || S.filter.kind;
+    return head('Every staff action', 'Audit log', 'Append-only: nobody can edit or delete an entry, Overseers included.', btn('Export CSV', { act: 'export', i: 'download', sm: 1 }))
+      + `<div class="toolbar"><label class="inwrap">${ic('search')}<span class="sr">Search the log</span><input class="inp" data-live="audit" value="${esc(S.filter.q)}" placeholder="Search: post, invite, vault…" autocomplete="off"></label>
+        ${dd('fWho', S.filter.who, [{ v: '', l: 'Everyone' }, ...whos.map((w) => ({ v: w, l: `@${w}` }))], { label: 'Who', pre: 'Who:' })}
+        ${dd('fKind', S.filter.kind, [{ v: '', l: 'All kinds' }, ...kinds.map((k) => ({ v: k, l: (KIND[k] || KIND.audit)[1] }))], { label: 'Kind', pre: 'Kind:' })}
+        ${any ? btn('Clear', { act: 'clearAudit', k: 'g', sm: 1, i: 'x' }) : ''}</div>`
+      + `<div class="rows"><ul class="tl" id="ov-alist">${auditList()}</ul></div>`;
+  };
+
+  V.switches = () => {
+    const s = S.switches;
+    const pend = (k) => { const a = pendingKey(k); return a ? `<div class="acts">${pl(a.by === S.me ? 'Waiting for another Overseer' : 'Needs your approval', a.by === S.me ? '' : 'info')}${btn('View request', { act: 'openAp', d: { id: a.id }, sm: 1, k: 'g', i: 'arrow' })}</div>` : ''; };
+    const two = (t) => `<span class="pl info">${ic('users')}${t}</span>`;
+    return head('Changes for everyone', 'Platform switches', 'Some switches need a second Overseer. Every flip is logged.', asOf())
+      + `<div class="card">
+        <div class="swrow">${kc('switch')}<div class="rt"><b>Joining: invite-only</b><p>On: people join only with an emailed invite. Turning it off opens joining to everyone. Turning it back on is instant.</p><div class="acts">${two('Two people to turn off')}${s.inviteOnly ? pl(`Reason: ${s.inviteNote}`) : ''}</div>${pend('switch:inviteOnly')}</div>${sw('inviteOnly', s.inviteOnly, {}, 'Joining: invite-only')}</div>
+        <div class="swrow">${kc('feature')}<div class="rt"><b>Launched</b><p>Off: the transparency report says "No numbers yet". On: it publishes the real counts.</p><div class="acts">${two('Two people to turn on')}</div>${pend('switch:launched')}</div>${sw('launched', s.launched, {}, 'Launched')}</div>
+        <div class="swrow"><span class="kc c-ember">${ic('alert')}</span><div class="rt"><b>Read-only mode</b><p>For emergencies. Members can read, but nobody can post, message or apply. One Overseer can flip it at once, and the others are alerted.</p></div>${sw('readOnly', s.readOnly, {}, 'Read-only mode')}</div>
+        <div class="swrow">${kc('approval')}<div class="rt"><b>Terms version <span class="fig" style="font-size:18px">v${s.terms}</span></b><p>Publishing a new version asks every member to read "Before you join" again and tick the box at their next sign-in.</p></div>${confirmBtn(`Publish v${s.terms + 1}`, { sm: 1 }, { t: `Publish terms v${s.terms + 1}?`, b: 'Every member will be asked to accept it at their next sign-in.', ok: 'Publish', act: 'terms' })}</div>
+      </div>
+      <h2 class="h2">Features</h2>
+      <div class="card">${S.features.map((f) => `<div class="swrow">${kc('feature')}<div class="rt"><b>${esc(f.name)}</b><p><code>${f.id}</code></p>${pend(`feature:${f.id}`)}</div><div class="fsw"><div><small>Staging</small>${sw('fStage', f.staging, { id: f.id }, `${f.name} in staging`)}</div><div><small>Production</small>${sw('fProd', f.prod, { id: f.id }, `${f.name} in production`)}</div></div></div>`).join('')}</div>
+      <p class="hint" style="margin-top:10px">Developers can switch staging. Turning a feature on in production needs two Overseers; turning it off is instant.</p>`;
+  };
+
+  V.vault = () => {
+    const items = S.vault.slice().sort((a, b) => b.at - a.at).map((v) => {
+      const st = v.status;
+      const tone = { waiting: 'info', open: 'warn', closed: '', declined: 'err', withdrawn: '' }[st];
+      const lbl = { waiting: 'Waiting for a second Overseer', open: 'Open now', closed: 'Closed', declined: 'Declined', withdrawn: 'Withdrawn' }[st];
+      const ap = S.approvals.find((a) => a.key === `vault:${v.id}`);
+      let body = '';
+      if (st === 'open') body = `<div class="reveal">${ring(v.openedAt, v.closesAt, 'lg')}<div class="rv">${v.fields.map((f) => `<div><small>${esc(f)}</small><div class="val">${f === 'Phone number' ? '+63 9•• ••• ••00' : f === 'ID check result' ? 'Passed · 2026-10-02' : '6 sign-ins · 1 device'}</div></div>`).join('')}<small style="text-transform:none;letter-spacing:0;font-family:var(--f);font-size:12px">Example value · shown to the two Overseers only</small></div>${btn('Close now', { act: 'closeVault', d: { id: v.id }, sm: 1, k: 'y' })}</div>`;
+      return `<div class="vcard"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${av(v.person)}<b style="font-size:15.5px;flex:1">@${esc(v.person)}</b>${pl(lbl, tone)}${st === 'waiting' && ap ? btn('Open request', { act: 'openAp', d: { id: ap.id }, sm: 1, i: 'arrow' }) : ''}</div>
+        <dl class="dl"><dt>Court</dt><dd>${esc(v.court)}</dd><dt>Case</dt><dd>${esc(v.caseNo)}</dd><dt>To open</dt><dd>${esc(v.fields.join(', '))}</dd><dt>Order</dt><dd>${ic('file')} ${esc(v.file)}</dd><dt>Asked</dt><dd>@${esc(v.by)} · ${ago(v.at)}</dd></dl>${body}</div>`;
+    }).join('');
+    return head('Decision 0001', 'Vault requests', 'Court orders to open a sealed identity record.', btn('New request', { k: 'p', i: 'plus', act: 'openVaultForm' }))
+      + `<div class="banner">${ic('info')}<span><b>In the real product this list stays empty until the sealed vault is built.</b> Today Community seals nothing, and "Who opened my records" says so. The rule: a court order, two Overseers, 30 minutes, logged, and the person is told.</span></div>`
+      + `<div class="card">${items || empty('lock', 'No requests', 'Court-order requests show up here.')}</div>`;
+  };
+
+  V.admin = () => {
+    const t = S.adminTab;
+    let body = '';
+    if (t === 'reports') {
+      body = S.reports.length ? `<p class="hint" style="margin:-4px 0 12px">Tip: focus a report, then press <kbd>K</kbd> keep · <kbd>W</kbd> warn · <kbd>R</kbd> remove.</p><div class="rows">${S.reports.slice().sort((a, b) => (a.kind === 'Child safety' ? -1 : b.kind === 'Child safety' ? 1 : a.at - b.at)).map((r) => `<div class="rep" tabindex="0" data-rid="${r.id}" aria-label="${esc(r.kind)} report: ${esc(r.what)}">
+          <div class="rh">${pl(r.kind, r.kind === 'Child safety' ? 'err' : '')}<span class="mute" style="font-size:13px">${esc(r.where)} · ${ago(r.at)}</span></div><b>${esc(r.what)}</b>
+          <div class="acts">${btn('Keep', { act: 'decide', d: { id: r.id, v: 'Keep' }, sm: 1, kbd: 'K' })}${btn('Warn', { act: 'decide', d: { id: r.id, v: 'Warn' }, sm: 1, kbd: 'W' })}${btn('Remove', { act: 'decide', d: { id: r.id, v: 'Remove' }, sm: 1, k: 'd', kbd: 'R' })}</div></div>`).join('')}</div>`
+        : `<div class="rows">${empty('check', 'The queue is empty', 'Nothing is waiting. New reports appear here.')}</div>`;
+    } else if (t === 'people') {
+      const f = S.found;
+      let res = '';
+      if (f) {
+        if (f.reserved) res = `<div class="card cpad" style="display:flex;gap:14px;align-items:center">${kc('session')}<div><b>“${esc(f.q)}” is a reserved name</b><div class="mute" style="font-size:13.5px">Nobody can hold it. The public page shows "No one has this username".</div></div></div>`;
+        else if (!f.st) res = `<div class="card">${empty('search', `No one has “${f.q}”`, 'Check the spelling. Usernames ignore capitals.')}</div>`;
+        else res = `<div class="card cpad" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${av(f.q, 'lg')}<div style="flex:1;min-width:160px"><b style="font-size:16px">@${esc(f.q)}</b><div class="mute" style="font-size:13px">Public profile and account status only. No messages, no vault, no location.</div></div>${pl(cap(f.st), f.st === 'suspended' ? 'err' : 'ok')}${f.st === 'active' ? confirmBtn('Suspend 7 days', { sm: 1 }, { t: `Suspend @${f.q} for 7 days?`, b: 'They can read but not post, message or apply. They are told why.', ok: 'Suspend', act: 'suspend', d: { v: f.q }, danger: true }) : btn('Lift suspension', { act: 'unsuspend', d: { v: f.q }, sm: 1 })}</div>`;
+      }
+      body = `<form data-form="lookup" novalidate class="toolbar"><label class="inwrap">${ic('search')}<span class="sr">Username</span><input class="inp" name="q" placeholder="Look up a username" autocomplete="off" value="${esc(f?.q || '')}"></label>${btn('Look up', { submit: 1, k: 'p' })}</form>
+        <div class="chips" style="margin:-4px 0 16px">${['maria.santos', 'example.person', 'kim.dev', 'adm1n'].map((x) => `<button type="button" class="chip" data-act="quickLook" data-v="${x}">${x}</button>`).join('')}</div>${res}`;
+    } else {
+      body = `<div class="grid g2"><div class="rows">${[['App', '0.7.0 · up 3 days', 'OK', 'ok'], ['Database', 'Migrations current', 'OK', 'ok'], ['Email', 'p95 4.2 s over the last hour', 'Slow', 'warn'], ['Errors this hour', 'Messages only, never personal data', '0', 'ok']].map(([a, b, c, d]) => `<div class="row"><span class="rt"><b>${a}</b><small>${b}</small></span>${pl(c, d)}</div>`).join('')}</div>
+        <div class="card cpad"><p class="lbl">Email p95, seconds · last 7 hours</p><div class="fig" style="font-size:40px;margin:10px 0 6px">4.2</div>${spark([1.2, 1.4, 1.1, 2.8, 3.9, 4.2, 4.0], 'warn')}<p class="hint" style="margin-top:8px">Example values.</p></div></div>`;
+    }
+    return head('What invited staff see', 'Admin panel', 'Each person sees only the tabs their scopes allow. As an Overseer, you see them all.', refresh())
+      + `<div class="toolbar">${seg('adminTab', t, [{ v: 'reports', l: 'Reports', n: S.reports.length }, { v: 'people', l: 'People' }, { v: 'health', l: 'Health' }], { label: 'Admin tabs' })}</div>${body}`;
+  };
+
+  // ---------- drawers ----------
+  function drawerHTML() {
+    const d = S.drawer; if (!d) return '';
+    const close = btn('', { i: 'x', act: 'closeDrawer', tip: 'Close', k: 'g' });
+    if (d.kind === 'ap') {
+      const a = S.approvals.find((x) => x.id === d.id); if (!a) return '';
+      const st = status(a), mine = a.by === S.me;
+      const k = KIND[a.kind];
+      const step2 = st === 'waiting' ? 'now' : st === 'approved' ? 'done' : 'bad';
+      const steps = `<ol class="steps">
+        <li class="done"><span class="sd2">${ic('check')}</span><span><b>Asked by @${esc(a.by)}</b><small>${ago(a.at)}</small></span></li>
+        <li class="${step2}"><span class="sd2">${step2 === 'done' ? ic('check') : step2 === 'bad' ? ic('x') : ''}</span><span><b>${st === 'waiting' ? 'A second Overseer decides' : st === 'approved' ? `Approved by @${esc(a.decidedBy)}` : st === 'expired' ? 'Expired after 72 hours' : `${cap(st)} by @${esc(a.decidedBy)}`}</b><small>${st === 'waiting' ? `${left(a.at + WINDOW)} left · anyone but @${esc(a.by)}` : a.decidedAt ? ago(a.decidedAt) : ''}${a.reason ? ` · “${esc(a.reason)}”` : ''}</small></span></li>
+        <li class="${st === 'approved' ? 'done' : ''}"><span class="sd2">${st === 'approved' ? ic('check') : ''}</span><span><b>Carried out and logged</b><small>${st === 'approved' ? 'Done' : 'After approval'}</small></span></li></ol>`;
+      let foot;
+      if (st !== 'waiting') foot = btn('Close', { act: 'closeDrawer' });
+      else if (mine) foot = `<span class="note">You asked for this, so another Overseer has to approve it.</span>${confirmBtn('Withdraw', {}, { t: 'Withdraw this request?', b: 'Nothing will happen. You can ask again later.', ok: 'Withdraw', act: 'withdraw', d: { id: a.id } })}`;
+      else if (S.declining === a.id) foot = `${btn('Back', { act: 'declineCancel', k: 'g' })}${btn('Decline request', { submit: 1, form: 'ov-decline', k: 'd' })}`;
+      else foot = `${btn('Decline', { act: 'declineOpen', d: { id: a.id } })}${btn('Approve', { act: 'approve', d: { id: a.id }, k: 'p', i: 'check' })}`;
+      return `<div class="dwh">${kc(a.kind)}<div class="grow"><p class="eyebrow">${esc(k[1])}</p><h2 id="ov-dwt">${esc(a.title)}</h2></div>${close}</div>
+        <div class="dwb">
+          <div style="display:flex;align-items:center;gap:14px">${av(a.by, 'lg')}<div style="flex:1"><b>@${esc(a.by)}</b><div class="mute" style="font-size:13.5px">asked ${ago(a.at)}</div></div>${st === 'waiting' ? ring(a.at, a.at + WINDOW, 'lg') : pl(cap(st), st === 'approved' ? 'ok' : st === 'declined' ? 'err' : '')}</div>
+          ${a.facts?.length ? `<dl class="dl" style="margin:0">${a.facts.map(([x, y]) => `<dt>${esc(x)}</dt><dd>${esc(y)}</dd>`).join('')}</dl>` : ''}
+          ${a.note ? `<div class="banner" style="margin:0">${ic('info')}<span>${esc(a.note)}</span></div>` : ''}
+          <div><p class="lbl" style="margin-bottom:12px">Progress</p>${steps}</div>
+          ${S.declining === a.id ? `<form id="ov-decline" data-form="decline" data-id="${a.id}" novalidate class="fld"><span>Why are you declining? @${esc(a.by)} will see this.</span><textarea class="inp" name="reason" maxlength="200" placeholder="For example: the court order doesn't name this person."></textarea><span class="ferr" data-err="reason"></span></form>` : ''}
+        </div><div class="dwf">${foot}</div>`;
+    }
+    if (d.kind === 'invite') {
+      const roles = [...Object.keys(S.roles), 'Overseer'];
+      return `<div class="dwh"><span class="kc c-sky">${ic('send')}</span><div class="grow"><p class="eyebrow">Staff</p><h2 id="ov-dwt">Invite staff</h2></div>${close}</div>
+        <div class="dwb"><form id="ov-invite" data-form="invite" novalidate class="fsec">
+          <label class="fld"><span>Email address</span><input class="inp" name="email" type="email" placeholder="person@example.org" autocomplete="off"><span class="ferr" data-err="email"></span><span class="hint">The invite goes here, and the address is added to the gate list.</span></label>
+          <div class="fld"><span>Role</span>${dd('', 'Moderator', roles.map((r) => ({ v: r, l: r, h: r === 'Overseer' ? 'Every scope · needs a second Overseer' : `${S.roles[r].length} scopes` })), { name: 'role', cls: 'full', label: 'Role' })}</div>
+          <div class="fld"><span>Role ends</span><div>${seg('formSeg', '90', [{ v: '30', l: '30 days' }, { v: '90', l: '90 days' }, { v: '180', l: '180 days' }], { name: 'days', label: 'Role ends' })}</div><span class="hint">Counted from the day they accept. Renew it with one tap later.</span></div>
+          <div class="card cpad" id="ov-inv-prev">${invitePreview('Moderator')}</div>
+        </form></div>
+        <div class="dwf">${btn('Cancel', { act: 'closeDrawer', k: 'g' })}${btn('Send invite', { submit: 1, form: 'ov-invite', k: 'p', i: 'send' })}</div>`;
+    }
+    if (d.kind === 'vault') {
+      return `<div class="dwh"><span class="kc c-gum">${ic('lock')}</span><div class="grow"><p class="eyebrow">Sealed record</p><h2 id="ov-dwt">New vault request</h2></div>${close}</div>
+        <div class="dwb"><form id="ov-vault" data-form="vault" novalidate style="display:grid;gap:22px">
+          <div class="fsec"><h3><span class="n">1</span>The court order</h3>
+            <label class="fld"><span>Username of the person</span><input class="inp" name="person" placeholder="example.person" autocomplete="off"><span class="ferr" data-err="person"></span></label>
+            <div class="fgrid"><label class="fld"><span>Court</span><input class="inp" name="court" placeholder="Regional Trial Court, Branch…" autocomplete="off"><span class="ferr" data-err="court"></span></label>
+            <label class="fld"><span>Case number</span><input class="inp" name="caseNo" placeholder="Civil Case No." autocomplete="off"><span class="ferr" data-err="caseNo"></span></label></div></div>
+          <div class="fsec"><h3><span class="n">2</span>What to open</h3><p class="hint" style="margin-top:-6px">Only what the order names.</p>
+            <div class="cbl-list">${[['Phone number', 'The number they joined with'], ['ID check result', 'Passed or failed, and the date'], ['Login log (6 months)', 'Times and devices, no locations']].map(([l, h]) => cb({ name: 'f', v: l, l, h })).join('')}</div><span class="ferr" data-err="f"></span></div>
+          <div class="fsec"><h3><span class="n">3</span>The order file</h3>
+            <label class="drop" data-drop><input type="file" class="sr" name="file" accept="application/pdf"><span class="dz">${ic('upload')}<b>Drop the court order here</b><small>or click to browse · PDF · it stays in this page</small></span></label>
+            <div class="dfile" hidden></div><span class="ferr" data-err="file"></span></div>
+        </form></div>
+        <div class="dwf"><span class="note">A second Overseer has 72 hours to approve it.</span>${btn('Cancel', { act: 'closeDrawer', k: 'g' })}${btn('Ask a second Overseer', { submit: 1, form: 'ov-vault', k: 'p' })}</div>`;
+    }
+    return '';
+  }
+  function invitePreview(role) {
+    const sc = role === 'Overseer' ? ['every scope'] : (S.roles[role] || []);
+    return `<p class="lbl" style="margin-bottom:10px">As ${esc(role)} they'll be able to</p><div class="chips">${sc.length ? sc.map((s) => `<span class="scope">${esc(s)}</span>`).join('') : '<span class="mute" style="font-size:13px">Nothing yet: this role has no scopes.</span>'}</div>${role === 'Overseer' ? `<div class="banner" style="margin:14px 0 0">${ic('users')}<span>An Overseer invite is sent only after a second Overseer approves.</span></div>` : ''}`;
+  }
+  function renderDrawer() {
+    const dw = $('#ov-dw');
+    dw.innerHTML = drawerHTML();
+    dw.classList.toggle('on', !!S.drawer);
+    syncScrim();
+    if (S.drawer) setTimeout(() => (dw.querySelector('.dwb input:not([type=file]), .dwb textarea') || dw.querySelector('.dwf .b.p, .dwf .b'))?.focus({ preventScroll: true }), 60);
+  }
+  function syncScrim() { $('#ov-scr').classList.toggle('on', !!S.drawer || root.classList.contains('navopen')); }
+  function openDrawer(d) { closePop(); S.drawer = d; S.declining = null; renderDrawer(); }
+  function closeDrawer() { S.drawer = null; S.declining = null; renderDrawer(); }
+
+  // ---------- palette ----------
+  const CMDS = () => [
+    ...NAV.map(([k, l, i]) => ({ g: 'Go to', l, i, run: () => A.go({ v: k }) })),
+    { g: 'Go to', l: 'Admin panel', i: 'tool', run: () => A.go({ v: 'admin' }) },
+    { g: 'Do', l: 'Invite staff', i: 'send', run: () => { A.go({ v: 'staff' }); openDrawer({ kind: 'invite' }); } },
+    { g: 'Do', l: 'New vault request', i: 'lock', run: () => { A.go({ v: 'vault' }); openDrawer({ kind: 'vault' }); } },
+    { g: 'Do', l: 'Export the audit log', i: 'download', run: () => A.export() },
+    { g: 'Do', l: 'Lock the panel', i: 'key', run: () => A.lock() },
+    { g: 'Demo', l: `View as @${S.me === 'ana.reyes' ? 'jo.cruz' : 'ana.reyes'}`, i: 'user', run: () => A.setMe({ v: S.me === 'ana.reyes' ? 'jo.cruz' : 'ana.reyes' }) },
+  ];
+  let palList = [];
+  function renderPal() {
+    const el = $('#ov-pal');
+    if (!S.palette) { el.hidden = true; return; }
+    const q = S.palQ.toLowerCase();
+    palList = CMDS().filter((c) => !q || c.l.toLowerCase().includes(q));
+    S.palIdx = Math.min(S.palIdx, Math.max(0, palList.length - 1));
+    let g = '';
+    const items = palList.map((c, i) => { const h = c.g !== g ? `<li class="ph2" role="presentation">${c.g}</li>` : ''; g = c.g; return `${h}<li role="option" id="pal${i}" data-pi="${i}" class="${i === S.palIdx ? 'act' : ''}" aria-selected="${i === S.palIdx}">${ic(c.i)}${esc(c.l)}${i === S.palIdx ? '<small>Enter</small>' : ''}</li>`; }).join('');
+    if (el.hidden) {
+      el.innerHTML = `<div class="palin">${ic('search')}<input id="ov-palq" placeholder="Jump to a section or run an action…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="ov-pall"></div><ul class="pall" id="ov-pall" role="listbox"></ul><div class="palf"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span></div>`;
+      el.hidden = false;
+      const inp = $('#ov-palq'); inp.value = S.palQ; inp.focus();
+    }
+    $('#ov-pall').innerHTML = items || '<li class="ph2">Nothing matches</li>';
+    $('#ov-palq').setAttribute('aria-activedescendant', `pal${S.palIdx}`);
+    $('#ov-pall .act')?.scrollIntoView({ block: 'nearest' });
+  }
+  function runPal(i) { const c = palList[i]; S.palette = false; S.palQ = ''; renderPal(); c?.run(); }
+
+  // ---------- render ----------
+  function render(focus) {
+    closePop();
+    $('#ov-tbr').innerHTML = topbar();
+    $('#ov-nav').innerHTML = nav();
+    $('#ov-main').innerHTML = V[S.view]();
+    $('#ov-path').textContent = PATHS[S.view];
+    if (focus) { $('#ov-main').scrollTop = 0; $('#ov-main h1')?.focus({ preventScroll: true }); }
+  }
+
+  // ---------- actions ----------
+  const A = {
+    go: (d) => { S.view = d.v; if (d.tab) S.adminTab = d.tab; root.classList.remove('navopen'); if (S.drawer) closeDrawer(); syncScrim(); render(true); },
+    nav: () => { root.classList.toggle('navopen'); syncScrim(); },
+    palette: () => { S.palette = true; S.palQ = ''; S.palIdx = 0; renderPal(); },
+    refresh: () => { S.asOf = Date.now(); render(); toast('Numbers read again.'); },
+    setMe: (d) => { S.me = d.v; S.declining = null; render(); if (S.drawer) renderDrawer(); toast(`Now viewing as @${S.me}.`); },
+    lock: () => lock('locked by hand'),
+    unlock: () => { S.locked = false; $('#ov-lock').hidden = true; last = Date.now(); log('session', 'opened the panel with a passkey'); render(); },
+    undo: () => { const f = undoFn; undoFn = null; $('#ov-tst').classList.remove('on'); f?.(); },
+    apTab: (d) => { S.apTab = d.v; render(); },
+    openAp: (d) => openDrawer({ kind: 'ap', id: d.id }),
+    closeDrawer: () => closeDrawer(),
+    approve: (d) => {
+      const a = S.approvals.find((x) => x.id === d.id);
+      if (!a || status(a) !== 'waiting') return;
+      if (a.by === S.me) return toast("You asked for this, so you can't approve it.");
+      a.status = 'approved'; a.decidedBy = S.me; a.decidedAt = Date.now();
+      log('approval', `approved: ${a.title} (asked by @${a.by})`);
+      a.apply?.();
+      closeDrawer(); render(); toast(a.kind === 'vault' ? 'Approved. The record is open for 30 minutes.' : 'Approved and done.');
+    },
+    declineOpen: (d) => { S.declining = d.id; renderDrawer(); },
+    declineCancel: () => { S.declining = null; renderDrawer(); },
+    withdraw: (d) => {
+      const a = S.approvals.find((x) => x.id === d.id); if (!a || a.by !== S.me) return;
+      a.status = 'withdrawn'; a.decidedBy = S.me; a.decidedAt = Date.now();
+      const v = S.vault.find((x) => `vault:${x.id}` === a.key); if (v) v.status = 'withdrawn';
+      log('approval', `withdrew: ${a.title}`); closeDrawer(); render(); toast('Withdrawn. Nothing happened.');
+    },
+    openInvite: () => openDrawer({ kind: 'invite' }),
+    openVaultForm: () => openDrawer({ kind: 'vault' }),
+    formSeg: (d, el) => { const segEl = el.closest('.seg'); segEl.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b === el))); const h = segEl.nextElementSibling; if (h && h.name === d.name) h.value = d.v; },
+    role: (d) => {
+      const s = S.staff.find((x) => x.h === d.h); const to = d.v;
+      if (!s || to === s.role) return;
+      if (to === 'Overseer' || s.role === 'Overseer') {
+        if (s.role === 'Overseer' && overseers().length <= 1) return toast('Community must keep at least one Overseer.');
+        const from = s.role;
+        ask(`role:${s.h}`, 'overseer', `Change @${s.h} from ${from} to ${to}`, [['Person', `@${s.h}`], ['Today', from], ['After', to]], () => { s.role = to; s.ends = to === 'Overseer' ? null : Date.now() + 90 * D; log('staff', `@${s.h} is now ${to}`); });
+        return render();
+      }
+      log('staff', `changed @${s.h} from ${s.role} to ${to}`); s.role = to; render(); toast(`@${s.h} is now ${to}.`);
+    },
+    renew: (d) => { const s = S.staff.find((x) => x.h === d.h); s.ends = Math.max(s.ends, Date.now()) + 90 * D; log('staff', `renewed @${s.h} as ${s.role} until ${day(s.ends)}`); render(); toast(`Renewed until ${day(s.ends)}.`); },
+    remove: (d) => {
+      const s = S.staff.find((x) => x.h === d.h); if (!s) return;
+      if (s.role === 'Overseer') {
+        if (overseers().length <= 1) return toast('Community must keep at least one Overseer.');
+        ask(`role:${s.h}`, 'overseer', `Remove @${s.h} as an Overseer`, [['Person', `@${s.h}`], ['After', 'No staff access, off the gate list']], () => { S.staff = S.staff.filter((x) => x !== s); log('staff', `removed @${s.h} (Overseer) and took them off the gate list`); });
+        return render();
+      }
+      const idx = S.staff.indexOf(s);
+      S.staff = S.staff.filter((x) => x !== s);
+      log('staff', `removed @${s.h} (${s.role}) and took them off the gate list`); render();
+      toast(`@${s.h} removed.`, () => { S.staff.splice(idx, 0, s); log('staff', `undid removing @${s.h}`); render(); });
+    },
+    resend: (d) => { const i = S.invites.find((x) => x.id === d.id); i.sent = Date.now(); i.expires = Date.now() + 7 * D; log('invite', `resent the ${i.role} invite to ${mask(i.email)}`); render(); toast('Sent again. The link works for 7 more days.'); },
+    cancelInvite: (d) => { const i = S.invites.find((x) => x.id === d.id); S.invites = S.invites.filter((x) => x !== i); log('invite', `cancelled the ${i.role} invite to ${mask(i.email)}`); render(); toast('Invite cancelled.'); },
+    accept: (d) => {
+      const i = S.invites.find((x) => x.id === d.id);
+      let h = i.email.split('@')[0].toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 30) || 'new.staff';
+      while (S.staff.some((s) => s.h === h)) h += '_';
+      S.invites = S.invites.filter((x) => x !== i);
+      S.staff.push({ h, role: i.role, ends: i.role === 'Overseer' ? null : Date.now() + i.days * D, since: Date.now() });
+      S.people.total += 1; S.people.week += 1; S.people.series[S.people.series.length - 1] += 1;
+      log('staff', `accepted the ${i.role} invite and made a staff passkey`, h);
+      render(); toast(`@${h} joined as ${i.role}.`);
+    },
+    staffRole: (d) => { S.staffRole = d.v; render(); },
+    pickRole: (d) => { S.role = d.v; S.draft = null; render(); },
+    scope: (d, el) => {
+      const base = S.draft ?? S.roles[S.role].slice();
+      S.draft = el.checked ? [...new Set([...base, d.v])] : base.filter((x) => x !== d.v);
+      if (S.draft.length === S.roles[S.role].length && S.draft.every((x) => S.roles[S.role].includes(x))) S.draft = null;
+      const keep = $('#ov-main').scrollTop; render(); $('#ov-main').scrollTop = keep;
+      $(`input[data-v="${d.v}"]`)?.focus({ preventScroll: true });
+    },
+    resetRole: () => { S.draft = null; render(); },
+    saveRole: () => {
+      const before = S.roles[S.role], after = S.draft;
+      const add = after.filter((x) => !before.includes(x)), rem = before.filter((x) => !after.includes(x));
+      S.roles[S.role] = after; S.draft = null;
+      log('role', `changed ${S.role}: ${[...add.map((x) => `+${x}`), ...rem.map((x) => `−${x}`)].join(', ')}`);
+      render(); toast(`Saved. Everyone who is ${S.role} has this now.`);
+    },
+    deleteRoleBlocked: () => toast('Someone holds this role. Move them to another role first.'),
+    deleteRole: () => { log('role', `deleted the role ${S.role}`); delete S.roles[S.role]; S.role = Object.keys(S.roles)[0] || 'Overseer'; S.draft = null; render(); toast('Role deleted.'); },
+    fWho: (d) => { S.filter.who = d.v; render(); },
+    fKind: (d) => { S.filter.kind = d.v; render(); },
+    clearAudit: () => { S.filter = { who: '', kind: '', q: '' }; render(); },
+    export: () => {
+      const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+      const csv = ['when,who,kind,what', ...S.audit.map((e) => [new Date(e.at).toISOString(), `@${e.who}`, e.kind, e.text].map(q).join(','))].join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = 'audit-log-example.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      log('audit', 'exported the audit log as CSV'); if (S.view === 'audit' || S.view === 'overview') render(); toast('Downloaded audit-log-example.csv.');
+    },
+    inviteOnly: () => {
+      if (S.switches.inviteOnly) ask('switch:inviteOnly', 'switch', 'Open joining to everyone', [['Change', 'Turn off invite-only'], ['Effect', 'Anyone with a phone number can join'], ['Check first', 'The privacy review is done']], () => { S.switches.inviteOnly = false; log('switch', 'opened joining to everyone'); });
+      else { S.switches.inviteOnly = true; log('switch', 'made joining invite-only again'); toast('Joining is invite-only again.'); }
+      render();
+    },
+    launched: () => {
+      if (!S.switches.launched) ask('switch:launched', 'switch', 'Mark Community as launched', [['Effect', 'The transparency report publishes real counts']], () => { S.switches.launched = true; log('switch', 'marked Community launched'); });
+      else { S.switches.launched = false; log('switch', 'marked Community not launched'); toast('No longer marked launched.'); }
+      render();
+    },
+    readOnly: () => { S.switches.readOnly = !S.switches.readOnly; log('switch', `turned read-only mode ${S.switches.readOnly ? 'on' : 'off'}; the other Overseers were alerted`); render(); toast(S.switches.readOnly ? 'Read-only mode is on. The other Overseers were alerted.' : 'Read-only mode is off.'); },
+    terms: () => { S.switches.terms += 1; log('switch', `published terms v${S.switches.terms}`); render(); toast(`Terms v${S.switches.terms} published.`); },
+    fStage: (d) => { const f = S.features.find((x) => x.id === d.id); f.staging = !f.staging; log('switch', `switched ${f.staging ? 'on' : 'off'} "${f.name}" in staging`); render(); },
+    fProd: (d) => {
+      const f = S.features.find((x) => x.id === d.id);
+      if (!f.prod) ask(`feature:${f.id}`, 'feature', `Turn on "${f.name}" in production`, [['Feature', f.name], ['Staging', f.staging ? 'On' : 'Off: not tested in staging']], () => { f.prod = true; log('switch', `turned on "${f.name}" in production`); });
+      else { f.prod = false; log('switch', `switched off "${f.name}" in production`); toast('Off in production.'); }
+      render();
+    },
+    closeVault: (d) => { const v = S.vault.find((x) => x.id === d.id); closeVault(v, 'closed by hand'); render(); toast('Closed. It is logged.'); },
+    adminTab: (d) => { S.adminTab = d.v; render(); },
+    decide: (d) => {
+      const r = S.reports.find((x) => x.id === d.id); if (!r) return;
+      const idx = S.reports.indexOf(r);
+      S.reports = S.reports.filter((x) => x !== r);
+      const verb = { Keep: 'kept', Warn: 'warned about', Remove: 'removed' }[d.v];
+      log('report', `${verb} a reported item (${r.kind}: ${r.what})`);
+      render();
+      $('.rep')?.focus({ preventScroll: true });
+      toast(`${d.v}: done. The reporter is told.`, () => { S.reports.splice(idx, 0, r); log('report', `undid "${verb}" on a ${r.kind} report`); render(); });
+    },
+    quickLook: (d) => F.lookup(new Map([['q', d.v]])),
+    suspend: (d) => { S.accounts[d.v] = 'suspended'; S.found.st = 'suspended'; log('account', `suspended @${d.v} for 7 days`); render(); toast(`@${d.v} is suspended for 7 days.`); },
+    unsuspend: (d) => { S.accounts[d.v] = 'active'; S.found.st = 'active'; log('account', `lifted the suspension of @${d.v}`); render(); toast('Suspension lifted.'); },
+    clearFile: (d, el) => { const wrap = el.closest('.fsec'); const input = wrap.querySelector('input[type=file]'); input.value = ''; showFile(input); },
+  };
+
+  // ---------- forms (custom validation, no browser bubbles) ----------
+  const ferr = (form, name, msg) => { const e = form.querySelector(`[data-err="${name}"]`); if (e) e.innerHTML = msg ? `${ic('alert')}${esc(msg)}` : ''; const f = form.querySelector(`[name="${name}"]`); if (f && f.classList.contains('inp')) f.classList.toggle('bad', !!msg); };
+  const clearErr = (form) => form.querySelectorAll('[data-err]').forEach((e) => ferr(form, e.dataset.err, ''));
+  const F = {
+    invite: (fd, form) => {
+      clearErr(form);
+      const email = String(fd.get('email') || '').trim().toLowerCase(), role = fd.get('role'), days = Number(fd.get('days'));
+      if (!email) return ferr(form, 'email', 'Type the email address to invite.');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ferr(form, 'email', "That doesn't look like an email address.");
+      if (S.invites.some((i) => i.email === email)) return ferr(form, 'email', 'This address already has an invite. Resend it from the list.');
+      const make = () => { S.invites.push({ id: nid('i'), email, role, days, sent: Date.now(), expires: Date.now() + 7 * D }); log('invite', `invited ${mask(email)} as ${role}`); };
+      if (role === 'Overseer') { if (!ask(`invite:${email}`, 'overseer', `Invite ${mask(email)} as an Overseer`, [['Address', mask(email)], ['Role', 'Overseer (every scope)'], ['Sent', 'Only after approval']], make)) return; }
+      else { make(); toast('Invite sent. The address is on the gate list.'); }
+      closeDrawer(); render();
+    },
+    decline: (fd, form) => {
+      clearErr(form);
+      const reason = String(fd.get('reason') || '').trim();
+      if (reason.length < 3) return ferr(form, 'reason', 'Say why in a few words. The asker sees it.');
+      const a = S.approvals.find((x) => x.id === form.dataset.id);
+      a.status = 'declined'; a.decidedBy = S.me; a.decidedAt = Date.now(); a.reason = reason;
+      const v = S.vault.find((x) => `vault:${x.id}` === a.key); if (v) v.status = 'declined';
+      log('approval', `declined: ${a.title} (asked by @${a.by}). Reason: ${reason}`); closeDrawer(); render(); toast(`Declined. @${a.by} sees your reason.`);
+    },
+    newRole: (fd, form) => {
+      clearErr(form);
+      const name = String(fd.get('name') || '').trim();
+      if (!name) return ferr(form, 'name', 'Give the role a name.');
+      if (!/^[A-Za-z &]{3,30}$/.test(name)) return ferr(form, 'name', 'Use 3 to 30 letters, spaces or &.');
+      if (S.roles[name] || name === 'Overseer') return ferr(form, 'name', 'A role with that name already exists.');
+      S.roles[name] = []; S.role = name; S.draft = null; log('role', `added the role ${name}`); render(); toast(`${name} added. Tick the scopes it needs.`);
+    },
+    vault: (fd, form) => {
+      clearErr(form);
+      const person = String(fd.get('person') || '').trim().replace(/^@/, '').toLowerCase();
+      const court = String(fd.get('court') || '').trim(), caseNo = String(fd.get('caseNo') || '').trim();
+      const fields = fd.getAll('f'), file = form.querySelector('input[type=file]').files[0];
+      let bad = false;
+      if (!person) { ferr(form, 'person', 'Whose record does the order name?'); bad = true; }
+      if (!court) { ferr(form, 'court', 'Which court issued it?'); bad = true; }
+      if (!caseNo) { ferr(form, 'caseNo', 'The case number from the order.'); bad = true; }
+      if (!fields.length) { ferr(form, 'f', 'Tick at least one thing the order names.'); bad = true; }
+      if (!file) { ferr(form, 'file', 'Attach the court order.'); form.querySelector('.drop').classList.add('bad'); bad = true; }
+      if (bad) return form.querySelector('.ferr:not(:empty)')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const v = { id: nid('v'), person, court, caseNo, fields, file: file.name, by: S.me, at: Date.now(), status: 'waiting' };
+      S.vault.push(v);
+      ask(`vault:${v.id}`, 'vault', 'Court order: open one sealed record', [['Person', `@${person}`], ['Court', court], ['Case', caseNo], ['To open', fields.join(', ')], ['Order', file.name]], () => openVault(v.id), "The person is told when it's opened (decision 0001).");
+      closeDrawer(); render();
+    },
+    lookup: (fd) => {
+      const q = String(fd.get('q') || '').trim().replace(/^@/, '').toLowerCase();
+      if (!q) return;
+      const reserved = window.PREVIEW_RESERVED.some((r) => window.PREVIEW_NORM(r) === window.PREVIEW_NORM(q));
+      const st = S.accounts[q] || (S.staff.some((s) => s.h === q) ? 'active' : null);
+      S.found = { q, reserved, st: reserved ? null : st };
+      log('account', `looked up @${q}`);
+      render();
+    },
+  };
+
+  // ---------- events ----------
+  root.addEventListener('click', (e) => {
+    if (e.target.id === 'ov-scr') { if (S.drawer) closeDrawer(); root.classList.remove('navopen'); syncScrim(); return; }
+    const p = e.target.closest('[data-pop]');
+    if (p) { e.preventDefault(); return openPop(p); }
+    const pi = e.target.closest('[data-pi]');
+    if (pi) return runPal(Number(pi.dataset.pi));
+    const b = e.target.closest('[data-act]');
+    if (!b || b.tagName === 'INPUT') return;
+    e.preventDefault();
+    A[b.dataset.act]?.(b.dataset, b);
+  });
+  root.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el.matches('input[type="checkbox"][data-act]')) return A[el.dataset.act]?.(el.dataset, el);
+    if (el.matches('input[type="hidden"][name="role"]')) { const pv = $('#ov-inv-prev'); if (pv) pv.innerHTML = invitePreview(el.value); }
+    if (el.matches('.drop input[type="file"]')) showFile(el);
+    if (el.matches('.cb input[name="f"]')) { const f = el.form; if (f) ferr(f, 'f', ''); }
+  });
+  root.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.dataset.live === 'audit') { S.filter.q = el.value; $('#ov-alist').innerHTML = auditList(); }
+    else if (el.dataset.live === 'staff') { S.staffQ = el.value; $('#ov-slist').innerHTML = staffList(); }
+    else if (el.id === 'ov-palq') { S.palQ = el.value; S.palIdx = 0; renderPal(); }
+    else if (el.classList.contains('bad')) { el.classList.remove('bad'); const f = el.closest('form'); if (f && el.name) ferr(f, el.name, ''); }
+  });
+  root.addEventListener('submit', (e) => {
+    const f = e.target.closest('form[data-form]'); if (!f) return;
+    e.preventDefault();
+    F[f.dataset.form]?.(new FormData(f), f);
+  });
+  function showFile(input) {
+    const wrap = input.closest('.fsec'), box = wrap.querySelector('.dfile'), drop = wrap.querySelector('.drop'), f = input.files[0];
+    if (!f) { box.hidden = true; drop.hidden = false; return; }
+    drop.classList.remove('bad'); ferr(input.form, 'file', '');
+    box.innerHTML = `${ic('file')}<span><b>${esc(f.name)}</b><small>${Math.max(1, Math.round(f.size / 1024))} KB · stays in this page</small></span>${btn('', { i: 'x', act: 'clearFile', tip: 'Remove file', k: 'g', sm: 1 })}`;
+    box.hidden = false; drop.hidden = true;
+  }
+  root.addEventListener('dragover', (e) => { const d = e.target.closest('[data-drop]'); if (d) { e.preventDefault(); d.classList.add('over'); } });
+  root.addEventListener('dragleave', (e) => { const d = e.target.closest('[data-drop]'); if (d) d.classList.remove('over'); });
+  root.addEventListener('drop', (e) => {
+    const d = e.target.closest('[data-drop]'); if (!d) return;
+    e.preventDefault(); d.classList.remove('over');
+    const input = d.querySelector('input[type=file]');
+    if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; showFile(input); }
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      const r = root.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < innerHeight && !S.locked) { e.preventDefault(); if (S.palette) { S.palette = false; renderPal(); } else A.palette(); }
+      return;
+    }
+    if (S.palette && e.target.id === 'ov-palq') {
+      if (e.key === 'ArrowDown') { e.preventDefault(); S.palIdx = Math.min(palList.length - 1, S.palIdx + 1); renderPal(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); S.palIdx = Math.max(0, S.palIdx - 1); renderPal(); }
+      else if (e.key === 'Enter') { e.preventDefault(); runPal(S.palIdx); }
+      else if (e.key === 'Escape') { e.preventDefault(); S.palette = false; renderPal(); }
+      return;
+    }
+    if (!root.contains(e.target)) return;
+    if (e.key === 'Escape') {
+      if (S.drawer) { e.preventDefault(); closeDrawer(); }
+      else if (root.classList.contains('navopen')) { root.classList.remove('navopen'); syncScrim(); }
+      return;
+    }
+    const rep = e.target.closest?.('[data-rid]');
+    if (rep && e.target === rep && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const k = { k: 'Keep', w: 'Warn', r: 'Remove' }[e.key.toLowerCase()];
+      if (k) { e.preventDefault(); A.decide({ id: rep.dataset.rid, v: k }); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); (e.key === 'ArrowDown' ? rep.nextElementSibling : rep.previousElementSibling)?.focus(); }
+    }
+  });
+  document.addEventListener('mousedown', (e) => { if (S.palette && !$('#ov-pal').contains(e.target) && !e.target.closest('[data-act="palette"]')) { S.palette = false; renderPal(); } });
+
+  // ---------- idle lock and timers ----------
+  ['click', 'keydown', 'input', 'pointermove'].forEach((ev) => root.addEventListener(ev, () => { if (!S.locked) last = Date.now(); }, { capture: true, passive: true }));
+  function lock(why) { if (S.locked) return; closePop(); S.palette = false; renderPal(); S.locked = true; $('#ov-lock').hidden = false; log('session', `locked the panel (${why})`); setTimeout(() => $('#ov-lock .b')?.focus(), 30); }
+  setInterval(() => {
+    const rem = Math.max(0, IDLE - (Date.now() - last));
+    const el = $('#ov-idle'); if (el) { el.textContent = mmss(rem); el.closest('.sess')?.classList.toggle('soon', rem < 2 * M); }
+    if (!rem) lock('idle 15 minutes');
+    $$('.ring[data-until]').forEach((r) => {
+      const from = Number(r.dataset.from), until = Number(r.dataset.until);
+      const frac = Math.max(0, Math.min(1, (until - Date.now()) / (until - from)));
+      const c = 2 * Math.PI * 16;
+      r.querySelector('.ra').setAttribute('stroke-dashoffset', (c * (1 - frac)).toFixed(2));
+      r.classList.toggle('low', frac < 0.1);
+      r.querySelector('.rtx').textContent = left(until);
+    });
+    let changed = false;
+    S.vault.forEach((v) => { if (v.status === 'open' && Date.now() > v.closesAt) { closeVault(v, 'closed on its own after 30 minutes'); changed = true; } });
+    if (changed) render();
+  }, 1000);
+
+  render();
+})();
+</script>
+</body>
+</html>

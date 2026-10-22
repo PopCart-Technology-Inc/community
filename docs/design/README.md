@@ -38,6 +38,8 @@ Every name, number and post in the design is an example. The real product shows 
 
 **Email:** invite · join code · announcement layout. See [email.md](email.md).
 
+**Staff panels:** the Overseer panel (approvals, staff, roles and scopes, audit log, platform switches, vault requests) and the Admin panel for invited staff (reports, people, health), on a separate staff host. A working preview with example data: [staff-panels/preview.html](staff-panels/preview.html). See decision [0009](../decisions/0009-staff-panels-and-usernames.md).
+
 ## Places in one picture
 
 ```

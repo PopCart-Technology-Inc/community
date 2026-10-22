@@ -14,10 +14,10 @@ import { endSession, requireUser, startSession } from '../../http/session.ts';
 import { inviteEmail, joinCodeEmail } from '../../mail/messages.ts';
 import { sendMail } from '../../mail/send.ts';
 import { bool, oneOf, str } from '../shared.ts';
+import { checkHandle, handleKey } from './handles.ts';
 
 export const TERMS_VERSION = '2026-10-19';
 export const TRADES = ['rider', 'fresh', 'grill', 'grocery', 'creator', 'tutor', 'coder', 'other'] as const;
-const HANDLE = /^[a-z0-9._]{3,30}$/;
 const sha = (v: string) => createHash('sha256').update(v).digest();
 export const CODE_MINUTES = 10, CODE_TRIES = 5, RESEND_SECONDS = 30, TICKET_MINUTES = 30;
 
@@ -109,8 +109,7 @@ export function register(r: Router): void {
     if (b.agree !== true) fail(400, 'agree', 'Tick the box to agree to the Terms, Privacy notice and Community rules');
     if (b.adult !== true) fail(400, 'adult', 'PopCart Community is for people 18 and older');
     if (b.terms_version !== TERMS_VERSION) fail(409, 'terms_changed', 'The terms changed. Read them again.');
-    const handle = str(b.handle, 'handle', { min: 3, max: 30, pattern: HANDLE }).toLowerCase();
-    if (await ctx.db.one('SELECT 1 FROM users WHERE handle = $1', [handle])) fail(409, 'handle_taken', 'That username is taken');
+    const handle = await checkHandle(b.handle, ctx.db);
     const pending = {
       code_hash: Buffer.from(inv.code_hash).toString('hex'), role: inv.role, handle,
       first_name: str(b.first_name, 'first_name', { min: 1, max: 40 }),
@@ -147,7 +146,10 @@ export function register(r: Router): void {
       const used = await t.one(`UPDATE invites SET used_at = now(), email_hash = NULL, ticket_hash = NULL, ticket_expires_at = NULL
         WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING 1`, [Buffer.from(p.code_hash, 'hex')]);
       if (!used) fail(404, 'invite_invalid', 'This invite has been used or has expired');
-      if (await t.one('SELECT 1 FROM users WHERE handle = $1', [p.handle])) fail(409, 'handle_taken', 'That username is taken');
+      // One join per look-alike key at a time, so two people can't take "maria.santos" and "mariasantos"
+      // at the same moment (the index on handle_key is not unique: older accounts keep their names).
+      await t.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['handle:' + handleKey(p.handle)]);
+      if (await t.one('SELECT 1 FROM users WHERE handle_key = $1', [handleKey(p.handle)])) fail(409, 'handle_taken', 'That username is taken');
       const u = await t.one<{ id: string }>(
         `INSERT INTO users (handle, first_name, trade, home_area, role, terms_version, terms_accepted_at, improve_usage, improve_surveys)
          VALUES ($1, $2, $3, $4, $5, $6, now(), $7, $8) RETURNING id`,
