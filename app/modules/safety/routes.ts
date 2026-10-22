@@ -8,8 +8,10 @@ import { join } from 'node:path';
 import type { Db } from '../../db/index.ts';
 import { fail, isUuid, json, noContent, type Ctx, type Router, type SessionUser } from '../../http/router.ts';
 import { limit, limits } from '../../http/security.ts';
-import { endSession, requireStaff, requireUser } from '../../http/session.ts';
+import { can, endSession, requireScope, requireUser } from '../../http/session.ts';
+import { OVERSEER } from '../../http/scopes.ts';
 import { bad, oneOf, page, PERSON_COLS, str, type Person } from '../shared.ts';
+import { lockOverseers, overseerCount } from '../staff/members.ts';
 
 const TARGET_KINDS = ['post', 'message', 'dm', 'user', 'gig', 'space'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
@@ -21,6 +23,15 @@ const STATUS_OF: Record<Action, string> = { keep: 'kept', warn: 'warned', remove
 const APPEALABLE = new Set(['warn', 'remove', 'suspend']);
 
 const now = (): string => new Date().toISOString();
+
+/**
+ * SQL: the target of the row aliased `x` has a child-safety report that wasn't kept. Kept means staff with
+ * reports.child_safety found it was not a child-safety case; any other status keeps the target with them.
+ */
+const CS_TARGET = (x: string) => `EXISTS (SELECT 1 FROM reports cs WHERE cs.target_kind = ${x}.target_kind AND cs.target_id = ${x}.target_id AND cs.reason = 'child_safety' AND cs.status <> 'kept')`;
+/** Is this target a child-safety case (see CS_TARGET)? Then only reports.child_safety may see or decide anything about it. */
+const csTarget = async (db: Db, kind: string, id: string): Promise<boolean> =>
+  !!(await db.one(`SELECT 1 FROM reports WHERE target_kind = $1 AND target_id = $2 AND reason = 'child_safety' AND status <> 'kept'`, [kind, id]));
 
 /** Signed in, active or suspended. Data rights (see, export, delete, appeal) never stop at a suspension. */
 function signedIn(ctx: Ctx): SessionUser {
@@ -169,7 +180,7 @@ export function register(r: Router): void {
   // ---- The review queue: staff see everything; a Space's owner and moderators see their Space ----
   r.get('/mod/reports', async (ctx) => {
     const me = requireUser(ctx);
-    const staff = me.role === 'staff';
+    const staff = can(me, 'reports.review');
     const { limit: n, before } = page(ctx.query);
     const decided = ctx.query.get('status') === 'decided';
     const slug = ctx.query.get('space');
@@ -183,13 +194,14 @@ export function register(r: Router): void {
     }
     if (staff) {
       where.push(decided ? `r.status NOT IN ('open', 'escalated')` : `r.status IN ('open', 'escalated')`);
+      if (!can(me, 'reports.child_safety')) where.push(`r.reason <> 'child_safety' AND NOT ${CS_TARGET('r')}`);
       if (spaceId) add('r.space_id = $?', spaceId);
     } else {
       const mine = await modSpaces(ctx.db, me.id);
       if (spaceId && !mine.has(spaceId)) return fail(403, 'not_moderator', 'You do not moderate this Space');
       if (!mine.size) return fail(403, 'not_moderator', 'Only staff and Space moderators can see reports');
-      // child_safety goes to staff only, whatever Space it came from.
-      where.push(`r.reason <> 'child_safety'`);
+      // child_safety goes to staff only, whatever Space it came from, with every other report on the same target.
+      where.push(`r.reason <> 'child_safety' AND NOT ${CS_TARGET('r')}`);
       where.push(decided ? `r.status <> 'open'` : `r.status = 'open'`);
       if (spaceId) add('r.space_id = $?', spaceId);
       else add('r.space_id = ANY ($?::uuid[])', [...mine]);
@@ -222,7 +234,7 @@ export function register(r: Router): void {
   r.post('/mod/reports/:id/decide', async (ctx) => {
     const me = requireUser(ctx);
     limit(limits.write, me.id);
-    const staff = me.role === 'staff';
+    const staff = can(me, 'reports.review');
     if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such report');
     const b = await ctx.json<Record<string, unknown>>();
     const action = oneOf(b.action, 'action', ACTIONS);
@@ -230,9 +242,11 @@ export function register(r: Router): void {
     const rep = await ctx.db.one<ReportRow>('SELECT * FROM reports WHERE id = $1', [ctx.params.id]);
     if (!rep) return fail(404, 'not_found', 'No such report');
     const childSafety = rep.reason === 'child_safety';
+    const csAny = childSafety || await csTarget(ctx.db, rep.target_kind, rep.target_id);
+    if (csAny && !can(me, 'reports.child_safety')) return fail(404, 'not_found', 'No such report');
     if (!staff) {
       // Hide the existence of staff-only reports from everyone else.
-      if (childSafety || !rep.space_id) return fail(404, 'not_found', 'No such report');
+      if (csAny || !rep.space_id) return fail(404, 'not_found', 'No such report');
       if (!(await modSpaces(ctx.db, me.id)).has(rep.space_id)) return fail(403, 'not_moderator', 'You do not moderate this Space');
     }
     if (!(rep.status === 'open' || (rep.status === 'escalated' && staff))) return fail(409, 'decided', 'This report has already been decided');
@@ -241,8 +255,13 @@ export function register(r: Router): void {
     let logged: string = action;
     if (action === 'remove') {
       if (rep.target_kind === 'space') return fail(400, 'not_supported', 'Removing a whole Space is not built yet: escalate it to staff');
-      if ((rep.target_kind === 'user' || rep.target_kind === 'dm') && !staff) return fail(403, 'staff_only', 'Only staff can do that');
+      if ((rep.target_kind === 'user' || rep.target_kind === 'dm') && !can(me, 'accounts.suspend')) return fail(403, 'staff_only', 'Only staff can do that');
       if (rep.target_kind === 'user') logged = 'suspend';
+      // An Overseer is removed by two Overseers (decision 0009), never suspended through a report: that
+      // would lock them out on one person's say.
+      if (rep.target_kind === 'user' && await ctx.db.one('SELECT 1 FROM staff_members WHERE user_id = $1 AND role = $2', [rep.target_id, OVERSEER])) {
+        return fail(403, 'overseer', 'An Overseer is removed with two people, not suspended');
+      }
     }
     await ctx.db.tx(async (tx) => {
       if (action === 'remove') {
@@ -263,15 +282,18 @@ export function register(r: Router): void {
       // Decide this report, and on a final decision the other open reports of the same target too.
       await tx.query(
         `UPDATE reports SET status = $1, decided_by = $2, decided_at = now(), decision_note = $3
-         WHERE id = $4 OR ($5 AND target_kind = $6 AND target_id = $7 AND status = 'open' AND ($8 OR reason <> 'child_safety'))`,
-        [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id, staff]);
+         WHERE id = $4 OR ($5 AND target_kind = $6 AND target_id = $7 AND status = 'open' AND reason <> 'child_safety')`,
+        [STATUS_OF[action], me.id, note, rep.id, action !== 'escalate', rep.target_kind, rep.target_id]);
+      // Sealed: a child-safety case passed on. Looked at again here, so a child-safety report made since
+      // the first look counts too.
+      const sealed = action === 'escalate' && (csAny || await csTarget(tx, rep.target_kind, rep.target_id));
       const a = await tx.one<{ id: string }>(
-        `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [me.id, t?.subject_id ?? null, logged, rep.target_kind, rep.target_id, rep.id, note]);
+        `INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, report_id, reason, sealed)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [me.id, t?.subject_id ?? null, logged, rep.target_kind, rep.target_id, rep.id, note, sealed]);
       // Tell the person what was done and why. Not when a child-safety case is passed on to the
       // authorities: tipping off a suspect could put a child at risk.
-      if (t?.subject_id && !(childSafety && action === 'escalate')) {
+      if (t?.subject_id && !sealed) {
         await tx.query(`INSERT INTO notifications (user_id, kind, ref_kind, ref_id) VALUES ($1, 'mod_action', 'mod_action', $2)`, [t.subject_id, a!.id]);
       }
     });
@@ -284,8 +306,8 @@ export function register(r: Router): void {
     const actions = await ctx.db.query<Record<string, unknown> & { action: string; appealed_at: string | null }>(
       `SELECT a.id, a.action, a.target_kind, a.target_id, a.reason, a.created_at, a.appealed_at, a.appeal_note,
          a.appeal_decision, a.appeal_decision_note, a.appeal_decided_at
-       FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
-       WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND coalesce(r.reason, '') = 'child_safety')
+       FROM mod_actions a
+       WHERE a.subject_id = $1 AND NOT a.sealed
        ORDER BY a.created_at DESC LIMIT 200`, [me.id]);
     return json({ actions: actions.map((a) => ({ ...a, can_appeal: APPEALABLE.has(a.action) && !a.appealed_at })), as_of: now() });
   });
@@ -297,7 +319,7 @@ export function register(r: Router): void {
     const b = await ctx.json<Record<string, unknown>>();
     const note = str(b.note, 'note', { min: 3, max: 1000 });
     const a = await ctx.db.one<{ action: string; appealed_at: string | null }>(
-      'SELECT action, appealed_at FROM mod_actions WHERE id = $1 AND subject_id = $2', [ctx.params.id, me.id]);
+      'SELECT action, appealed_at FROM mod_actions WHERE id = $1 AND subject_id = $2 AND NOT sealed', [ctx.params.id, me.id]);
     if (!a) return fail(404, 'not_found', 'No such action');
     if (!APPEALABLE.has(a.action)) return fail(400, 'not_appealable', 'Only a warning, a removal or a suspension can be appealed');
     const done = await ctx.db.one(
@@ -308,10 +330,12 @@ export function register(r: Router): void {
 
   // ---- Appeals: staff only, and never the person who took the action ----
   r.get('/mod/appeals', async (ctx) => {
-    const me = requireStaff(ctx);
+    const me = requireScope(ctx, 'reports.review');
     const rows = await ctx.db.query<Record<string, unknown> & { actor_id: string; subject_id: string | null }>(
-      `SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, reason, created_at, appealed_at, appeal_note
-       FROM mod_actions WHERE appealed_at IS NOT NULL AND appeal_decision IS NULL ORDER BY appealed_at LIMIT 100`);
+      `SELECT a.id, a.actor_id, a.subject_id, a.action, a.target_kind, a.target_id, a.report_id, a.reason, a.created_at, a.appealed_at, a.appeal_note
+       FROM mod_actions a
+       WHERE a.appealed_at IS NOT NULL AND a.appeal_decision IS NULL AND ($1 OR NOT ${CS_TARGET('a')})
+       ORDER BY a.appealed_at LIMIT 100`, [can(me, 'reports.child_safety')]);
     const appeals = [];
     for (const { actor_id, subject_id, ...a } of rows) {
       appeals.push({ ...a, subject: await person(ctx.db, subject_id), can_decide: actor_id !== me.id && subject_id !== me.id });
@@ -320,7 +344,7 @@ export function register(r: Router): void {
   });
 
   r.post('/mod/appeals/:id/decide', async (ctx) => {
-    const me = requireStaff(ctx);
+    const me = requireScope(ctx, 'reports.review');
     limit(limits.write, me.id);
     if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such appeal');
     const b = await ctx.json<Record<string, unknown>>();
@@ -329,6 +353,7 @@ export function register(r: Router): void {
     const a = await ctx.db.one<{ id: string; actor_id: string; subject_id: string | null; action: string; target_kind: string; target_id: string; report_id: string | null; appealed_at: string | null; appeal_decision: string | null }>(
       'SELECT id, actor_id, subject_id, action, target_kind, target_id, report_id, appealed_at, appeal_decision FROM mod_actions WHERE id = $1', [ctx.params.id]);
     if (!a || !a.appealed_at) return fail(404, 'not_found', 'No such appeal');
+    if (!can(me, 'reports.child_safety') && await csTarget(ctx.db, a.target_kind, a.target_id)) return fail(404, 'not_found', 'No such appeal');
     if (a.appeal_decision) return fail(409, 'decided', 'This appeal has already been decided');
     if (a.actor_id === me.id) return fail(403, 'same_moderator', 'A different staff member must decide this appeal');
     if (a.subject_id === me.id) return fail(403, 'own_content', 'You cannot decide your own appeal');
@@ -338,6 +363,10 @@ export function register(r: Router): void {
          WHERE id = $1 AND appeal_decision IS NULL RETURNING 1`, [a.id, decision, note, me.id]);
       if (!done) fail(409, 'decided', 'This appeal has already been decided');
       if (decision === 'overturned') {
+        if (await tx.one(
+          `SELECT 1 FROM reports WHERE target_kind = $1 AND target_id = $2 AND reason = 'child_safety' AND status IN ('open', 'escalated')`, [a.target_kind, a.target_id])) {
+          fail(409, 'child_safety_open', 'A child-safety report on this is still open: it stays hidden until that is decided');
+        }
         if (a.action === 'remove' && a.target_kind === 'post') await tx.query('UPDATE posts SET deleted_at = NULL WHERE id = $1', [a.target_id]);
         if (a.action === 'remove' && a.target_kind === 'message') await tx.query('UPDATE messages SET deleted_at = NULL WHERE id = $1', [a.target_id]);
         if (a.action === 'remove' && a.target_kind === 'gig') await tx.query(`UPDATE gigs SET status = 'open' WHERE id = $1 AND status = 'closed'`, [a.target_id]);
@@ -378,7 +407,7 @@ export function register(r: Router): void {
          (SELECT count(*)::int FROM passkeys WHERE user_id = $1) AS passkeys,
          (SELECT count(*)::int FROM notifications WHERE user_id = $1) AS notifications,
          (SELECT count(*)::int FROM reports WHERE reporter_id = $1) AS reports_made,
-         (SELECT count(*)::int FROM mod_actions WHERE subject_id = $1) AS mod_actions`, [me.id]);
+         (SELECT count(*)::int FROM mod_actions WHERE subject_id = $1 AND NOT sealed) AS mod_actions`, [me.id]);
     const n = c!;
     const holds = [
       { key: 'profile', what: 'Your profile: username, first name, trade, bio, home area, photo and settings', count: 1 },
@@ -420,8 +449,9 @@ export function register(r: Router): void {
     const data = {
       exported_at: now(),
       about: 'Everything PopCart Community holds about you. Direct messages are the sealed envelopes: only your device can open them.',
-      profile: (await q(`SELECT id, handle, first_name, trade, bio, home_area, avatar_media_id, cover_media_id, role, status, terms_version,
+      profile: (await q(`SELECT id, handle, first_name, trade, bio, home_area, avatar_media_id, cover_media_id, status, terms_version,
         terms_accepted_at, improve_usage, improve_surveys, dm_public_key, created_at FROM users WHERE id = $1`))[0] ?? null,
+      staff_role: (await q(`SELECT role, ends_at, granted_at FROM staff_members WHERE user_id = $1`))[0] ?? null,
       posts: await q(`SELECT id, body, reply_to, space_id, media_ids, reach, area_code, lang, created_at, deleted_at FROM posts WHERE author_id = $1 ORDER BY created_at`),
       salamats_given: await q(`SELECT s.id, s.post_id, s.gig_id, u.handle AS to_handle, s.tags, s.week, s.created_at
         FROM salamats s JOIN users u ON u.id = s.receiver_id WHERE s.giver_id = $1 ORDER BY s.created_at`),
@@ -449,8 +479,8 @@ export function register(r: Router): void {
       notifications: await q(`SELECT id, kind, ref_kind, ref_id, created_at, read_at FROM notifications WHERE user_id = $1 ORDER BY created_at`),
       reports_made: await q(`SELECT id, target_kind, target_id, reason, note, revealed, status, decided_at, created_at FROM reports WHERE reporter_id = $1 ORDER BY created_at`),
       mod_actions: await q(`SELECT a.id, a.action, a.target_kind, a.target_id, a.reason, a.created_at, a.appealed_at, a.appeal_note, a.appeal_decision,
-        a.appeal_decision_note, a.appeal_decided_at FROM mod_actions a LEFT JOIN reports r ON r.id = a.report_id
-        WHERE a.subject_id = $1 AND NOT (a.action = 'escalate' AND coalesce(r.reason, '') = 'child_safety') ORDER BY a.created_at`),
+        a.appeal_decision_note, a.appeal_decided_at FROM mod_actions a
+        WHERE a.subject_id = $1 AND NOT a.sealed ORDER BY a.created_at`),
       sealed_vault: { held: [], note: 'The sealed identity vault is not built yet, so nothing about you is kept there.' },
     };
     const day = data.exported_at.slice(0, 10);
@@ -472,6 +502,11 @@ export function register(r: Router): void {
     if (b.confirm !== 'DELETE') return fail(400, 'confirm', 'Type DELETE to confirm');
     const tombstone = `deleted.${randomHex(8)}`;
     const files = await ctx.db.tx(async (tx) => {
+      await lockOverseers(tx);
+      if (await tx.one(`SELECT 1 FROM staff_members sm JOIN users u ON u.id = sm.user_id WHERE sm.user_id = $1 AND sm.role = $2 AND u.status = 'active'`, [me.id, OVERSEER])
+        && (await overseerCount(tx, { except: me.id, lock: true })) < 1) {
+        fail(409, 'last_overseer', 'You are the last Overseer. Make someone else an Overseer first, then delete your account.');
+      }
       const media = await tx.query<{ id: string }>('DELETE FROM media WHERE owner_id = $1 RETURNING id', [me.id]);
       await tx.query('UPDATE posts SET deleted_at = now() WHERE author_id = $1 AND deleted_at IS NULL', [me.id]);
       await tx.query('UPDATE messages SET deleted_at = now() WHERE author_id = $1 AND deleted_at IS NULL', [me.id]);
@@ -484,6 +519,7 @@ export function register(r: Router): void {
       await tx.query('DELETE FROM notifications WHERE user_id = $1', [me.id]);
       await tx.query('DELETE FROM sessions WHERE user_id = $1', [me.id]);
       await tx.query('DELETE FROM passkeys WHERE user_id = $1', [me.id]);
+      await tx.query('DELETE FROM staff_members WHERE user_id = $1', [me.id]);
       await tx.query(
         `UPDATE users SET status = 'deleted', handle = $2, first_name = 'Deleted', bio = '', home_area = NULL, avatar_media_id = NULL,
            cover_media_id = NULL, dm_public_key = NULL, improve_usage = false, improve_surveys = false WHERE id = $1`, [me.id, tombstone]);

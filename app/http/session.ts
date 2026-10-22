@@ -4,6 +4,7 @@ import type { IncomingMessage } from 'node:http';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { HttpError, type Ctx, type SessionUser } from './router.ts';
+import { scopesOf, type Scope } from './scopes.ts';
 
 export const COOKIE = 'cs';
 const hash = (v: string) => createHash('sha256').update(v).digest();
@@ -16,12 +17,17 @@ export function readCookie(req: IncomingMessage, name: string): string | null {
   return null;
 }
 
+/** The staff role in force for a person (an ended role counts as none) and its stored scopes. */
+export const STAFF_JOIN = `LEFT JOIN staff_members sm ON sm.user_id = u.id AND (sm.ends_at IS NULL OR sm.ends_at > now())
+  LEFT JOIN staff_roles sr ON sr.name = sm.role`;
+
 export async function loadSession(db: Db, req: IncomingMessage): Promise<SessionUser | null> {
   const v = readCookie(req, COOKIE);
   if (!v || !/^[A-Za-z0-9_-]{43}$/.test(v)) return null;
-  return db.one<SessionUser>(
-    `SELECT u.id, u.handle, u.role, u.status FROM sessions s JOIN users u ON u.id = s.user_id
+  const row = await db.one<{ id: string; handle: string; status: SessionUser['status']; staff_role: string | null; scopes: string[] | null }>(
+    `SELECT u.id, u.handle, u.status, sm.role AS staff_role, sr.scopes FROM sessions s JOIN users u ON u.id = s.user_id ${STAFF_JOIN}
      WHERE s.id_hash = $1 AND s.expires_at > now() AND u.status <> 'deleted'`, [hash(v)]);
+  return row && { id: row.id, handle: row.handle, status: row.status, staffRole: row.staff_role, scopes: scopesOf(row.staff_role, row.scopes) };
 }
 
 /** Create a session and return the Set-Cookie header value. */
@@ -47,8 +53,12 @@ export function requireUser(ctx: Ctx): SessionUser {
   return ctx.user;
 }
 
-export function requireStaff(ctx: Ctx): SessionUser {
+/** Does the signed-in person hold this scope now? */
+export const can = (u: SessionUser | null, scope: Scope): boolean => !!u && u.status === 'active' && u.scopes.includes(scope);
+
+/** The signed-in person, if they hold the scope; otherwise 403 `staff_only`. */
+export function requireScope(ctx: Ctx, scope: Scope): SessionUser {
   const u = requireUser(ctx);
-  if (u.role !== 'staff') throw new HttpError(403, 'staff_only', 'Staff only');
+  if (!u.scopes.includes(scope)) throw new HttpError(403, 'staff_only', 'Staff only');
   return u;
 }

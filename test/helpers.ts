@@ -15,8 +15,11 @@ export interface TestApp {
   config: Config;
   base: string;
   close(): Promise<void>;
-  /** A signed-in person (session row inserted directly). */
-  person(p?: Partial<{ handle: string; first_name: string; trade: string; home_area: string; role: 'member' | 'staff' }>): Promise<Person>;
+  /**
+   * A signed-in person (session row inserted directly). `role: 'staff'` makes an Overseer (every scope);
+   * `staffRole` gives that role instead, optionally ending at `staffEnds`.
+   */
+  person(p?: Partial<{ handle: string; first_name: string; trade: string; home_area: string; role: 'member' | 'staff'; staffRole: string; staffEnds: Date }>): Promise<Person>;
   /** Anonymous request. */
   call(method: string, path: string, body?: unknown, cookie?: string): Promise<{ status: number; body: any; headers: Headers }>;
 }
@@ -56,9 +59,11 @@ export async function startApp(): Promise<TestApp> {
     seq++;
     const handle = p.handle || `test.person${seq}`;
     const u = await db.one<{ id: string }>(
-      `INSERT INTO users (handle, first_name, trade, home_area, role, terms_version, terms_accepted_at)
-       VALUES ($1, $2, $3, $4, $5, '2026-10-19', now()) RETURNING id`,
-      [handle, p.first_name || `Test${seq}`, p.trade || 'other', p.home_area || null, p.role || 'member']);
+      `INSERT INTO users (handle, first_name, trade, home_area, terms_version, terms_accepted_at)
+       VALUES ($1, $2, $3, $4, '2026-10-19', now()) RETURNING id`,
+      [handle, p.first_name || `Test${seq}`, p.trade || 'other', p.home_area || null]);
+    const staffRole = p.staffRole || (p.role === 'staff' ? 'Overseer' : null);
+    if (staffRole) await db.query('INSERT INTO staff_members (user_id, role, ends_at) VALUES ($1, $2, $3)', [u!.id, staffRole, p.staffEnds || null]);
     const v = randomBytes(32).toString('base64url');
     await db.query(`INSERT INTO sessions (id_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '1 day')`,
       [createHash('sha256').update(v).digest(), u!.id]);

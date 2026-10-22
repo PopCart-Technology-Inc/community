@@ -962,13 +962,13 @@ footer { padding: 36px 0 60px; color: var(--ink5); font-size: 13.5px; border-top
     ],
     invites: [],
     scopeGroups: [
-      ['Safety', [['reports.review', 'Review reports', 'See reports and decide Keep, Warn or Remove', 'Med'], ['reports.child_safety', 'Child-safety reports', 'See child-safety reports, which are hidden at once', 'High'], ['accounts.suspend_7d', 'Suspend accounts', 'Suspend an account for up to 7 days', 'High']]],
-      ['People', [['people.lookup', 'Look people up', 'Public profile and account status only', 'Low'], ['invites.resend', 'Resend invites', 'Send a member invite again', 'Low'], ['passkeys.reset', 'Reset lost passkeys', 'Start a reset that the person confirms by email', 'High']]],
+      ['Safety', [['reports.review', 'Review reports', 'See reports and decide Keep, Warn or Remove', 'Med'], ['reports.child_safety', 'Child-safety reports', 'See child-safety reports, which are hidden at once', 'High'], ['accounts.suspend', 'Suspend accounts', 'Suspend an account for up to 7 days', 'High']]],
+      ['People', [['people.lookup', 'Look people up', 'Public profile and account status only', 'Low'], ['invites.send', 'Resend invites', 'Send a member invite again', 'Low'], ['passkeys.reset', 'Reset lost passkeys', 'Start a reset that the person confirms by email', 'High']]],
       ['Engineering', [['ops.health', 'Health', 'Status, error messages (never personal data), jobs, migrations', 'Low'], ['switches.staging', 'Staging switches', 'Turn feature switches on or off in staging', 'Med'], ['apps.manage', 'API apps', 'API apps and webhooks', 'Med']]],
     ],
     roles: {
-      Moderator: ['reports.review', 'reports.child_safety', 'people.lookup', 'accounts.suspend_7d'],
-      Support: ['people.lookup', 'invites.resend', 'passkeys.reset'],
+      Moderator: ['reports.review', 'reports.child_safety', 'people.lookup', 'accounts.suspend'],
+      Support: ['people.lookup', 'invites.send', 'passkeys.reset'],
       Developer: ['ops.health', 'switches.staging', 'apps.manage'],
     },
     switches: { inviteOnly: true, inviteNote: 'until the privacy review', launched: false, readOnly: false, terms: 3 },

@@ -3,7 +3,7 @@
 // Every list is one SQL query (no query per post) and carries `as_of`.
 import { fail, isUuid, json, noContent, type Ctx, type Router } from '../../http/router.ts';
 import { limit, limits } from '../../http/security.ts';
-import { requireUser } from '../../http/session.ts';
+import { can, requireUser } from '../../http/session.ts';
 import { TRADES } from '../accounts/routes.ts';
 import {
   bad, LEVELS, levelIndex, manilaWeek, oneOf, page, PERSON_COLS, resolveArea, SALAMATS_PER_WEEK, str,
@@ -169,7 +169,7 @@ export function register(r: Router): void {
     if (!isUuid(ctx.params.id)) return fail(404, 'not_found', 'No such post');
     const p = await ctx.db.one<{ author_id: string }>('SELECT author_id FROM posts WHERE id = $1 AND deleted_at IS NULL', [ctx.params.id]);
     if (!p) return fail(404, 'not_found', 'No such post');
-    if (p.author_id !== me.id && me.role !== 'staff') return fail(403, 'not_yours', 'Only the author can delete this post');
+    if (p.author_id !== me.id && !can(me, 'reports.review')) return fail(403, 'not_yours', 'Only the author can delete this post');
     await ctx.db.query('UPDATE posts SET deleted_at = now() WHERE id = $1', [ctx.params.id]);
     return noContent();
   });

@@ -3,12 +3,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
+import type { Scope } from './scopes.ts';
 
 export interface SessionUser {
   id: string;
   handle: string;
-  role: 'member' | 'staff';
   status: 'active' | 'suspended' | 'deleted';
+  /** The staff role the person holds now (ended roles count as none), or null. */
+  staffRole: string | null;
+  /** What that role lets them do (decision 0009). Empty for members. */
+  scopes: Scope[];
 }
 
 export interface Ctx {

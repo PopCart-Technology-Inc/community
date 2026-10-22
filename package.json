@@ -1,6 +1,6 @@
 {
   "name": "popcart-community",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "PopCart Community: the open network for people who work.",
   "license": "AGPL-3.0-only",
@@ -13,6 +13,7 @@
     "migrate": "node app/db/migrate-cli.ts",
     "invite": "node app/modules/accounts/invite-cli.ts",
     "handles:check": "node app/modules/accounts/handles-cli.ts",
+    "staff": "node app/modules/staff/cli.ts",
     "mail:preview": "node app/mail/preview-cli.ts",
     "places:import": "node app/modules/places/import.ts",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.ts\"",

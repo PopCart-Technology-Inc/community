@@ -27,13 +27,14 @@ Set the environment (never commit real values):
 
 ```
 npm start                                  # migrates, then listens
-npm run invite -- --email you@example.org --staff   # emails a one-time invite to that address
+npm run invite -- --email you@example.org --staff   # emails a one-time invite to that address (--staff: joins as an Overseer)
+npm run staff -- list                     # staff and their roles; also roles, grant <user> <role> [--days 90], renew, revoke
 npm run places:import -- psgc.csv --edition "3Q 2026"   # loads the Philippine Standard Geographic Code
 npm run mail:preview -- out/mail          # writes every email the app sends, to check the design
 npm run handles:check                     # lists usernames that break the rule (decision 0009); only reads the database
 ```
 
-Joining is invite-only until the privacy lawyer's review (decision 0006), and invites go to an email address (decision 0008). The first staff account comes from `npm run invite -- --email <address> --staff` on the server; staff then invite others from the app (Settings, Invite by email). The invited person opens the join page, types that address and the 6-digit code sent to it, then makes a passkey. `npm run dev:memory` invites `DEV_EMAIL` (default `you@example.com`) and prints the code in its window.
+Joining is invite-only until the privacy lawyer's review (decision 0006), and invites go to an email address (decision 0008). The first staff account comes from `npm run invite -- --email <address> --staff` on the server and joins as an Overseer; people with the `invites.send` scope then invite others from the app (Settings, Invite by email). Staff roles (decision 0009) are given and taken with `npm run staff`, which keeps at least one Overseer. The invited person opens the join page, types that address and the 6-digit code sent to it, then makes a passkey. `npm run dev:memory` invites `DEV_EMAIL` (default `you@example.com`) and prints the code in its window.
 
 ## Places data
 

@@ -32,6 +32,7 @@ How large networks handle this, as far as public sources show: third-party guide
 8. **A gate in front: Cloudflare Access.** Only listed staff email addresses get through, after a one-time code. The server also checks the gate's signed token (`Cf-Access-Jwt-Assertion`) and the host on every staff request. Anything else gets a 404.
 9. **A staff passkey bound to the staff host,** and its own `__Host-` cookie that ends after 15 idle minutes. A member session or a phishing page can't be used to get in.
 10. **Scopes, not roles.** A role is a named list of scopes such as `reports.review` or `ops.health`. The server checks scopes, never role names, so a new role needs no new code. The first roles are **Moderator, Support and Developer**. The **Overseer** role has every scope and can't be edited.
+    - **Child safety has its own scope,** `reports.child_safety`. A child-safety report, and every report and appeal about the same target until staff with the scope keep it, is seen and decided only with it. Passing a child-safety case on is sealed when it is written: the author is never told, and it shows nowhere they can see (their actions, Your data, the download).
 11. **Two people for the big ones.** A second Overseer must approve, within 72 hours, before:
     - a sealed record is opened (court order only, shown for 30 minutes, and the person is told: decision 0001);
     - someone is made an Overseer or removed as one;
