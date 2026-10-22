@@ -13,18 +13,18 @@ import { activity, compose, explore, following, picks, places, postDetail, trade
 import { channel, spacePage, spacesList } from './screens/spaces.js';
 import { dm, inbox } from './screens/messages.js';
 import { applicants, apply, gigCard, gigPage, newGig, rate, work } from './screens/work.js';
-import { invite, meRedirect, oldProfile, profile, proof, settings, socials, staffKey } from './screens/me.js';
+import { meRedirect, oldProfile, profile, proof, settings, socials, staffKey } from './screens/me.js';
 import { actions, data, mod, records, report, transparency } from './screens/safety.js';
 
 const SCREENS = {
   home: following, places, placesAt: places, trade, picks, join, login, post: postDetail, compose, explore, activity,
   spaces: spacesList, space: spacePage, channel, inbox, dm, work, gigNew: newGig, gig: gigPage, apply, applicants, rate,
-  profile, oldProfile, me: meRedirect, settings, invite, staffKey, data, proof, records, actions, socials, report, transparency, mod,
+  profile, oldProfile, me: meRedirect, settings, staffKey, data, proof, records, actions, socials, report, transparency, mod,
 };
 const GROUP = {
   home: 'home', places: 'places', placesAt: 'places', trade: 'home', picks: 'home', post: 'home', compose: 'home', explore: 'explore', activity: 'activity',
   spaces: 'spaces', space: 'spaces', channel: 'spaces', inbox: 'inbox', dm: 'inbox', work: 'work', gigNew: 'work', gig: 'work', apply: 'work', applicants: 'work', rate: 'work',
-  me: 'me', settings: 'me', invite: 'me', staffKey: 'me', data: 'me', proof: 'me', records: 'me', actions: 'me', socials: 'me',
+  me: 'me', settings: 'me', staffKey: 'me', data: 'me', proof: 'me', records: 'me', actions: 'me', socials: 'me',
 };
 const TAB_OF = { places: 'home', explore: 'home', activity: 'home' };
 const routes = compile(ROUTES);

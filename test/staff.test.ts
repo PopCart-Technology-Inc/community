@@ -40,18 +40,31 @@ test('/me tells the person their role and scopes; members get none', async () =>
 
 test('scopes decide, not the word "staff": a Developer cannot see reports or invite; Support can invite', async () => {
   const dev = await app.person({ staffRole: 'Developer' }), support = await app.person({ staffRole: 'Support' }), mod = await app.person({ staffRole: 'Moderator' });
-  assert.equal((await dev.call('GET', '/mod/reports')).status, 403);
-  assert.equal((await dev.call('POST', '/accounts/invites', { email: 'x@example.com' })).status, 403);
-  assert.equal((await mod.call('POST', '/accounts/invites', { email: 'x@example.com' })).status, 403);
-  assert.equal((await support.call('POST', '/accounts/invites', { email: 'sent@example.com' })).status, 201);
-  assert.equal((await mod.call('GET', '/mod/reports')).status, 200);
-  assert.equal((await dev.call('GET', '/mod/appeals')).status, 403);
-  assert.equal((await mod.call('GET', '/mod/appeals')).status, 200);
+  assert.equal((await dev.staff('GET', '/staff/reports')).status, 403);
+  assert.equal((await dev.staff('POST', '/staff/member-invites', { email: 'x@example.com' })).status, 403);
+  assert.equal((await mod.staff('POST', '/staff/member-invites', { email: 'x@example.com' })).status, 403);
+  assert.equal((await support.staff('POST', '/staff/member-invites', { email: 'sent@example.com' })).status, 201);
+  assert.equal((await mod.staff('GET', '/staff/reports')).status, 200);
+  assert.equal((await dev.staff('GET', '/staff/appeals')).status, 403);
+  assert.equal((await mod.staff('GET', '/staff/appeals')).status, 200);
+});
+
+test('on the public host a staff role gives nothing: staff powers work only on the staff host', async () => {
+  const mod = await app.person({ staffRole: 'Moderator' }), over = await app.person({ role: 'staff' });
+  for (const p of [mod, over]) {
+    const q = await p.call('GET', '/mod/reports');
+    assert.equal(q.status, 403, 'the public queue is for Space moderators only');
+    assert.equal(q.body.error.code, 'not_moderator');
+  }
+  for (const path of ['/mod/appeals', '/accounts/invites', '/staff/reports', '/staff/overview']) {
+    assert.equal((await over.call(path === '/accounts/invites' ? 'POST' : 'GET', path, path === '/accounts/invites' ? { email: 'x@example.com' } : undefined)).status, 404, path);
+  }
+  assert.equal((await over.call('GET', '/me')).body.user.staff.role, 'Overseer', 'the person still sees their own role');
 });
 
 test('a role that has ended gives nothing', async () => {
   const gone = await app.person({ staffRole: 'Moderator', staffEnds: new Date(Date.now() - 1000) });
-  assert.equal((await gone.call('GET', '/mod/reports')).status, 403);
+  assert.equal((await gone.staff('GET', '/staff/reports')).status, 401, 'the staff session no longer counts');
   assert.equal((await gone.call('GET', '/me')).body.user.staff, null);
 });
 
@@ -61,9 +74,9 @@ test('without reports.child_safety, child-safety reports stay out of view', asyn
   const post = await author.call('POST', '/posts', { body: 'Something to report (test fixture)' });
   const rep = await reporter.call('POST', '/reports', { target_kind: 'post', target_id: post.body.post.id, reason: 'child_safety' });
   assert.equal(rep.status, 201);
-  const seen = (await reviewer.call('GET', '/mod/reports')).body.reports.map((r: any) => r.id);
+  const seen = (await reviewer.staff('GET', '/staff/reports')).body.reports.map((r: any) => r.id);
   assert.ok(!seen.includes(rep.body.report.id));
-  assert.equal((await reviewer.call('POST', `/mod/reports/${rep.body.report.id}/decide`, { action: 'keep' })).status, 404);
+  assert.equal((await reviewer.staff('POST', `/staff/reports/${rep.body.report.id}/decide`, { action: 'keep' })).status, 404);
 });
 
 test('granting, renewing and revoking roles; there is always an Overseer', async () => {
@@ -110,7 +123,7 @@ test('a report can never suspend an Overseer: one person must not lock out the t
   const over = await app.person({ role: 'staff' }), mod = await app.person({ staffRole: 'Moderator' }), member = await app.person();
   const rep = await member.call('POST', '/reports', { target_kind: 'user', target_id: over.id, reason: 'harassment' });
   assert.equal(rep.status, 201);
-  const d = await mod.call('POST', `/mod/reports/${rep.body.report.id}/decide`, { action: 'remove', note: 'Trying to suspend an Overseer' });
+  const d = await mod.staff('POST', `/staff/reports/${rep.body.report.id}/decide`, { action: 'remove', note: 'Trying to suspend an Overseer' });
   assert.equal(d.status, 403);
   assert.equal(d.body.error.code, 'overseer');
   assert.equal((await app.db.one<{ status: string }>('SELECT status FROM users WHERE id = $1', [over.id]))!.status, 'active');
@@ -141,23 +154,23 @@ test('appeals of child-safety decisions stay with reports.child_safety (review o
   const reviewer = await app.person({ staffRole: 'Appeals' }), mod = await app.person({ staffRole: 'Moderator' }), author = await app.person(), reporter = await app.person();
   const post = await author.call('POST', '/posts', { body: 'Reported for child safety (test fixture)' });
   const rep = await reporter.call('POST', '/reports', { target_kind: 'post', target_id: post.body.post.id, reason: 'child_safety' });
-  assert.equal((await mod.call('POST', `/mod/reports/${rep.body.report.id}/decide`, { action: 'remove', note: 'Removed (test fixture)' })).status, 204);
+  assert.equal((await mod.staff('POST', `/staff/reports/${rep.body.report.id}/decide`, { action: 'remove', note: 'Removed (test fixture)' })).status, 204);
   const act = (await author.call('GET', '/me/mod-actions')).body.actions[0];
   assert.equal((await author.call('POST', `/me/mod-actions/${act.id}/appeal`, { note: 'Please look again (test fixture)' })).status, 204);
-  assert.ok(!(await reviewer.call('GET', '/mod/appeals')).body.appeals.some((x: any) => x.id === act.id), 'not listed');
-  assert.equal((await reviewer.call('POST', `/mod/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Trying anyway' })).status, 404);
-  assert.ok((await mod.call('GET', '/mod/appeals')).body.appeals.some((x: any) => x.id === act.id), 'a Moderator sees it');
+  assert.ok(!(await reviewer.staff('GET', '/staff/appeals')).body.appeals.some((x: any) => x.id === act.id), 'not listed');
+  assert.equal((await reviewer.staff('POST', `/staff/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Trying anyway' })).status, 404);
+  assert.ok((await mod.staff('GET', '/staff/appeals')).body.appeals.some((x: any) => x.id === act.id), 'a Moderator sees it');
 });
 
 test('a member invite never renews an open staff invite; an expired one is cleared instead (review of #24)', async () => {
   const support = await app.person({ staffRole: 'Support' });
   await inviteByEmail(app.db, app.config, { email: 'held.staff@example.com', role: 'staff' });
-  const m = await support.call('POST', '/accounts/invites', { email: 'Held.Staff@example.com' });
+  const m = await support.staff('POST', '/staff/member-invites', { email: 'Held.Staff@example.com' });
   assert.equal(m.status, 409);
   assert.equal(m.body.error.code, 'staff_invite_open');
   const before = await app.db.query<{ role: string }>(`SELECT role FROM invites WHERE role = 'staff' AND used_at IS NULL`);
   await app.db.query(`UPDATE invites SET expires_at = now() - interval '1 minute' WHERE role = 'staff' AND used_at IS NULL`);
-  assert.equal((await support.call('POST', '/accounts/invites', { email: 'held.staff@example.com' })).status, 201);
+  assert.equal((await support.staff('POST', '/staff/member-invites', { email: 'held.staff@example.com' })).status, 201);
   assert.equal((await app.db.query(`SELECT 1 FROM invites WHERE role = 'staff' AND used_at IS NULL`)).length, before.length - 1, 'the expired staff invite is gone');
 });
 
@@ -172,18 +185,18 @@ test('child safety follows the post: a second report on it gives a role without 
   const other = { body: { report: (await app.db.one<{ id: string }>(
     `INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, 'post', $2, 'harassment') RETURNING id`, [r2.id, id]))! } };
   // A: the sibling report, and the hidden post in it, are not listed; B: nor can it be decided.
-  const listed = (await reviewer.call('GET', '/mod/reports')).body.reports;
+  const listed = (await reviewer.staff('GET', '/staff/reports')).body.reports;
   assert.ok(!listed.some((x: any) => x.target_id === id), 'no report about that post is listed');
-  assert.equal((await reviewer.call('POST', `/mod/reports/${other.body.report.id}/decide`, { action: 'remove', note: 'Trying the sibling' })).status, 404);
+  assert.equal((await reviewer.staff('POST', `/staff/reports/${other.body.report.id}/decide`, { action: 'remove', note: 'Trying the sibling' })).status, 404);
   // C: a Moderator removes it through the sibling; the appeal stays with the scope, and can't bring the post back while the child-safety report waits.
-  assert.equal((await mod.call('POST', `/mod/reports/${other.body.report.id}/decide`, { action: 'remove', note: 'Removed (test fixture)' })).status, 204);
+  assert.equal((await mod.staff('POST', `/staff/reports/${other.body.report.id}/decide`, { action: 'remove', note: 'Removed (test fixture)' })).status, 204);
   const act = (await author.call('GET', '/me/mod-actions')).body.actions.find((x: any) => x.target_id === id);
   assert.equal((await author.call('POST', `/me/mod-actions/${act.id}/appeal`, { note: 'Please look again (test fixture)' })).status, 204);
-  assert.ok(!(await reviewer.call('GET', '/mod/appeals')).body.appeals.some((x: any) => x.id === act.id));
-  assert.equal((await reviewer2.call('POST', `/mod/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Trying anyway' })).status, 404);
+  assert.ok(!(await reviewer.staff('GET', '/staff/appeals')).body.appeals.some((x: any) => x.id === act.id));
+  assert.equal((await reviewer2.staff('POST', `/staff/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Trying anyway' })).status, 404);
   await app.db.query(`UPDATE reports SET status = 'open' WHERE id = $1`, [cs.body.report.id]);
   const mod2 = await app.person({ staffRole: 'Moderator' });
-  const o = await mod2.call('POST', `/mod/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Reviewed again' });
+  const o = await mod2.staff('POST', `/staff/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Reviewed again' });
   assert.equal(o.status, 409);
   assert.equal(o.body.error.code, 'child_safety_open');
   assert.ok((await app.db.one<{ deleted_at: string | null }>('SELECT deleted_at FROM posts WHERE id = $1', [id]))!.deleted_at, 'still hidden');
@@ -201,7 +214,7 @@ test('two open invites for one address: a member invite still never renews the s
   await inviteByEmail(app.db, app.config, { email: 'two.rows@example.com' });
   await app.db.query(`INSERT INTO invites (code_hash, email_hash, role, expires_at) VALUES ($1, $2, 'staff', now() + interval '7 days')`,
     [Buffer.alloc(32, 7), emailHash(app.config, 'two.rows@example.com')]);
-  const m = await support.call('POST', '/accounts/invites', { email: 'two.rows@example.com' });
+  const m = await support.staff('POST', '/staff/member-invites', { email: 'two.rows@example.com' });
   assert.equal(m.status, 409);
   assert.equal(m.body.error.code, 'staff_invite_open');
 });
@@ -211,12 +224,12 @@ test('passing a child-safety case on never tips off the author, through whicheve
   const id = (await author.call('POST', '/posts', { body: 'Child-safety case (test fixture)' })).body.post.id;
   const cs = await r1.call('POST', '/reports', { target_kind: 'post', target_id: id, reason: 'child_safety' });
   const sib = (await app.db.one<{ id: string }>(`INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, 'post', $2, 'harassment') RETURNING id`, [r2.id, id]))!;
-  assert.equal((await mod.call('POST', `/mod/reports/${sib.id}/decide`, { action: 'escalate', note: 'Passing to the authorities' })).status, 204);
+  assert.equal((await mod.staff('POST', `/staff/reports/${sib.id}/decide`, { action: 'escalate', note: 'Passing to the authorities' })).status, 204);
   assert.equal((await app.db.query(`SELECT 1 FROM notifications WHERE user_id = $1 AND kind = 'mod_action'`, [author.id])).length, 0, 'no notification');
   assert.ok(!(await author.call('GET', '/me/mod-actions')).body.actions.some((a: any) => a.action === 'escalate'), 'not in their list');
   // A decision on the other report never decides the child-safety one.
   const sib2 = (await app.db.one<{ id: string }>(`INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, 'post', $2, 'scam') RETURNING id`, [author.id, id]))!;
-  assert.equal((await mod.call('POST', `/mod/reports/${sib2.id}/decide`, { action: 'keep' })).status, 204);
+  assert.equal((await mod.staff('POST', `/staff/reports/${sib2.id}/decide`, { action: 'keep' })).status, 204);
   assert.equal((await app.db.one<{ status: string }>('SELECT status FROM reports WHERE id = $1', [cs.body.report.id]))!.status, 'open');
 });
 
@@ -225,11 +238,11 @@ test('a child-safety report kept by staff with the scope stops gating the target
   const reviewer = await app.person({ staffRole: 'Appeals' }), mod = await app.person({ staffRole: 'Moderator' }), target = await app.person(), r1 = await app.person(), r2 = await app.person();
   const cs = await r1.call('POST', '/reports', { target_kind: 'user', target_id: target.id, reason: 'child_safety' });
   const scam = await r2.call('POST', '/reports', { target_kind: 'user', target_id: target.id, reason: 'scam' });
-  assert.ok(!(await reviewer.call('GET', '/mod/reports')).body.reports.some((x: any) => x.id === scam.body.report.id), 'gated while open');
-  assert.equal((await mod.call('POST', `/mod/reports/${cs.body.report.id}/decide`, { action: 'keep', note: 'Not a child-safety case' })).status, 204);
+  assert.ok(!(await reviewer.staff('GET', '/staff/reports')).body.reports.some((x: any) => x.id === scam.body.report.id), 'gated while open');
+  assert.equal((await mod.staff('POST', `/staff/reports/${cs.body.report.id}/decide`, { action: 'keep', note: 'Not a child-safety case' })).status, 204);
   const r3 = await app.person();
   const later = await r3.call('POST', '/reports', { target_kind: 'user', target_id: target.id, reason: 'scam' });
-  assert.ok((await reviewer.call('GET', '/mod/reports')).body.reports.some((x: any) => x.id === later.body.report.id), 'a later report is in the normal queue');
+  assert.ok((await reviewer.staff('GET', '/staff/reports')).body.reports.some((x: any) => x.id === later.body.report.id), 'a later report is in the normal queue');
 });
 
 test('no overturn reopens a gig while a child-safety report on it is open (fourth review of #24)', async () => {
@@ -239,7 +252,7 @@ test('no overturn reopens a gig while a child-safety report on it is open (fourt
   const act = (await app.db.one<{ id: string }>(`INSERT INTO mod_actions (actor_id, subject_id, action, target_kind, target_id, reason, appealed_at, appeal_note)
     VALUES ($1, $2, 'remove', 'gig', $3, 'Removed (test fixture)', now(), 'Please look again') RETURNING id`, [mod.id, poster.id, gig.id]))!;
   await app.db.query(`INSERT INTO reports (reporter_id, target_kind, target_id, reason, status) VALUES ($1, 'gig', $2, 'child_safety', 'escalated')`, [mod2.id, gig.id]);
-  const o = await mod2.call('POST', `/mod/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Reviewed again' });
+  const o = await mod2.staff('POST', `/staff/appeals/${act.id}/decide`, { decision: 'overturned', note: 'Reviewed again' });
   assert.equal(o.status, 409);
   assert.equal(o.body.error.code, 'child_safety_open');
   assert.equal((await app.db.one<{ status: string }>('SELECT status FROM gigs WHERE id = $1', [gig.id]))!.status, 'closed');
@@ -251,14 +264,14 @@ test('a kept child-safety report is still only for the scope; an escalation is s
   const author = await app.person(), r1 = await app.person(), r2 = await app.person();
   const id = (await author.call('POST', '/posts', { body: 'Escalated, then kept (test fixture)' })).body.post.id;
   const cs = await r1.call('POST', '/reports', { target_kind: 'post', target_id: id, reason: 'child_safety' });
-  assert.equal((await mod.call('POST', `/mod/reports/${cs.body.report.id}/decide`, { action: 'escalate', note: 'Passed to the authorities (test fixture)' })).status, 204);
-  assert.equal((await mod2.call('POST', `/mod/reports/${cs.body.report.id}/decide`, { action: 'keep', note: 'Not a child-safety case after all' })).status, 204);
-  assert.ok(!(await reviewer.call('GET', '/mod/reports?status=decided')).body.reports.some((x: any) => x.id === cs.body.report.id), 'the kept child-safety report stays with the scope');
+  assert.equal((await mod.staff('POST', `/staff/reports/${cs.body.report.id}/decide`, { action: 'escalate', note: 'Passed to the authorities (test fixture)' })).status, 204);
+  assert.equal((await mod2.staff('POST', `/staff/reports/${cs.body.report.id}/decide`, { action: 'keep', note: 'Not a child-safety case after all' })).status, 204);
+  assert.ok(!(await reviewer.staff('GET', '/staff/reports?status=decided')).body.reports.some((x: any) => x.id === cs.body.report.id), 'the kept child-safety report stays with the scope');
   assert.ok(!(await author.call('GET', '/me/mod-actions')).body.actions.some((a: any) => a.action === 'escalate'), 'still sealed after the keep');
   // The other way: an ordinary escalation the author was told about doesn't vanish when a child-safety report comes later.
   const id2 = (await author.call('POST', '/posts', { body: 'Escalated for a scam first (test fixture)' })).body.post.id;
   const scam = await r1.call('POST', '/reports', { target_kind: 'post', target_id: id2, reason: 'scam' });
-  assert.equal((await mod.call('POST', `/mod/reports/${scam.body.report.id}/decide`, { action: 'escalate', note: 'Looks like a scam ring' })).status, 204);
+  assert.equal((await mod.staff('POST', `/staff/reports/${scam.body.report.id}/decide`, { action: 'escalate', note: 'Looks like a scam ring' })).status, 204);
   const seen = async () => (await author.call('GET', '/me/mod-actions')).body.actions.filter((a: any) => a.action === 'escalate' && a.target_id === id2).length;
   assert.equal(await seen(), 1);
   assert.equal((await r2.call('POST', '/reports', { target_kind: 'post', target_id: id2, reason: 'child_safety' })).status, 201);

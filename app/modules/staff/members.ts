@@ -46,7 +46,8 @@ const LAST = 'Community must keep at least one Overseer who can act';
  * Give someone a role (replacing any role they hold). Non-Overseer roles end after `days`. `emailHash` is
  * the keyed hash of their address on the gate list; kept when not given.
  */
-export async function grantRole(db: Db, opts: { handle: string; role: string; days?: number; by?: string | null; emailHash?: Buffer }): Promise<{ ends_at: string | null }> {
+/** `keepOverseers`: refuse to change an Overseer's role (the panel; only two Overseers remove one). */
+export async function grantRole(db: Db, opts: { handle: string; role: string; days?: number; by?: string | null; emailHash?: Buffer; keepOverseers?: boolean }): Promise<{ ends_at: string | null }> {
   const id = await userId(db, opts.handle);
   if (!(await db.one('SELECT 1 FROM staff_roles WHERE name = $1', [opts.role]))) fail(400, 'invalid', `role: no role named ${opts.role}`);
   const days = opts.days ?? DEFAULT_DAYS;
@@ -54,13 +55,17 @@ export async function grantRole(db: Db, opts: { handle: string; role: string; da
   return db.tx(async (t) => {
     await lockOverseers(t);
     const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1 FOR UPDATE', [id]);
+    if (opts.keepOverseers && current?.role === OVERSEER) fail(409, 'is_overseer', 'Removing an Overseer needs a second Overseer: use Remove');
     if (current?.role === OVERSEER && opts.role !== OVERSEER && (await overseerCount(t, { except: id, lock: true })) < 1) fail(409, 'last_overseer', LAST);
     const row = await t.one<{ ends_at: string | null }>(
       `INSERT INTO staff_members (user_id, role, ends_at, granted_by, email_hash) VALUES ($1, $2, CASE WHEN $2 = $5 THEN NULL ELSE now() + make_interval(days => $3) END, $4, $6)
        ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, ends_at = EXCLUDED.ends_at, granted_by = EXCLUDED.granted_by, granted_at = now(),
          email_hash = coalesce(EXCLUDED.email_hash, staff_members.email_hash)
-       RETURNING ends_at`, [id, opts.role, days, opts.by ?? null, OVERSEER, opts.emailHash ?? null]);
-    return { ends_at: row!.ends_at };
+       WHERE NOT $7 OR staff_members.role <> $5
+       RETURNING ends_at`, [id, opts.role, days, opts.by ?? null, OVERSEER, opts.emailHash ?? null, !!opts.keepOverseers]);
+    // Made an Overseer since we looked (the check above runs without a row lock): still never by one person.
+    if (!row) return fail(409, 'is_overseer', 'Removing an Overseer needs a second Overseer: use Remove');
+    return { ends_at: row.ends_at };
   });
 }
 
@@ -76,12 +81,14 @@ export async function renewRole(db: Db, opts: { handle: string; days?: number })
 }
 
 /** Take someone's role away. The last Overseer can't be removed. */
-export async function revokeRole(db: Db, handle: string): Promise<{ role: string }> {
+/** `keepOverseers`: refuse if they are an Overseer (the panel; removing one is a two-person request). */
+export async function revokeRole(db: Db, handle: string, opts: { keepOverseers?: boolean } = {}): Promise<{ role: string }> {
   const id = await userId(db, handle);
   return db.tx(async (t) => {
     await lockOverseers(t);
     const current = await t.one<{ role: string }>('SELECT role FROM staff_members WHERE user_id = $1 FOR UPDATE', [id]);
     if (!current) return fail(404, 'not_found', 'That person holds no staff role');
+    if (opts.keepOverseers && current.role === OVERSEER) fail(409, 'is_overseer', 'Removing an Overseer needs a second Overseer');
     if (current.role === OVERSEER && (await overseerCount(t, { except: id, lock: true })) < 1) fail(409, 'last_overseer', LAST);
     await t.query('DELETE FROM staff_members WHERE user_id = $1', [id]);
     // Their staff passkeys and sessions go with the role.

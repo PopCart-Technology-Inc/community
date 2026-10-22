@@ -41,7 +41,7 @@ How large networks handle this, as far as public sources show: third-party guide
     - a feature is switched on in production.
 12. **Everything is logged, append-only.** Every staff action is written to a log that nobody can edit or delete, Overseers included. Entries about a person also show in their "Who opened my records".
 13. **No public staff badge.** Staff keep plain profiles, and official notices come from the reserved `@community` account. Nobody can be targeted as staff, and there is no badge to fake.
-14. **Two Overseers:** the owner and one person they trust. Until a second Overseer exists, the two-person actions are done from the server's command line.
+14. **Two Overseers:** the owner and one person they trust. Until a second Overseer exists, the two-person actions are done from the server's command line. The Overseer a removal is about never decides it, so with exactly two, removing one is also done from the command line.
 15. **Controls are custom and on-brand:** dropdowns, checkboxes, switches, file drops and confirmations are built for the panel, never the browser's defaults, and each one works from the keyboard.
 
 ### Order of work

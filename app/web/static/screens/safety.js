@@ -95,7 +95,12 @@ export function records() {
       ? h('div', null, h('h2', { class: 'sect' }, 'Openings'), h('div', { class: 'group' }, os.map((o) => h('div', { class: 'li top' }, icon('scale'), h('div', { class: 'grow' },
         h('div', { class: 't1' }, fullTime(o.opened_at || o.created_at)), h('div', { class: 't2 pre' }, [o.basis || o.legal_basis, o.approvers && ('Approved by ' + [].concat(o.approvers).join(' and ')), o.produced && ('Handed over: ' + o.produced)].filter(Boolean).join('\n')))))))
       : h('div', { class: 'note k' }, icon('lock', 'lg'), h('div', null, h('b', null, 'Never opened'), h('p', null, 'Your sealed records have not been opened. ' + asOf(r.as_of) + '.')));
-    return [top,
+    // Each time staff looked up or acted on this account (decision 0009). The staff host logs it here.
+    const st = r.staff || [];
+    const staff = [h('h2', { class: 'sect' }, 'What staff did with your account'),
+      st.length ? h('div', { class: 'group' }, st.map((x) => h('div', { class: 'li top' }, icon('shield'), h('div', { class: 'grow' }, h('div', { class: 't1' }, x.text), h('div', { class: 't2' }, fullTime(x.at))))))
+        : h('p', { class: 'pad hint' }, 'Staff have not looked up or acted on your account.')];
+    return [top, ...staff,
       h('h2', { class: 'sect' }, 'If they are ever opened, you\'ll see'),
       h('div', { class: 'group' }, [['cal', 'When'], ['scale', 'Which court order'], ['users', 'The two people who approved'], ['download', 'Exactly what was handed over']].map(([ic, t]) => h('div', { class: 'li' }, icon(ic), h('div', { class: 'grow t1' }, t)))),
       h('p', { class: 'pad hint' }, 'You\'re told when it happens, unless the law forbids it for a time.'),

@@ -51,7 +51,6 @@ app/web/
 | `/work` · `/gigs/new` · `/gigs/:id` · `/gigs/:id/apply` · `/gigs/:id/applicants` · `/gigs/:id/rate` | Work |
 | `/:handle` · `/me` | A profile, at `/<username>` (decision 0009; `/u/<username>` redirects there) · your own profile. Matched last |
 | `/me/settings`, `/me/data`, `/me/proof`, `/me/records`, `/me/actions`, `/me/socials` | Settings and your data |
-| `/me/invite` | Invite by email (staff) |
 | `/me/staff-passkey` | Staff passkey: makes the one-time code that sets up a staff passkey on the staff host (staff, decision 0009) |
 | `/report?kind=&id=` · `/transparency` · `/mod` | Report · transparency report · moderator queue |
 
