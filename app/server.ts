@@ -1,10 +1,16 @@
 // The HTTP server: /api/* through the router, the web app (app/web) with a fresh CSP nonce per page,
-// the optional brand pack at /brand/*, and uploaded media at /media/:id.
+// the optional brand pack at /brand/*, and uploaded media at /media/:id. Requests for the staff host
+// (STAFF_ORIGIN, decision 0009) go to their own router and page, after the gate: nothing else is
+// served there, and the public host has no staff API.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, normalize, extname } from 'node:path';
-import type { Config } from './config.ts';
+import { isLoopback, staffConfigProblem, type Config } from './config.ts';
+import { AccessVerifier } from './http/access.ts';
+import { loadStaffSession } from './http/staff-session.ts';
+import { emailHash } from './modules/accounts/routes.ts';
+import { registerHost as registerStaffHost } from './modules/staff/routes.ts';
 import type { Db } from './db/index.ts';
 import { HttpError, Router, type Ctx, type Reply } from './http/router.ts';
 import { baseHeaders, checkCsrf, newNonce, pageCsp } from './http/security.ts';
@@ -43,9 +49,9 @@ function send(res: ServerResponse, r: Reply): void {
   res.end(JSON.stringify(r.body));
 }
 
-/** The app shell: index.html with this request's nonce on every <script> and <style>. */
-function shell(config: Config): (res: ServerResponse) => void {
-  const html = readFileSync(join(WEB, 'index.html'), 'utf8');
+/** A page shell (index.html, or staff.html on the staff host) with this request's nonce on every <script> and <style>. */
+function shell(config: Config, file = 'index.html'): (res: ServerResponse) => void {
+  const html = readFileSync(join(WEB, file), 'utf8');
   const brand = !!(config.brandDir && existsSync(join(config.brandDir, 'sprite.svg')));
   return (res) => {
     const nonce = newNonce();
@@ -84,15 +90,80 @@ function staticFile(req: IncomingMessage, res: ServerResponse, dir: string, rel:
   return true;
 }
 
-export interface App { server: Server; router: Router }
+export interface App { server: Server; router: Router; staffRouter: Router }
+/** Swappable parts, for tests: the Access token checker (its keys come from Cloudflare in production). */
+export interface AppDeps { access?: AccessVerifier }
 
-export function createApp(db: Db, config: Config): App {
+function fail500(res: ServerResponse, path: string, e: unknown): void {
+  const he = e instanceof HttpError ? e : null;
+  if (!he) console.error(JSON.stringify({ level: 'error', msg: 'request failed', path, err: String((e as Error)?.stack || e) }));
+  if (!res.headersSent) send(res, { status: he?.status || 500, body: { error: { code: he?.code || 'server_error', message: he?.message || 'Something went wrong on our side' } } });
+  else res.end();
+}
+
+export function createApp(db: Db, config: Config, deps: AppDeps = {}): App {
   const router = new Router();
   registerAll(router);
   const page = shell(config);
 
+  // The staff host: only with a sound config (a public staff host always has the gate).
+  const staffOn = !!config.staffOrigin && staffConfigProblem(config) === null;
+  const staffHost = staffOn ? new URL(config.staffOrigin!).host.toLowerCase() : null;
+  const staffRouter = new Router();
+  if (staffOn) registerStaffHost(staffRouter);
+  const access = staffOn && config.accessTeam ? (deps.access ?? new AccessVerifier(config.accessTeam, config.accessAud!)) : null;
+  const staffPage = staffOn ? shell(config, 'staff.html') : null;
+
+  const ipOf = (req: IncomingMessage) => (config.trustProxy && String(req.headers['x-forwarded-for'] || '').split(',')[0]?.trim()) || req.socket.remoteAddress || '';
+  const ctxFor = (req: IncomingMessage, res: ServerResponse, url: URL, params: Record<string, string>, user: Ctx['user']): Ctx => ({
+    req, res, method: req.method || 'GET', url, params, query: url.searchParams, db, config, ip: ipOf(req), user,
+    async json<T>() {
+      const buf = await readBody(req, 64 * 1024);
+      if (!buf.length) return {} as T;
+      try { return JSON.parse(buf.toString('utf8')) as T; } catch { throw new HttpError(400, 'bad_json', 'The request body is not valid JSON'); }
+    },
+    raw: (max = 4_000_000) => readBody(req, max),
+  });
+
+  /** Everything on the staff host. A request the gate did not sign gets the same plain 404 as a wrong path. */
+  async function staff(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const url = new URL(req.url || '/', config.staffOrigin!);
+    const path = url.pathname;
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    try {
+      let gate: Buffer | null = null;
+      // Gate off (a staff host on this machine): only connections from this machine itself.
+      if (!access && !isLoopback(req.socket.remoteAddress)) throw new HttpError(404, 'not_found', 'Not found');
+      if (access) {
+        const who = await access.verify(String(req.headers['cf-access-jwt-assertion'] || '') || undefined);
+        if (!who) throw new HttpError(404, 'not_found', 'Not found');
+        gate = emailHash(config, who.email);
+      }
+      if (path.startsWith('/api/')) {
+        res.setHeader('Cache-Control', 'no-store');
+        checkCsrf(req, config, config.staffOrigin!);
+        const m = staffRouter.match(req.method || 'GET', path.slice(4));
+        if (!m) throw new HttpError(404, 'not_found', 'No such endpoint');
+        // Reading the session's own status doesn't count as activity, so the idle lock still comes.
+        const touch = !(req.method === 'GET' && path === '/api/staff/session');
+        const ctx = ctxFor(req, res, url, m.params, await loadStaffSession(db, req, gate, touch));
+        ctx.staffGate = gate;
+        send(res, await m.handler(ctx));
+        return;
+      }
+      if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method', 'Method not allowed');
+      if (path.startsWith('/static/') && staticFile(req, res, join(WEB, 'static'), path.slice(8), REVALIDATE)) return;
+      if (path.startsWith('/staff-ui/') && staticFile(req, res, join(WEB, 'staff'), path.slice(10), REVALIDATE)) return;
+      if (/^\/(static|staff-ui|media|brand)\//.test(path) || path === '/sw.js' || path === '/manifest.webmanifest') throw new HttpError(404, 'not_found', 'Not found');
+      staffPage!(res);
+    } catch (e) {
+      fail500(res, path, e);
+    }
+  }
+
   const server = createServer(async (req, res) => {
     baseHeaders(res, config);
+    if (staffHost && String(req.headers.host || '').toLowerCase() === staffHost) return staff(req, res);
     const url = new URL(req.url || '/', config.origin);
     const path = url.pathname;
     try {
@@ -101,18 +172,7 @@ export function createApp(db: Db, config: Config): App {
         checkCsrf(req, config);
         const m = router.match(req.method || 'GET', path.slice(4));
         if (!m) throw new HttpError(404, 'not_found', 'No such endpoint');
-        const ip = (config.trustProxy && String(req.headers['x-forwarded-for'] || '').split(',')[0]?.trim()) || req.socket.remoteAddress || '';
-        const ctx: Ctx = {
-          req, res, method: req.method || 'GET', url, params: m.params, query: url.searchParams, db, config, ip,
-          user: await loadSession(db, req),
-          async json<T>() {
-            const buf = await readBody(req, 64 * 1024);
-            if (!buf.length) return {} as T;
-            try { return JSON.parse(buf.toString('utf8')) as T; } catch { throw new HttpError(400, 'bad_json', 'The request body is not valid JSON'); }
-          },
-          raw: (max = 4_000_000) => readBody(req, max),
-        };
-        send(res, await m.handler(ctx));
+        send(res, await m.handler(ctxFor(req, res, url, m.params, await loadSession(db, req))));
         return;
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method', 'Method not allowed');
@@ -142,11 +202,8 @@ export function createApp(db: Db, config: Config): App {
       if (old) { res.statusCode = 301; res.setHeader('Location', '/' + old[1]!.toLowerCase() + url.search); res.setHeader('Cache-Control', 'public, max-age=86400'); res.end(); return; }
       page(res); // every other path is a screen of the web app, a profile (/<username>) last
     } catch (e) {
-      const he = e instanceof HttpError ? e : null;
-      if (!he) console.error(JSON.stringify({ level: 'error', msg: 'request failed', path, err: String((e as Error)?.stack || e) }));
-      if (!res.headersSent) send(res, { status: he?.status || 500, body: { error: { code: he?.code || 'server_error', message: he?.message || 'Something went wrong on our side' } } });
-      else res.end();
+      fail500(res, path, e);
     }
   });
-  return { server, router };
+  return { server, router, staffRouter };
 }

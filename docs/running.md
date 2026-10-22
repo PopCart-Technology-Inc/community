@@ -24,6 +24,10 @@ Set the environment (never commit real values):
 | `EMAIL_HASH_KEY` | required: at least 32 random characters (`openssl rand -hex 32`). The key for the hash that matches an invited address; the address itself is never stored. Changing it retires open invites |
 | `RESEND_API_KEY` | the [Resend](https://resend.com) key that sends invites and join codes. Unset: on `http://localhost` emails are printed instead; on a public origin sending fails with 503 |
 | `MAIL_FROM` | the From line, e.g. `Community <hello@example.org>`, on a domain verified in Resend (required with `RESEND_API_KEY`) |
+| `STAFF_ORIGIN` | optional: the staff host, e.g. `https://staff-x7k2.example.org` (decision 0009). Pick a name no one would guess, keep it out of the repository and out of public DNS listings where you can. Unset: no staff host, and Settings has no "Staff passkey" |
+| `STAFF_RP_ID` | the passkey domain for staff passkeys; default the staff host's name. Staff passkeys never work on the public site, and member passkeys never work on the staff host |
+| `ACCESS_TEAM_DOMAIN` | the Cloudflare Access team domain that guards the staff host, e.g. `https://your-team.cloudflareaccess.com` (required with a public `STAFF_ORIGIN`) |
+| `ACCESS_AUD` | the Access application's audience tag (required with a public `STAFF_ORIGIN`) |
 
 ```
 npm start                                  # migrates, then listens
@@ -33,6 +37,19 @@ npm run places:import -- psgc.csv --edition "3Q 2026"   # loads the Philippine S
 npm run mail:preview -- out/mail          # writes every email the app sends, to check the design
 npm run handles:check                     # lists usernames that break the rule (decision 0009); only reads the database
 ```
+
+### The staff host
+
+Staff tools are on their own host (decision 0009). In 0.9.0 the report queue, appeals and invites still answer on the public site for a staff role; from 0.10.0 staff powers work only on the staff host. The server answers that host only when the request carries a token from the gate, and gives a plain 404 to anything else:
+
+1. Point the staff host name at the same server as Community (a tunnel or proxy is fine; set `TRUST_PROXY=1`).
+2. In Cloudflare Zero Trust, add a self-hosted Access application for that host. Its policy lets in only the staff email addresses. Copy the application's audience tag to `ACCESS_AUD` and the team domain to `ACCESS_TEAM_DOMAIN`.
+3. Give each staff member's gate address to the server: `npm run staff -- grant <username> <role> --email <address>` (only a keyed hash is kept). A staff invite records it on joining.
+4. The person makes a setup code in Community (Settings, Staff passkey), opens the staff host, passes the gate and types the code to make their staff passkey.
+
+The server refuses to start with a public `STAFF_ORIGIN` that is not https, is the public host, or has no Access settings, with an `ACCESS_TEAM_DOMAIN` that is not an https origin, or with a `STAFF_RP_ID` that doesn't fit the staff host or also covers the public site. On `localhost` (for example `http://staff.localhost:8080`), and only when `COMMUNITY_ORIGIN` is on `localhost` too, it runs without the gate for trying it on your own machine: then it answers only connections from the machine itself. Never run that setup behind a proxy or tunnel: through one, every connection comes from the machine itself. If `COMMUNITY_ORIGIN` is unset it is `http://localhost:8080`, so set it on every real server. `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set together or not at all.
+
+**Protecting the audit log from the database owner.** Triggers refuse UPDATE, DELETE and TRUNCATE on `staff_actions`, but the role that owns a table can switch its triggers off. For full protection, let one role own the tables and run migrations, and run the app as a second role with only the rights it needs (on `staff_actions`: `INSERT` and `SELECT`). This is not set up for you.
 
 Joining is invite-only until the privacy lawyer's review (decision 0006), and invites go to an email address (decision 0008). The first staff account comes from `npm run invite -- --email <address> --staff` on the server and joins as an Overseer; people with the `invites.send` scope then invite others from the app (Settings, Invite by email). Staff roles (decision 0009) are given and taken with `npm run staff`, which keeps at least one Overseer. The invited person opens the join page, types that address and the 6-digit code sent to it, then makes a passkey. `npm run dev:memory` invites `DEV_EMAIL` (default `you@example.com`) and prints the code in its window.
 

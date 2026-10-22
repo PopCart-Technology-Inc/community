@@ -8,12 +8,14 @@ import type { AddressInfo } from 'node:net';
 import { loadConfig, type Config } from '../app/config.ts';
 import { memoryDb, type Db } from '../app/db/index.ts';
 import { migrate } from '../app/db/migrate.ts';
-import { createApp } from '../app/server.ts';
+import { createApp, type AppDeps } from '../app/server.ts';
 
 export interface TestApp {
   db: Db;
   config: Config;
   base: string;
+  /** The port the server listens on (for requests with another Host header, such as the staff host). */
+  port: number;
   close(): Promise<void>;
   /**
    * A signed-in person (session row inserted directly). `role: 'staff'` makes an Overseer (every scope);
@@ -33,14 +35,16 @@ export interface Person {
 
 let seq = 0;
 
-export async function startApp(): Promise<TestApp> {
+/** `env` adds to the test config (e.g. STAFF_ORIGIN); `deps` swaps parts such as the Access checker. */
+export async function startApp(opts: { env?: Record<string, string>; deps?: AppDeps } = {}): Promise<TestApp> {
   const db = await memoryDb();
   await migrate(db);
   const port = 0;
-  const config = { ...loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', MEDIA_DIR: mkdtempSync(join(tmpdir(), 'cm-media-')), EMAIL_HASH_KEY: randomBytes(32).toString('hex') }), port };
-  const { server } = createApp(db, config);
+  const config = { ...loadConfig({ COMMUNITY_ORIGIN: 'http://localhost:8080', MEDIA_DIR: mkdtempSync(join(tmpdir(), 'cm-media-')), EMAIL_HASH_KEY: randomBytes(32).toString('hex'), ...opts.env }), port };
+  const { server } = createApp(db, config, opts.deps);
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const listening = (server.address() as AddressInfo).port;
+  const base = `http://127.0.0.1:${listening}`;
 
   const call: TestApp['call'] = async (method, path, body, cookie) => {
     const headers: Record<string, string> = { Origin: config.origin };
@@ -71,7 +75,7 @@ export async function startApp(): Promise<TestApp> {
     return { id: u!.id, handle, cookie, call: (m, path, body) => call(m, path, body, cookie) };
   };
 
-  return { db, config, base, call, person, close: async () => { await new Promise((ok) => server.close(ok)); await db.close(); } };
+  return { db, config, base, port: listening, call, person, close: async () => { await new Promise((ok) => server.close(ok)); await db.close(); } };
 }
 
 /** Test-only areas: one country, region, city and two barangays, labelled as fixtures. */

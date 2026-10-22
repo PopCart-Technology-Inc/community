@@ -170,6 +170,21 @@ A **gig**: `{ id, poster: person, title, body, pay_amount, pay_currency, pay_uni
 
 Deviations: the tombstone handle uses a dot (`deleted.1a2b3c4d`, an example) because the handle rule does not allow `-`. Data rights (`/me/data`, `/me/export`, `DELETE /me`, `/me/mod-actions` and appeals) also work for a suspended account. Migration `0005_safety.sql` adds one-report-per-target, `reports.hid_content` and the appeal columns.
 
+## Staff host ✅ (`staff/`, decision 0009)
+
+Served only on `STAFF_ORIGIN`, and only for requests the gate (Cloudflare Access) signed: the server checks the `Cf-Access-Jwt-Assertion` token (RS256, the team's keys, this application's audience, not expired) and answers anything else with a plain 404, page and API alike. Writes must carry the staff host's `Origin`. The public host has none of these endpoints. Staff sessions use their own cookie (`__Host-staff`: this host only, `Secure`, `HttpOnly`, `SameSite=Strict`), end after 15 idle minutes and after 12 hours, and count only while the person holds a role and the gate's address is theirs. Every entry below that changes something is written to the staff audit log, which the database keeps append-only against ordinary statements (see docs/running.md for the role setup that also protects it from the table's owner).
+
+| Method | Path | Body / query | Returns |
+|---|---|---|---|
+| POST | `/me/staff-code` (public host) | | 201 `{ code, expires_minutes }`: an 8-character code to set up a staff passkey; one use, 10 minutes, a new one cancels the old. Staff only (403); 404 when there is no staff host |
+| GET | `/staff/session` | | `{ user: { handle, role, scopes, idle_ends_at } \| null, idle_minutes, gate: access\|off, listed, enrolled, public_origin }`. Reading it does not count as activity |
+| POST | `/staff/enroll/options` | `{ code }` | `{ challengeId, options }`; 400 `code_invalid`, 403 `not_listed` when the code's owner is not the person the gate let in |
+| POST | `/staff/enroll/verify` | `{ challengeId, response, code }` | 201 + staff session cookie; uses up the code |
+| POST | `/staff/login/options` | | `{ challengeId, options }` (user verification required) |
+| POST | `/staff/login/verify` | `{ challengeId, response }` | 200 + staff session cookie; 401 `passkey`. A failed check is logged |
+| POST | `/staff/lock` | `{ why: button\|idle }` | 204, session ended |
+| GET | `/staff/audit` | `?who=&kind=&q=&before&limit` (scope `audit.read`) | `{ entries: [{ id, at, who, kind, text, subject, detail }], kinds, as_of }` |
+
 ## Media ✅ (`media/`)
 
 | Method | Path | Body | Returns |

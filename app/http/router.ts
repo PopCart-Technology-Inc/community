@@ -28,6 +28,12 @@ export interface Ctx {
   user: SessionUser | null;
   /** The client address (X-Forwarded-For only when config.trustProxy). */
   ip: string;
+  /**
+   * Staff host only (decision 0009): the keyed hash of the address the gate let through, or null when
+   * the gate is off (a staff host on this machine). Undefined on the public host. On the staff host,
+   * `user` is the staff session, never a member session.
+   */
+  staffGate?: Buffer | null;
   /** Parsed JSON body (max 64 KB); throws HttpError 400 on bad JSON. */
   json<T = Record<string, unknown>>(): Promise<T>;
   /** Raw body bytes (max given, default 4 MB), for uploads. */

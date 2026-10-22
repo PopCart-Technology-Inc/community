@@ -142,9 +142,45 @@ export function settings() {
       row('shield', 'What moderators did', 'Removals and warnings, with appeals', '/me/actions'), row('star', 'Proof', 'Signed credentials you show', '/me/proof'), row('link', 'Your other accounts', '', '/me/socials')),
     h('h2', { class: 'sect' }, 'Community'),
     h('div', { class: 'group' }, row('scale', 'Transparency report', '', '/transparency'), can('reports.review') ? row('flag', 'Moderator queue', 'Staff', '/mod') : null,
-      can('invites.send') ? row('mail', 'Invite by email', 'Staff', '/me/invite') : null),
+      can('invites.send') ? row('mail', 'Invite by email', 'Staff', '/me/invite') : null,
+      me.staff ? row('finger', 'Staff passkey', 'Set up the passkey for the staff panel', '/me/staff-passkey') : null),
     h('div', { class: 'pad mb' }, btn('Log out', { block: true, kind: 'w', icon: 'logout', on: async () => { try { await post('/accounts/logout'); } catch { /* signed out anyway */ } state.me = null; window.dispatchEvent(new Event('cm:auth')); nav('/', { replace: true }); } })));
   return { node, title: 'Settings', tab: 'me' };
+}
+
+/* ---------- staff passkey setup code (staff) ---------- */
+
+// The staff panel lives on its own address behind a gate, and opens with its own passkey (decision 0009).
+// This makes the one-time code that ties that passkey to this account. The code is shown once.
+export function staffKey() {
+  const me = state.me;
+  const back = '/me/settings';
+  if (!me || !me.staff) return { node: h('div', null, appBar({ title: 'Staff passkey', back }), errorBox({ status: me ? 403 : 401 })), title: 'Staff passkey', tab: 'me' };
+  const out = h('div', { aria: { live: 'polite' } });
+  const go = btn('Make a setup code', { block: true, icon: 'finger' });
+  go.addEventListener('click', async () => {
+    go.disabled = true; out.replaceChildren();
+    try {
+      const r = await post('/me/staff-code');
+      const until = new Date(Date.now() + r.expires_minutes * 60_000);
+      out.replaceChildren(h('div', { class: 'mt' },
+        h('p', { class: 'code-big', aria: { label: 'Setup code ' + r.code.split('').join(' ') } }, r.code.slice(0, 4) + ' ' + r.code.slice(4)),
+        h('p', { class: 'hint' }, icon('clock', 'sm'), 'Works once, until ' + until.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Making a new code cancels this one.')));
+      go.lastChild.textContent = 'Make a new code';
+    } catch (x) {
+      out.replaceChildren(h('p', { class: 'err', role: 'alert' }, x.status === 404 ? 'Community has no staff panel set up yet.' : x.message));
+    } finally { go.disabled = false; }
+  });
+  const node = h('div', { class: 'cream-page' }, appBar({ title: 'Staff passkey', back }),
+    h('div', { class: 'pad' },
+      h('p', { class: 'sub' }, 'The staff panel is on a separate address that you were given. It opens with a staff passkey, not the passkey you use here.'),
+      h('ol', { class: 'steps' },
+        h('li', null, 'Open the staff address and pass the gate with the email on your staff record.'),
+        h('li', null, 'Choose "Set up this device with a code" and type the code below.'),
+        h('li', null, 'Make the passkey on that device. From then on it opens the panel.')),
+      h('div', { class: 'mt' }, go), out,
+      h('p', { class: 'hint mt' }, icon('lock', 'sm'), 'Making a code is written in the staff audit log.')));
+  return { node, title: 'Staff passkey', tab: 'me' };
 }
 
 /* ---------- invite (staff) ---------- */
