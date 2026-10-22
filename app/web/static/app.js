@@ -3,7 +3,7 @@
 import { h, icon } from './lib/dom.js';
 import { get } from './lib/api.js';
 import { compile, match, ROUTES } from './lib/router.js';
-import { asOf, timeAgo } from './lib/format.js';
+import { asOf, profilePath, timeAgo } from './lib/format.js';
 import { brandName, loadBrand } from './lib/brand.js';
 import { setNavigator, state } from './core.js';
 import { ensureIdentity } from './lib/keystore.js';
@@ -13,13 +13,13 @@ import { activity, compose, explore, following, picks, places, postDetail, trade
 import { channel, spacePage, spacesList } from './screens/spaces.js';
 import { dm, inbox } from './screens/messages.js';
 import { applicants, apply, gigCard, gigPage, newGig, rate, work } from './screens/work.js';
-import { invite, meRedirect, profile, proof, settings, socials } from './screens/me.js';
+import { invite, meRedirect, oldProfile, profile, proof, settings, socials } from './screens/me.js';
 import { actions, data, mod, records, report, transparency } from './screens/safety.js';
 
 const SCREENS = {
   home: following, places, placesAt: places, trade, picks, join, login, post: postDetail, compose, explore, activity,
   spaces: spacesList, space: spacePage, channel, inbox, dm, work, gigNew: newGig, gig: gigPage, apply, applicants, rate,
-  profile, me: meRedirect, settings, invite, data, proof, records, actions, socials, report, transparency, mod,
+  profile, oldProfile, me: meRedirect, settings, invite, data, proof, records, actions, socials, report, transparency, mod,
 };
 const GROUP = {
   home: 'home', places: 'places', placesAt: 'places', trade: 'home', picks: 'home', post: 'home', compose: 'home', explore: 'explore', activity: 'activity',
@@ -69,7 +69,7 @@ function render(moved) {
     console.error(e);
     out = { node: errorBox(e), title: 'Error' };
   }
-  // A screen that redirects (e.g. /me -> /u/<handle>) has already rendered the new page: keep it.
+  // A screen that redirects (e.g. /me -> /<username>) has already rendered the new page: keep it.
   if (id !== renders) return;
   if (out instanceof Node) out = { node: out };
   current = { name: m ? m.name : null, group: (m && GROUP[m.name]) || null, tab: out.tab };
@@ -88,7 +88,7 @@ function render(moved) {
 
 function markCurrent() {
   const g = current && current.group;
-  const mineProfile = current && current.name === 'profile' && state.me && location.pathname === '/u/' + encodeURIComponent(state.me.handle);
+  const mineProfile = current && current.name === 'profile' && state.me && location.pathname === profilePath(state.me.handle);
   const group = mineProfile ? 'me' : g;
   wnav.querySelectorAll('a.nv').forEach((a) => { if (a.dataset.g === group) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const tab = (current && current.tab) || TAB_OF[group] || group;
@@ -108,7 +108,7 @@ function buildNav() {
     ...items.filter(([k]) => me || ['home', 'places', 'explore', 'spaces'].includes(k)).map(([k, label, href, ic]) => h('a', { class: 'nv', href, data: { g: k }, title: label }, icon(ic, 'lg'), h('span', { class: 'nl' }, label),
       (k === 'inbox' && badges.inbox) || (k === 'activity' && badges.activity) ? h('span', { class: 'badge' }, String(k === 'inbox' ? badges.inbox : badges.activity)) : null)),
     me ? btn(h('span', { class: 'nl' }, 'Post'), { href: '/compose', cls: 'postbtn', icon: 'pen', aria: { label: 'New post' } }) : btn(h('span', { class: 'nl' }, 'Log in'), { href: '/login', cls: 'postbtn', icon: 'finger', aria: { label: 'Log in' } }),
-    me ? h('a', { class: 'who', href: '/u/' + encodeURIComponent(me.handle), title: '@' + me.handle }, avatar(me), h('div', { class: 'nl' }, h('div', { class: 'nm' }, me.first_name), h('div', { class: 'mute' }, '@' + me.handle))) : null,
+    me ? h('a', { class: 'who', href: profilePath(me.handle), title: '@' + me.handle }, avatar(me), h('div', { class: 'nl' }, h('div', { class: 'nm' }, me.first_name), h('div', { class: 'mute' }, '@' + me.handle))) : null,
   ].filter(Boolean));
   const tabs = [['home', 'Home', '/', 'home'], ['spaces', 'Spaces', '/spaces', 'hash'], ['work', 'Work', '/work', 'work'], ['inbox', 'Inbox', '/inbox', 'inbox'], ['me', 'Me', me ? '/me' : '/login', 'user']];
   tabbar.replaceChildren(...tabs.map(([k, label, href, ic]) => h('a', { href, data: { g: k }, aria: { label: label + (k === 'inbox' && badges.inbox ? ', ' + badges.inbox + ' unread' : '') } },

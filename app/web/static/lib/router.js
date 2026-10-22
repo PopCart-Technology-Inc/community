@@ -38,7 +38,10 @@ export function build(pattern, params = {}) {
   });
 }
 
-/** Every screen of the web app. Order matters only where patterns could overlap. */
+/**
+ * Every screen of the web app, matched in order. A profile is /<username> (decision 0009), so it comes
+ * last: the first part of every other path is a reserved name nobody can take.
+ */
 export const ROUTES = [
   ['home', '/'],
   ['places', '/places'],
@@ -62,7 +65,7 @@ export const ROUTES = [
   ['apply', '/gigs/:id/apply'],
   ['applicants', '/gigs/:id/applicants'],
   ['rate', '/gigs/:id/rate'],
-  ['profile', '/u/:handle'],
+  ['oldProfile', '/u/:handle'],
   ['me', '/me'],
   ['settings', '/me/settings'],
   ['invite', '/me/invite'],
@@ -74,4 +77,5 @@ export const ROUTES = [
   ['report', '/report'],
   ['transparency', '/transparency'],
   ['mod', '/mod'],
+  ['profile', '/:handle'],
 ];

@@ -11,7 +11,7 @@ export function register(r: Router): void {
          (SELECT count(*)::int FROM follows f WHERE f.followee_id = u.id) AS followers,
          (SELECT count(*)::int FROM follows f WHERE f.follower_id = u.id) AS following,
          (SELECT count(*)::int FROM salamats s WHERE s.receiver_id = u.id) AS salamats
-       FROM users u LEFT JOIN areas a ON a.code = u.home_area WHERE u.handle = $1 AND u.status = 'active'`, [ctx.params.handle]);
+       FROM users u LEFT JOIN areas a ON a.code = u.home_area WHERE u.handle = lower($1) AND u.status = 'active'`, [ctx.params.handle]);
     if (!p) return fail(404, 'not_found', 'No one has that username');
     const credentials = await ctx.db.query(
       `SELECT id, issuer, type, summary, as_of, verified FROM credentials WHERE user_id = $1 AND shown AND verified ORDER BY as_of DESC`, [p.id]);

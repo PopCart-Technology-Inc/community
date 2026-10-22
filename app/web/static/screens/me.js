@@ -2,7 +2,7 @@
 // adding proof (W3C Verifiable Credentials, decision 0001 point 2) and connected socials.
 import { h, icon } from '../lib/dom.js';
 import { del, get, patch, post } from '../lib/api.js';
-import { asOf, count, TRADES, tradeLabel } from '../lib/format.js';
+import { asOf, count, profilePath, TRADES, tradeLabel } from '../lib/format.js';
 import { uploadPhoto } from '../lib/media.js';
 import { illustration } from '../lib/brand.js';
 import { nav, state } from '../core.js';
@@ -13,8 +13,14 @@ const enc = encodeURIComponent;
 
 export function meRedirect() {
   if (!state.me) { nav('/login?next=/me', { replace: true }); return { node: h('div'), title: 'Me' }; }
-  nav('/u/' + enc(state.me.handle), { replace: true });
+  nav(profilePath(state.me.handle), { replace: true });
   return { node: h('div'), title: 'Me' };
+}
+
+/** Profiles moved from /u/<username> to /<username> in 0.7.0; old links still arrive here. */
+export function oldProfile({ params }) {
+  nav(profilePath(String(params.handle).toLowerCase()) + location.search, { replace: true });
+  return { node: h('div'), title: '@' + params.handle };
 }
 
 const dateShort = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
@@ -127,7 +133,7 @@ export function settings() {
   });
   const choice = (key, title, desc) => h('div', { class: 'li' }, h('div', { class: 'grow' }, h('div', { class: 't1' }, title), h('div', { class: 't2' }, desc)),
     toggle(!!me[key], title, async (v) => { const r = await patch('/me', { [key]: v }); Object.assign(state.me, r.user); toast(v ? 'Switched on' : 'Switched off. Raw data deleted.'); }));
-  const node = h('div', { class: 'cream-page' }, appBar({ title: 'Settings', back: '/u/' + enc(me.handle) }),
+  const node = h('div', { class: 'cream-page' }, appBar({ title: 'Settings', back: profilePath(me.handle) }),
     h('h2', { class: 'sect' }, 'Profile'), form,
     h('h2', { class: 'sect' }, 'Help improve Community'),
     h('div', { class: 'group' }, choice('improve_usage', 'Usage and errors', 'Off unless you switch it on. Raw data kept 90 days at most.'), choice('improve_surveys', 'Surveys and tests', 'We may ask you to try new things.')),
