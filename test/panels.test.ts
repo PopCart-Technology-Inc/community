@@ -177,7 +177,7 @@ test('roles: make, edit, delete; only role scopes; the Overseer role is locked',
   const g = await a.staff('GET', '/staff/roles');
   assert.equal(g.body.roles[0].name, 'Overseer');
   assert.equal(g.body.roles[0].locked, true);
-  assert.equal(g.body.groups.length, 3);
+  assert.equal(g.body.groups.length, 4, 'Safety, People, Engineering, Live');
   assert.equal((await a.staff('POST', '/staff/roles', { name: 'lowercase', scopes: [] })).status, 400);
   assert.equal((await a.staff('POST', '/staff/roles', { name: 'Auditor', scopes: ['audit.read'] })).status, 400, 'Overseer-only scopes are never given to a role');
   assert.equal((await a.staff('POST', '/staff/roles', { name: 'Auditor', scopes: ['made.up'] })).status, 400);

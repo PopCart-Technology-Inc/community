@@ -8,6 +8,7 @@ import { register as spaces } from './spaces/routes.ts';
 import { register as work } from './work/routes.ts';
 import { register as safety } from './safety/routes.ts';
 import { register as media } from './media/routes.ts';
+import { register as review } from './review/routes.ts';
 import { registerPublic as staffPublic } from './staff/routes.ts';
 
 export function registerAll(r: Router): void {
@@ -15,5 +16,5 @@ export function registerAll(r: Router): void {
     await ctx.db.query('SELECT 1');
     return { status: 200, body: { ok: true } };
   });
-  for (const reg of [accounts, people, places, posts, spaces, work, safety, media, staffPublic]) reg(r);
+  for (const reg of [accounts, people, places, posts, spaces, work, safety, media, review, staffPublic]) reg(r);
 }

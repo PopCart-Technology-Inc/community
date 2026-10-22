@@ -1,12 +1,13 @@
 // The Admin panel (decision 0009): the tools invited staff use, each shown only for its scope. Reports
 // and appeals (reports.review), people (people.lookup, accounts.suspend), member invites (invites.send),
-// health (ops.health) and staging switches (switches.staging).
+// health (ops.health), staging switches (switches.staging) and the live review (review.host).
 import { h, icon } from '/static/lib/dom.js';
 import { asOf, count, fullTime, timeAgo } from '/static/lib/format.js';
 import { btn, buttonTabs, empty, fail, field, later, loading, toast } from '/static/ui.js';
 import { enc, has, sget, spost } from './core.js';
 import { confirmBox, dropdown } from './kit.js';
 import { head, switches } from './overseer.js';
+import { liveReview } from './review.js';
 
 const REASON = { scam: 'Scam or fake gig', harassment: 'Harassment or hate', private_info: 'Private info', violence: 'Violence or threats', child_safety: 'Child safety', other: 'Something else' };
 const DECISIONS = [['keep', 'Keep', 'w', 'k'], ['warn', 'Warn', 'y', 'w'], ['remove', 'Remove', 'e', 'r'], ['escalate', 'Escalate', 'w', 'e']];
@@ -192,4 +193,5 @@ export const ADMIN_NAV = [
   ['/admin/invite', 'Invite a member', 'mail', 'invites.send', invite],
   ['/admin/switches', 'Feature switches', 'sliders', 'switches.staging', switches],
   ['/admin/health', 'Health', 'gear', 'ops.health', health],
+  ['/admin/review', 'Live review', 'star', 'review.host', liveReview],
 ];

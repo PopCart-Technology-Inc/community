@@ -37,7 +37,7 @@ const PART = ['admin', 'administrator', 'overseer', 'staff', 'mod', 'mods', 'mod
 const ANYWHERE = ['popcart', 'overseer', 'moderator', 'administrator'];
 /** The first part of every screen path in app/web/static/lib/router.js (a test checks they match). */
 const SCREENS = ['places', 'trade', 'picks', 'join', 'login', 'logout', 'p', 'compose', 'explore', 'activity', 'spaces', 's', 'inbox',
-  'work', 'gigs', 'u', 'me', 'report', 'transparency', 'search', 'settings', 'notifications', 'messages', 'home', 'about', 'terms', 'rules'];
+  'work', 'gigs', 'u', 'me', 'report', 'transparency', 'search', 'settings', 'notifications', 'messages', 'home', 'about', 'terms', 'rules', 'review'];
 /** Paths the server answers itself, and well-known files. */
 const FILES = ['api', 'static', 'brand', 'media', 'sw.js', 'manifest.webmanifest', 'robots.txt', 'favicon.ico', 'sitemap.xml',
   'security.txt', 'humans.txt', 'ads.txt', 'app-ads.txt', 'apple-app-site-association', 'assetlinks.json', 'index.html', 'health', 'status', 'www', 'mail', 'email'];

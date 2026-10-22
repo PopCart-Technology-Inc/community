@@ -159,3 +159,12 @@ dialog.pal::before { display: none; }
 .pal-in:focus { outline: 3px solid var(--blue); outline-offset: 2px; }
 .pal-l { position: static; box-shadow: none; border: 0; margin-top: 8px; padding: 0; width: auto; max-width: none; }
 @media (min-width: 700px) { dialog.pal { inset: 12vh 0 auto 0; } }
+
+/* The live review scene (/admin/review/scene, its own window): only the scene, no panel around it */
+.streaming .st-side, .streaming .st-bar { display: none; }
+.streaming .st-shell { display: block; }
+.st-main .rh { min-height: calc(100vh - 140px); border-radius: 18px; }
+.streaming .st-main { max-width: none; padding: 0; }
+.streaming .st-main .rh { min-height: 100vh; border-radius: 0; }
+/* the whole scene fits the captured window: the wheel gives way to the header, Spin and the line under it */
+.rh.scene .rw { width: auto; max-width: min(100%, 560px); max-height: calc(100vh - 230px); }

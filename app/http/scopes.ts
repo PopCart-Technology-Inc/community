@@ -20,6 +20,9 @@ export const SCOPE_GROUPS = [
     ['switches.staging', 'Staging switches', 'Turn feature switches on or off in staging', 'Med'],
     ['apps.manage', 'API apps', 'API apps and webhooks', 'Med'],
   ]],
+  ['Live', [
+    ['review.host', 'Run the live review', 'Open and close entries, check entries, spin the wheel, remove entries; find entries by name, handle or site in any round of the last 90 days', 'Med'],
+  ]],
 ] as const;
 
 /** Scopes only the Overseer role holds. They are never offered when editing a role. */

@@ -77,5 +77,6 @@ export const ROUTES = [
   ['report', '/report'],
   ['transparency', '/transparency'],
   ['mod', '/mod'],
+  ['review', '/review'],
   ['profile', '/:handle'],
 ];

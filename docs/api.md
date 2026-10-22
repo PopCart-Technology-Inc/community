@@ -209,6 +209,26 @@ Served only on `STAFF_ORIGIN`, and only for requests the gate (Cloudflare Access
 
 Before 0.10.0 some of these lived on the public host. Now a role's scopes work only with a staff session on the staff host: the public host's session carries none. **Read-only mode** (`read_only` on) answers public writes with 503 `read_only`, except signing in and out, reports, appeals, deleting your account and staff setup codes.
 
+## Live site review ✅ (`review/`)
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/review` | anyone | `{ round: { code, accepting } \| null, entered, consent_version, keep_days, as_of }`. Sets (here or on the first POST) the essential `rv` cookie (a random device code, HttpOnly, `Path=/api/review`, 120 days) when the browser has none. `entered`: this browser already has an entry in the current round. |
+| POST | `/review/entries` | anyone: `{ url, name, handle?, signature, consents: { shown, recorded, owner, clean, draw, data }, consent_version }` | 201 `{ entry: { url, name, handle, round, consented_at } }`, status `pending` until staff check it. Every consent must be `true` (400) and `consent_version` current (409 `consent_changed`). `signature`: 2-80 characters with at least one letter, no control characters. `url`: a public http(s) site, no IP address, local name or user name and password in it. 409 `closed` when entries are closed, 409 `already_entered` for a second entry from the same device in a round, 429 `too_many_here` after 5 entries from one internet address in a round, 503 `not_set_up` without `EMAIL_HASH_KEY`. Rate limited per address. |
+| GET | `/staff/review/host` (staff host) | `review.host` | `{ round, entries: [{ id, url, name, handle, status: pending\|waiting\|picked\|reviewed\|skipped, created_at, picked_at, done_at }], counts: { in, left, to_check }, as_of }`. Never signatures or hashes. |
+| POST | `/staff/review/rounds` (staff host) | `review.host` | 201, the host view of a new round (`live-YYYYMMDDHHmm`, Manila time, `-2`… for a second in the same minute), closed. Clears the device and address hashes of every earlier round, and closes a site still up from an earlier round as `skipped`. |
+| PATCH | `/staff/review/rounds/current` (staff host) | `review.host`: `{ accepting }` | the host view |
+| POST | `/staff/review/spin` (staff host) | `review.host` | `{ pool: [{ id, name }], picked, …host view }`: the server draws one `waiting` entry (`crypto.randomInt`); `pool` is the wheel it was drawn from. 409 while an entry is still picked (also held by a unique index), when none are waiting (`empty`), when a new round started meanwhile (`new_round`), or when the entries changed during the draw (`changed`). |
+| PATCH | `/staff/review/entries/:id` (staff host) | `review.host`: `{ status: waiting\|reviewed\|skipped }` | the host view. `waiting` lets a checked entry into the draw, or puts one back. Entries of the current round only; `reviewed` and `skipped` only from `waiting` or `picked` (404 otherwise, also for an entry already reviewed or skipped). |
+| POST | `/staff/review/entries/search` (staff host) | `review.host`: `{ q }` (2-100 characters; in the body, so names stay out of URLs and logs) | `{ entries: [{ …entry, round }], as_of }`: up to 20 entries from any round whose name, handle or site contains `q`, newest first. For withdrawals after their round. Each search is logged (the count found, never the words searched) and counts against the write rate limit. |
+| DELETE | `/staff/review/entries/:id` (staff host) | `review.host` | 204. For rule breaks and withdrawals; any round. |
+
+The host endpoints are on the staff host only (see Staff host), need the `review.host` scope, and each change is written to the staff audit log (kind `review`) by entry id and round code only, never names or sites. Polling `GET /staff/review/host` does not count as activity, so the idle lock still comes.
+
+The panel has two views of a round: the controls (`/admin/review`), which never go on the live, and the stream scene (`/admin/review/scene`), opened from the controls in its own window for the stream software to capture. The scene never builds the To check list, the search or the round controls; it keeps Spin, Copy link, Reviewed and Skip, and lands its wheel on a pick made from the controls too.
+
+The device code and the address are stored only as HMAC(`EMAIL_HASH_KEY`, round + value), and both are cleared when the next round starts. The server deletes entries older than 90 days every hour (`sweepReviews`, from `app/main.ts`), and the endpoints sweep too, at most every 10 minutes.
+
 ## Media ✅ (`media/`)
 
 | Method | Path | Body | Returns |

@@ -8,23 +8,34 @@ import { h, icon } from '/static/lib/dom.js';
 import { get, post } from '/static/lib/api.js';
 import { creationOptionsFromJSON, credentialToJSON, requestOptionsFromJSON } from '/static/lib/webauthn.js';
 import { btn, empty, field, loading, toast } from '/static/ui.js';
+import { loadBrand } from '/static/lib/brand.js';
 import { has, S, setHandlers, sget } from './core.js';
 import { drawer } from './kit.js';
 import { ADMIN_NAV, person } from './admin.js';
 import { OVERSEER_NAV } from './overseer.js';
+import { liveReview, SCENE_PATH } from './review.js';
 
 const root = () => document.getElementById('app');
 const NO_PASSKEY = 'This browser cannot use passkeys. Try an up-to-date Chrome, Safari, Edge or Firefox.';
 const T = { tick: null, sync: null };
+// the brand pack (fonts, Pop Mark), when the server has one: started now, waited for before the first screen
+const brand = Promise.race([loadBrand(), new Promise((ok) => setTimeout(ok, 2000))]);
 
 function mount(node) {
   root().replaceChildren(node, h('div', { id: 'toast', role: 'status', aria: { live: 'polite' } }));
 }
 
-async function boot() {
+let booting = null;
+function boot() {
+  if (!booting) booting = start().finally(() => { booting = null; });
+  return booting;
+}
+
+async function start() {
   root().replaceChildren(loading('Checking the gate'));
   try {
     S.session = await get('/staff/session');
+    await brand;
   } catch (e) {
     mount(h('main', { class: 'st' }, empty('Could not reach the staff panel', (e && e.message) || '', btn('Try again', { kind: 'w', on: boot }))));
     return;
@@ -58,7 +69,24 @@ function paintClock() {
     el.classList.toggle('soon', left < 120_000);
     el.setAttribute('aria-label', `Locks in ${m} minutes ${s} seconds unless you use the panel. Press to lock now.`);
   }
-  if (left === 0) lock('idle');
+  if (left === 0) idleCheck();
+}
+
+// One staff session can be open in several windows (the live review's controls and its scene): the
+// server's clock counts activity in all of them, so ask it before locking on this window's own clock.
+let checking = false;
+async function idleCheck() {
+  if (checking) return;
+  checking = true;
+  try {
+    const s = await get('/staff/session');
+    if (!s.user) { stopClock(); toast('The staff session ended', true); S.session = s; signIn(); return; }
+    const ends = new Date(s.user.idle_ends_at).getTime();
+    if (ends > Date.now() + 1000) { S.idleEnds = ends; return; }
+    lock('idle');
+  } catch {
+    lock('idle'); // offline: the local clock still locks
+  } finally { checking = false; }
 }
 
 async function lock(why) {
@@ -154,6 +182,8 @@ function route(path) {
   if (exact) return has(exact[3]) ? { screen: exact[4], path } : null;
   const m = /^\/admin\/people\/([a-z0-9._]{1,30})$/.exec(path);
   if (m && has('people.lookup')) return { screen: () => person({ handle: m[1] }), path: '/admin/people' };
+  // the live review's stream scene: its own window, captured by the stream software
+  if (path === SCENE_PATH && has('review.host')) return { screen: () => liveReview({ scene: true }), path: '/admin/review' };
   return null;
 }
 
@@ -195,6 +225,12 @@ function paintNav(current) {
 
 function render(path, replace) {
   let r = route(path);
+  // the scene window is captured for the stream: without the scope it stays empty, never another panel
+  if (!r && path === SCENE_PATH) {
+    mainEl.replaceChildren(empty('The stream scene needs the live review', 'Sign in with a role that can run the live review (scope review.host).'));
+    paintNav('');
+    return;
+  }
   if (!r) {
     const to = landing();
     if (!to) { mainEl.replaceChildren(empty('Nothing here for your role', 'Your role has no panel tools yet. An Overseer can add scopes to it.')); paintNav(''); return; }
@@ -211,6 +247,9 @@ function render(path, replace) {
 }
 
 function navigate(path, opts = {}) { render(path, !!opts.replace); }
+
+/** This window shows the live review scene (captured for the stream): it never goes to another screen. */
+const onAir = () => !!document.querySelector('.rh.scene');
 
 function openMenu() {
   drawer('Staff panel', (close) => {
@@ -258,11 +297,12 @@ document.addEventListener('click', (e) => {
   const url = new URL(a.href, location.href);
   if (url.origin !== location.origin || url.pathname.startsWith('/api/') || !mainEl || !mainEl.isConnected) return;
   e.preventDefault();
+  if (onAir()) return;
   navigate(url.pathname);
 });
-window.addEventListener('popstate', () => { if (mainEl && mainEl.isConnected) render(location.pathname, true); });
+window.addEventListener('popstate', () => { if (mainEl && mainEl.isConnected && !onAir()) render(location.pathname, true); });
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && mainEl && mainEl.isConnected) { e.preventDefault(); palette(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && mainEl && mainEl.isConnected) { e.preventDefault(); if (!onAir()) palette(); }
 });
 
 boot();
